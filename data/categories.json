@@ -1,0 +1,50 @@
+[
+  {
+    "id": "c1",
+    "name": "Trolley Bags",
+    "imageUrl": "https://placehold.co/600x400/0A0A0A/C9A84C?text=Trolley+Bags",
+    "createdAt": "2025-06-01T10:00:00+05:30"
+  },
+  {
+    "id": "c2",
+    "name": "Travel Bags",
+    "imageUrl": "https://placehold.co/600x400/0A0A0A/C9A84C?text=Travel+Bags",
+    "createdAt": "2025-06-01T10:01:00+05:30"
+  },
+  {
+    "id": "c3",
+    "name": "School Bags",
+    "imageUrl": "https://placehold.co/600x400/0A0A0A/C9A84C?text=School+Bags",
+    "createdAt": "2025-06-01T10:02:00+05:30"
+  },
+  {
+    "id": "c4",
+    "name": "Handbags",
+    "imageUrl": "https://placehold.co/600x400/0A0A0A/C9A84C?text=Handbags",
+    "createdAt": "2025-06-01T10:03:00+05:30"
+  },
+  {
+    "id": "c5",
+    "name": "Backpacks",
+    "imageUrl": "https://placehold.co/600x400/0A0A0A/C9A84C?text=Backpacks",
+    "createdAt": "2025-06-01T10:04:00+05:30"
+  },
+  {
+    "id": "c6",
+    "name": "Wallets",
+    "imageUrl": "https://placehold.co/600x400/0A0A0A/C9A84C?text=Wallets",
+    "createdAt": "2025-06-01T10:05:00+05:30"
+  },
+  {
+    "id": "c7",
+    "name": "Laptop Bags",
+    "imageUrl": "https://placehold.co/600x400/0A0A0A/C9A84C?text=Laptop+Bags",
+    "createdAt": "2025-06-01T10:06:00+05:30"
+  },
+  {
+    "id": "c8",
+    "name": "Accessories",
+    "imageUrl": "https://placehold.co/600x400/0A0A0A/C9A84C?text=Accessories",
+    "createdAt": "2025-06-01T10:07:00+05:30"
+  }
+]

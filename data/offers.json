@@ -1,0 +1,29 @@
+[
+  {
+    "id": "o2",
+    "title": "Back to School Bonanza",
+    "description": "Flat 40% OFF on school backpacks from Safari & Genie. Free luggage tags with every school bag purchase above Rs.1500.",
+    "bannerUrl": "https://placehold.co/800x450/0A0A0A/C9A84C?text=BACK+TO+SCHOOL+40%25+OFF",
+    "expiryDate": "2026-07-31",
+    "isActive": true,
+    "createdAt": "2026-05-10T10:00:00+05:30"
+  },
+  {
+    "id": "o3",
+    "title": "Wallet Week Special",
+    "description": "Buy any wallet at flat 40% OFF this week only. Genuine leather wallets from Genie starting at just Rs.499.",
+    "bannerUrl": "https://placehold.co/800x450/0A0A0A/C9A84C?text=WALLET+WEEK+40%25+OFF",
+    "expiryDate": "2026-06-30",
+    "isActive": true,
+    "createdAt": "2026-05-05T10:00:00+05:30"
+  },
+  {
+    "id": "8ce5cc13-5e64-48c6-a3cb-dc7661bf309d",
+    "title": "Monsoon Mega Sale",
+    "description": "Up to 50% OFF on all trolley bags and travel bags. Limited stock available. Visit our store today to grab the best deals on premium luggage from American Tourister, Safari & Genie.",
+    "bannerUrl": "https://placehold.co/800x450/0A0A0A/C9A84C?text=MONSOON+SALE+50%25+OFF",
+    "expiryDate": "2026-08-31",
+    "isActive": true,
+    "createdAt": "2026-05-20T18:00:41+05:30"
+  }
+]

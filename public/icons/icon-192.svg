@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="42" fill="#faf8f4"/>
+  <rect x="44" y="58" width="104" height="84" rx="18" fill="#c9a84c"/>
+  <path d="M70 62c0-18 10-30 26-30s26 12 26 30" fill="none" stroke="#2c1f14" stroke-width="10" stroke-linecap="round"/>
+  <text x="96" y="116" text-anchor="middle" font-family="Georgia,serif" font-size="30" font-weight="700" fill="#2c1f14">SP</text>
+</svg>
