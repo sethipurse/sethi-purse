@@ -1,31 +1,72 @@
-import { Suspense } from 'react';
+import { notFound } from 'next/navigation';
+import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-import ProductsClient from '@/components/ProductsClient';
-import { getCategories, getProducts } from '@/lib/data';
+import ProductDetailClient from '@/components/ProductDetailClient';
+import { getProduct, getProducts, getReviews } from '@/lib/data';
 
-export const metadata = {
-  title: 'All Bags, Luggage & Accessories | SETHI PURSE Jalandhar',
-  description: 'Browse premium luggage, handbags, school bags, backpacks and accessories at SETHI PURSE, Jalandhar.',
-  alternates: { canonical: '/products' },
-};
+const OG_IMAGE = 'https://bbdatviaaiqpfvwumkkd.supabase.co/storage/v1/object/public/products/og-default.jpg';
 
-export default async function ProductsPage() {
-  const [products, categories] = await Promise.all([getProducts(), getCategories()]);
-  const sorted = [...products].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+async function getProductBundle(id) {
+  const [product, products, reviews] = await Promise.all([getProduct(id), getProducts(), getReviews()]);
+  if (!product) return null;
+  const category = product.category || product.category_id;
+  const related = products
+    .filter((p) => p.id !== product.id && (p.category === category || p.category_id === category))
+    .slice(0, 3);
+  const approvedReviews = reviews
+    .filter((r) => !r.product_id || r.product_id === product.id)
+    .slice(0, 6);
+  return { product, related, reviews: approvedReviews };
+}
+
+export async function generateMetadata({ params }) {
+  const bundle = await getProductBundle(params.id);
+  const product = bundle?.product;
+  if (!product) return { title: 'Product Not Found | SETHI PURSE' };
+
+  const price = product.sale_price ?? product.price ?? product.salePrice;
+  // ✅ FIXED: Use product image if available, else fall back to store OG image
+  const image = product.image_url || product.imageUrl || OG_IMAGE;
+
+  return {
+    title: `${product.name} | SETHI PURSE`,
+    description: `${product.name}${product.brand ? ` by ${product.brand}` : ''} at SETHI PURSE, Jalandhar.${price ? ` Price Rs.${price}.` : ' Message us for latest price.'}`,
+    alternates: { canonical: `/product/${product.id}` },
+    openGraph: {
+      title: `${product.name} | SETHI PURSE`,
+      description: `${product.name}${product.brand ? ` by ${product.brand}` : ''} — available at SETHI PURSE Jalandhar.${price ? ` Rs.${price}.` : ''}`,
+      url: `https://sethi-purse.vercel.app/product/${product.id}`,
+      siteName: 'SETHI PURSE',
+      type: 'website',
+      images: [{ url: image, width: 1200, height: 630, alt: product.name }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: `${product.name} | SETHI PURSE`,
+      description: price ? `Available at Rs.${price} — SETHI PURSE Jalandhar` : 'Available at SETHI PURSE Jalandhar',
+      images: [image],
+    },
+  };
+}
+
+export default async function ProductPage({ params }) {
+  const bundle = await getProductBundle(params.id);
+  if (!bundle) notFound();
+  const { product, related, reviews } = bundle;
   return (
     <>
       <Navbar />
-      <main className="section-pad bg-[#faf8f4]">
+      <main className="bg-[#faf8f4] py-8 md:py-12">
         <div className="container-sethi">
-          <div className="text-center mb-10">
-            <h1 className="heading-section text-[#c9a84c]">All Products</h1>
-            <span className="gold-rule mx-auto mt-4" />
-            <p className="mt-3 text-[#8a7060]">Original branded bags, luggage and everyday carry essentials.</p>
-          </div>
-          <Suspense fallback={<div className="text-center text-sethi-gray500 py-10">Loading products...</div>}>
-            <ProductsClient initialProducts={sorted} categories={categories} />
-          </Suspense>
+          <nav className="mb-7 text-lg text-[#8a7060]">
+            <Link href="/" className="hover:text-[#c9a84c]">Home</Link>
+            <span className="mx-2">/</span>
+            <Link href="/products" className="hover:text-[#c9a84c]">Products</Link>
+            <span className="mx-2">/</span>
+            <span className="font-semibold text-[#2c1f14]">{product.name}</span>
+          </nav>
+          <ProductDetailClient product={product} related={related} reviews={reviews} />
         </div>
       </main>
       <Footer />
