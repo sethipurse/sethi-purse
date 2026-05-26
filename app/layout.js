@@ -5,6 +5,7 @@ import BackToTop from '@/components/BackToTop';
 import MobileStickyCTA from '@/components/MobileStickyCTA';
 import PWAInstall from '@/components/PWAInstall';
 
+// ✅ FIXED: Added default OG image so WhatsApp shows store image for all pages
 export const metadata = {
   title: "SETHI PURSE | Punjab's Trusted Premium Luggage Destination",
   description:
@@ -18,8 +19,21 @@ export const metadata = {
     url: 'https://sethi-purse.vercel.app',
     siteName: 'SETHI PURSE',
     type: 'website',
+    images: [
+      {
+        url: 'https://sethi-purse.vercel.app/icons/icon-192.svg',
+        width: 1200,
+        height: 630,
+        alt: 'SETHI PURSE Jalandhar',
+      },
+    ],
   },
-  twitter: { card: 'summary_large_image', title: 'SETHI PURSE', description: 'Premium luggage destination in Jalandhar.' },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'SETHI PURSE',
+    description: 'Premium luggage destination in Jalandhar.',
+    images: ['https://sethi-purse.vercel.app/icons/icon-192.svg'],
+  },
   icons: { icon: '/icons/icon-192.svg', apple: '/icons/icon-192.svg' },
 };
 
