@@ -21,10 +21,40 @@ async function handle(request, { params }) {
     segments[0] === 'inquiries' ||
     segments[0] === 'reviews' ||
     segments[0] === 'push';
+
+  // ===== Uploads — must be handled BEFORE body parsing =====
+  if (segments[0] === 'upload' && method === 'POST') {
+    const authError = requireAdmin(request);
+    if (authError) return authError;
+    try {
+      const form = await request.formData();
+      const file = form.get('file');
+      const bucket = String(form.get('bucket') || 'products').replace(/[^a-z0-9_-]/gi, '').toLowerCase();
+      if (!file || typeof file.arrayBuffer !== 'function') return json({ error: 'Image file is required' }, 400);
+      if (!file.type?.startsWith('image/')) return json({ error: 'Only image uploads are allowed' }, 400);
+      if (file.size > 4 * 1024 * 1024) return json({ error: 'Image must be under 4MB after compression' }, 400);
+      const ext = file.type.includes('webp') ? 'webp' : file.type.includes('png') ? 'png' : 'jpg';
+      const path = `${Date.now()}-${uuidv4()}.${ext}`;
+      const bytes = await file.arrayBuffer();
+      const buffer = new Uint8Array(bytes);
+      const { error } = await supabase.storage.from(bucket).upload(path, buffer, {
+        cacheControl: '31536000',
+        contentType: file.type,
+        upsert: false,
+      });
+      if (error) return json({ error: error.message }, 500);
+      const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+      return json({ url: data.publicUrl, path, bucket }, 201);
+    } catch (error) {
+      return json({ error: error.message || 'Upload failed' }, 500);
+    }
+  }
+
   if (isMutation && !publicMutation) {
     const authError = requireAdmin(request);
     if (authError) return authError;
   }
+
   let body = null;
   if (['POST', 'PUT', 'PATCH'].includes(method)) {
     try { body = await request.json(); } catch (e) { body = null; }
@@ -83,32 +113,6 @@ async function handle(request, { params }) {
     }
   }
 
-  // ===== Uploads =====
-  if (segments[0] === 'upload' && method === 'POST') {
-    const authError = requireAdmin(request);
-    if (authError) return authError;
-    try {
-      const form = await request.formData();
-      const file = form.get('file');
-      const bucket = String(form.get('bucket') || 'products').replace(/[^a-z0-9_-]/gi, '').toLowerCase();
-      if (!file || typeof file.arrayBuffer !== 'function') return json({ error: 'Image file is required' }, 400);
-      if (!file.type?.startsWith('image/')) return json({ error: 'Only image uploads are allowed' }, 400);
-      if (file.size > 4 * 1024 * 1024) return json({ error: 'Image must be under 4MB after compression' }, 400);
-      const ext = file.type.includes('webp') ? 'webp' : file.type.includes('png') ? 'png' : 'jpg';
-      const path = `${Date.now()}-${uuidv4()}.${ext}`;
-      const { error } = await supabase.storage.from(bucket).upload(path, file, {
-        cacheControl: '31536000',
-        contentType: file.type,
-        upsert: false,
-      });
-      if (error) return json({ error: error.message }, 500);
-      const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-      return json({ url: data.publicUrl, path, bucket }, 201);
-    } catch (error) {
-      return json({ error: error.message || 'Upload failed' }, 500);
-    }
-  }
-
   // ===== Products =====
   if (segments[0] === 'products') {
     if (segments.length === 1) {
@@ -129,11 +133,10 @@ async function handle(request, { params }) {
           category_id: p.category_id || null,
           mrp: Number(p.mrp ?? p.original_price) || 0,
           original_price: Number(p.original_price ?? p.mrp) || 0,
-          price: Number(saleValue),
           sale_price: Number(saleValue),
           discount_percent: Number(p.discount_percent) || 0,
           description: String(p.description || '').trim(),
-          image_url: String(p.imageUrl || '').trim(),
+          image_url: String(p.imageUrl || p.image_url || '').trim(),
           image_type: p.imageType || 'url',
           gallery_images: Array.isArray(p.gallery_images || p.galleryImages) ? (p.gallery_images || p.galleryImages) : [],
           sizes: Array.isArray(p.sizes) ? p.sizes : [],
@@ -171,7 +174,6 @@ async function handle(request, { params }) {
         if (p.salePrice !== undefined || p.sale_price !== undefined || p.price !== undefined) {
           const value = p.salePrice ?? p.sale_price ?? p.price;
           updates.sale_price = Number(value);
-          updates.price = Number(value);
         }
         if (p.discount_percent !== undefined) updates.discount_percent = Number(p.discount_percent);
         if (p.description !== undefined) updates.description = String(p.description).trim();
