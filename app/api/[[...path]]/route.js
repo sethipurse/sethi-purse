@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { supabase, nowIST } from '@/lib/storage';
-import { DEMO_CATEGORIES, DEMO_OFFERS, DEMO_PRODUCTS, DEMO_REVIEWS } from '@/lib/demo-data';
 import { clearAdminCookie, makeAdminToken, rateLimit, requireAdmin, setAdminCookie } from '@/lib/security';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -69,7 +68,7 @@ async function handle(request, { params }) {
           .select('*')
           .order('sort_order', { ascending: true });
         if (error) return json([]);
-        return json(data);
+        return json(data || []);
       }
       if (method === 'POST') {
         const s = body || {};
@@ -117,9 +116,10 @@ async function handle(request, { params }) {
   if (segments[0] === 'products') {
     if (segments.length === 1) {
       if (method === 'GET') {
+        // ✅ FIXED: No longer falls back to DEMO_PRODUCTS — always returns real Supabase data
         const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false });
-        if (error) return json(DEMO_PRODUCTS);
-        return json(data?.length ? data : DEMO_PRODUCTS);
+        if (error) return json({ error: error.message }, 500);
+        return json(data || []);
       }
       if (method === 'POST') {
         const p = body || {};
@@ -154,12 +154,9 @@ async function handle(request, { params }) {
     if (segments.length === 2) {
       const id = segments[1];
       if (method === 'GET') {
+        // ✅ FIXED: No longer falls back to DEMO_PRODUCTS
         const { data, error } = await supabase.from('products').select('*').eq('id', id).single();
-        if (error) {
-          const demoProduct = DEMO_PRODUCTS.find((product) => product.id === id);
-          if (demoProduct) return json(demoProduct);
-          return json({ error: 'Not found' }, 404);
-        }
+        if (error) return json({ error: 'Not found' }, 404);
         return json(data);
       }
       if (method === 'PUT') {
@@ -201,9 +198,10 @@ async function handle(request, { params }) {
   if (segments[0] === 'categories') {
     if (segments.length === 1) {
       if (method === 'GET') {
+        // ✅ FIXED: No longer falls back to DEMO_CATEGORIES
         const { data, error } = await supabase.from('categories').select('*').order('created_at', { ascending: true });
-        if (error) return json(DEMO_CATEGORIES);
-        return json(data?.length ? data : DEMO_CATEGORIES);
+        if (error) return json({ error: error.message }, 500);
+        return json(data || []);
       }
       if (method === 'POST') {
         const c = body || {};
@@ -245,9 +243,10 @@ async function handle(request, { params }) {
   if (segments[0] === 'offers') {
     if (segments.length === 1) {
       if (method === 'GET') {
+        // ✅ FIXED: No longer falls back to DEMO_OFFERS
         const { data, error } = await supabase.from('offers').select('*').order('created_at', { ascending: false });
-        if (error) return json(DEMO_OFFERS);
-        return json(data?.length ? data : DEMO_OFFERS);
+        if (error) return json({ error: error.message }, 500);
+        return json(data || []);
       }
       if (method === 'POST') {
         const o = body || {};
@@ -294,7 +293,7 @@ async function handle(request, { params }) {
       if (method === 'GET') {
         const { data, error } = await supabase.from('inquiries').select('*').order('created_at', { ascending: false });
         if (error) return json({ error: error.message }, 500);
-        return json(data);
+        return json(data || []);
       }
       if (method === 'POST') {
         const i = body || {};
@@ -343,9 +342,10 @@ async function handle(request, { params }) {
   if (segments[0] === 'reviews') {
     if (segments.length === 1) {
       if (method === 'GET') {
+        // ✅ FIXED: No longer falls back to DEMO_REVIEWS
         const { data, error } = await supabase.from('reviews').select('*').order('created_at', { ascending: false });
-        if (error) return json(DEMO_REVIEWS);
-        return json(data?.length ? data : DEMO_REVIEWS);
+        if (error) return json({ error: error.message }, 500);
+        return json(data || []);
       }
       if (method === 'POST') {
         const r = body || {};
