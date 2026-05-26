@@ -4,30 +4,24 @@ import OfferCard from '@/components/OfferCard';
 import SectionHeading from '@/components/SectionHeading';
 import { getOffers } from '@/lib/data';
 
-// ✅ FIXED: Added OG image so WhatsApp shows store image when sharing offers
+const OG_IMAGE = 'https://bbdatviaaiqpfvwumkkd.supabase.co/storage/v1/object/public/products/og-default.jpg';
+
 export const metadata = {
   title: 'Special Offers | SETHI PURSE',
-  description: 'Explore trolley bags, school bags, handbags, backpacks, wallets and more at SETHI PURSE Jalandhar.',
+  description: 'Limited-time deals on premium bags, luggage and accessories at SETHI PURSE Jalandhar.',
   openGraph: {
     title: 'Special Offers | SETHI PURSE Jalandhar',
     description: 'Limited-time deals on premium bags, luggage and accessories. Shop now at SETHI PURSE Jalandhar.',
     url: 'https://sethi-purse.vercel.app/offers',
     siteName: 'SETHI PURSE',
     type: 'website',
-    images: [
-      {
-        url: 'https://sethi-purse.vercel.app/icons/icon-192.svg',
-        width: 1200,
-        height: 630,
-        alt: 'SETHI PURSE Special Offers',
-      },
-    ],
+    images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: 'SETHI PURSE Special Offers' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Special Offers | SETHI PURSE',
     description: 'Limited-time deals on premium bags and luggage.',
-    images: ['https://sethi-purse.vercel.app/icons/icon-192.svg'],
+    images: [OG_IMAGE],
   },
 };
 
