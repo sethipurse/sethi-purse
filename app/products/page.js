@@ -1,72 +1,126 @@
-import { notFound } from 'next/navigation';
-import Link from 'next/link';
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Search, Sparkles, X } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-import ProductDetailClient from '@/components/ProductDetailClient';
-import { getProduct, getProducts, getReviews } from '@/lib/data';
+import ProductCard from '@/components/ProductCard';
 
-const OG_IMAGE = 'https://bbdatviaaiqpfvwumkkd.supabase.co/storage/v1/object/public/products/og-default.jpg';
-
-async function getProductBundle(id) {
-  const [product, products, reviews] = await Promise.all([getProduct(id), getProducts(), getReviews()]);
-  if (!product) return null;
-  const category = product.category || product.category_id;
-  const related = products
-    .filter((p) => p.id !== product.id && (p.category === category || p.category_id === category))
-    .slice(0, 3);
-  const approvedReviews = reviews
-    .filter((r) => !r.product_id || r.product_id === product.id)
-    .slice(0, 6);
-  return { product, related, reviews: approvedReviews };
+function SkeletonCard() {
+  return <div className="h-[360px] animate-pulse rounded bg-white shadow-sm ring-1 ring-[#ede8df]" />;
 }
 
-export async function generateMetadata({ params }) {
-  const bundle = await getProductBundle(params.id);
-  const product = bundle?.product;
-  if (!product) return { title: 'Product Not Found | SETHI PURSE' };
+export default function ProductsPage() {
+  const searchParams = useSearchParams();
+  const [categories, setCategories] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState('');
+  const [activeCategory, setActiveCategory] = useState('All');
 
-  const price = product.sale_price ?? product.price ?? product.salePrice;
-  // ✅ FIXED: Use product image if available, else fall back to store OG image
-  const image = product.image_url || product.imageUrl || OG_IMAGE;
+  // Pick up ?category=XX from URL (when coming from homepage menu)
+  useEffect(() => {
+    const cat = searchParams.get('category');
+    if (cat) setActiveCategory(decodeURIComponent(cat));
+  }, [searchParams]);
 
-  return {
-    title: `${product.name} | SETHI PURSE`,
-    description: `${product.name}${product.brand ? ` by ${product.brand}` : ''} at SETHI PURSE, Jalandhar.${price ? ` Price Rs.${price}.` : ' Message us for latest price.'}`,
-    alternates: { canonical: `/product/${product.id}` },
-    openGraph: {
-      title: `${product.name} | SETHI PURSE`,
-      description: `${product.name}${product.brand ? ` by ${product.brand}` : ''} — available at SETHI PURSE Jalandhar.${price ? ` Rs.${price}.` : ''}`,
-      url: `https://sethi-purse.vercel.app/product/${product.id}`,
-      siteName: 'SETHI PURSE',
-      type: 'website',
-      images: [{ url: image, width: 1200, height: 630, alt: product.name }],
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title: `${product.name} | SETHI PURSE`,
-      description: price ? `Available at Rs.${price} — SETHI PURSE Jalandhar` : 'Available at SETHI PURSE Jalandhar',
-      images: [image],
-    },
-  };
-}
+  useEffect(() => {
+    let live = true;
+    async function load() {
+      setLoading(true);
+      const [cats, prods] = await Promise.all([
+        fetch('/api/categories', { cache: 'no-store' }).then((r) => r.json()).catch(() => []),
+        fetch('/api/products', { cache: 'no-store' }).then((r) => r.json()).catch(() => []),
+      ]);
+      if (!live) return;
+      setCategories(Array.isArray(cats) ? cats : []);
+      setProducts(Array.isArray(prods) ? prods.filter((p) => p.is_active !== false) : []);
+      setLoading(false);
+    }
+    load();
+    return () => { live = false; };
+  }, []);
 
-export default async function ProductPage({ params }) {
-  const bundle = await getProductBundle(params.id);
-  if (!bundle) notFound();
-  const { product, related, reviews } = bundle;
+  const filteredProducts = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return products.filter((product) => {
+      const productCategory = product.category || product.category_id || '';
+      const categoryMatch = activeCategory === 'All' || productCategory === activeCategory;
+      const text = `${product.name || ''} ${product.brand || ''} ${product.description || ''} ${productCategory}`.toLowerCase();
+      return categoryMatch && (!q || text.includes(q));
+    });
+  }, [activeCategory, products, query]);
+
   return (
     <>
       <Navbar />
-      <main className="bg-[#faf8f4] py-8 md:py-12">
-        <div className="container-sethi">
-          <nav className="mb-7 text-lg text-[#8a7060]">
-            <Link href="/" className="hover:text-[#c9a84c]">Home</Link>
-            <span className="mx-2">/</span>
-            <Link href="/products" className="hover:text-[#c9a84c]">Products</Link>
-            <span className="mx-2">/</span>
-            <span className="font-semibold text-[#2c1f14]">{product.name}</span>
-          </nav>
-          <ProductDetailClient product={product} related={related} reviews={reviews} />
+      <main className="bg-[#faf8f4] min-h-screen">
+        <div className="mx-auto w-full max-w-6xl px-4 py-10">
+
+          <h1 className="text-4xl font-bold text-[#c9a84c] mb-6">Our Collection</h1>
+
+          {/* Search */}
+          <div className="relative mb-4">
+            <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#8a7060]" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search bags, luggage, brands..."
+              className="h-14 w-full rounded border border-[#ede8df] bg-white pl-12 pr-4 text-lg text-[#2c1f14] shadow-sm outline-none transition focus:border-[#c9a84c] focus:ring-2 focus:ring-[#e8d5a3]"
+            />
+            {query.length > 0 && (
+              <button type="button" onClick={() => setQuery('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#8a7060] hover:text-[#2c1f14]">
+                <X className="h-5 w-5" />
+              </button>
+            )}
+          </div>
+          {query.length > 0 && (
+            <p className="mb-4 text-base text-[#8a7060]">
+              {filteredProducts.length === 0 ? 'No products found' : `${filteredProducts.length} product${filteredProducts.length > 1 ? 's' : ''} found`}
+            </p>
+          )}
+
+          {/* Category filters */}
+          <div className="flex gap-3 overflow-x-auto pb-4 mb-6">
+            {['All', ...categories.map((c) => c.name)].map((name) => (
+              <button
+                key={name}
+                type="button"
+                onClick={() => setActiveCategory(name)}
+                className={`shrink-0 rounded-full border px-5 py-2 text-base font-semibold transition ${activeCategory === name ? 'border-[#c9a84c] bg-[#c9a84c] text-white' : 'border-[#ede8df] bg-white text-[#6b5544] hover:border-[#c9a84c]'}`}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+
+          {/* Products grid */}
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {loading ? (
+              Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)
+            ) : filteredProducts.length === 0 ? (
+              <div className="col-span-full rounded bg-white p-10 text-center ring-1 ring-[#ede8df]">
+                <Sparkles className="mx-auto h-10 w-10 text-[#c9a84c]" />
+                <h3 className="mt-3 text-2xl font-bold text-[#2c1f14]">No products found</h3>
+                <p className="mt-1 text-[#8a7060]">Try another search or category.</p>
+                {(query || activeCategory !== 'All') && (
+                  <button
+                    type="button"
+                    onClick={() => { setQuery(''); setActiveCategory('All'); }}
+                    className="mt-4 rounded bg-[#c9a84c] px-6 py-2 text-base font-semibold text-white hover:bg-[#a07a28]"
+                  >
+                    Clear filters
+                  </button>
+                )}
+              </div>
+            ) : (
+              filteredProducts.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))
+            )}
+          </div>
+
         </div>
       </main>
       <Footer />
