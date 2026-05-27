@@ -43,6 +43,7 @@ export default function HomePage() {
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
   const [menuOpen, setMenuOpen] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
   const [cart, setCart] = useState([]);
 
   useEffect(() => {
@@ -99,7 +100,7 @@ export default function HomePage() {
 
   return (
     <main style={{ background: C.bg, color: C.brown }}>
-      <HeroSlider slides={slides} cartCount={cart.length} onMenuClick={() => setMenuOpen(true)} onCartClick={() => setMenuOpen(true)} />
+      <HeroSlider slides={slides} cartCount={cart.length} onMenuClick={() => setMenuOpen(true)} onCartClick={() => setCartOpen(true)} />
 
       <section className="mx-auto grid w-full max-w-6xl gap-3 px-4 py-6 sm:grid-cols-2 lg:grid-cols-4">
         {[
@@ -248,7 +249,61 @@ export default function HomePage() {
               <Link href="/reviews">Reviews</Link>
               <Link href="/contact">Contact</Link>
             </nav>
-            <div className="mt-8 border-t border-[#ede8df] pt-5 text-lg text-[#6b5544]">Cart items: {cart.length}</div>
+          </aside>
+        </div>
+      )}
+
+      {/* Cart Drawer */}
+      {cartOpen && (
+        <div className="fixed inset-0 z-50 bg-[#2c1f14]/35" onClick={() => setCartOpen(false)}>
+          <aside className="absolute right-0 top-0 h-full w-full max-w-[360px] bg-white shadow-xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-[#ede8df] px-5 py-4">
+              <div className="flex items-center gap-2 text-xl font-bold text-[#2c1f14]">
+                <ShoppingBag className="h-5 w-5 text-[#c9a84c]" /> Cart ({cart.length})
+              </div>
+              <button type="button" onClick={() => setCartOpen(false)} aria-label="Close cart"><X className="h-6 w-6" /></button>
+            </div>
+            {cart.length === 0 ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-3 text-[#8a7060]">
+                <ShoppingBag className="h-14 w-14 opacity-30" />
+                <p className="text-lg font-semibold">Your cart is empty</p>
+                <p className="text-sm">Browse products and add items!</p>
+              </div>
+            ) : (
+              <>
+                <div className="flex-1 overflow-y-auto divide-y divide-[#ede8df]">
+                  {cart.map((item, idx) => (
+                    <div key={idx} className="flex items-center gap-3 px-5 py-3">
+                      {item.image ? <img src={item.image} alt={item.name} className="h-14 w-14 rounded object-cover bg-[#f5f0e8]" /> : <div className="h-14 w-14 rounded bg-[#f5f0e8]" />}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-[#2c1f14] truncate text-sm">{item.name}</div>
+                        <div className="text-[#c9a84c] font-bold text-sm">₹{item.price?.toLocaleString('en-IN')}</div>
+                      </div>
+                      <button type="button" onClick={() => { const next = cart.filter((_, i) => i !== idx); setCart(next); window.localStorage.setItem('sethi-cart', JSON.stringify(next)); }} className="text-[#8a7060] hover:text-red-500 p-1">
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="border-t border-[#ede8df] px-5 py-4 space-y-3">
+                  <div className="flex justify-between font-bold text-[#2c1f14] text-lg">
+                    <span>Total</span>
+                    <span>₹{cart.reduce((s, i) => s + (i.price || 0), 0).toLocaleString('en-IN')}</span>
+                  </div>
+                  <a
+                    href={`https://wa.me/917009579554?text=${encodeURIComponent('Hi! I want to order:\n' + cart.map((i, n) => `${n+1}. ${i.name} - ₹${i.price}`).join('\n') + `\n\nTotal: ₹${cart.reduce((s,i)=>s+(i.price||0),0)}`)} `}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex w-full items-center justify-center gap-2 rounded bg-[#25D366] py-3 text-base font-bold text-white hover:bg-[#1ebe5c]"
+                  >
+                    Order via WhatsApp
+                  </a>
+                  <button type="button" onClick={() => { setCart([]); window.localStorage.removeItem('sethi-cart'); }} className="w-full text-sm text-[#8a7060] hover:text-red-500">
+                    Clear cart
+                  </button>
+                </div>
+              </>
+            )}
           </aside>
         </div>
       )}
