@@ -293,7 +293,7 @@ export default function HeroSlider({ slides = [], cartCount = 0, onMenuClick, on
               {slide.category}
             </p>
             <h1
-              className="mt-4 whitespace-pre-line text-[52px] font-bold leading-[0.98] text-black sm:text-[58px]"
+              className="mt-4 whitespace-pre-line text-[32px] font-bold leading-[1.05] text-black sm:text-[38px]"
               style={{ fontFamily: SERIF }}
             >
               {slide.headline}
