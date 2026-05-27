@@ -44,15 +44,30 @@ export default function ProductDetailClient({ product, related = [], reviews = [
   const productUrl = typeof window !== 'undefined' ? window.location.href : '';
   const waMsg = `Hi SETHI PURSE, I am interested in ${product.name}${product.brand ? ` by ${product.brand}` : ''} priced at ${rupee(salePrice)}. Quantity: ${qty}. ${selectedSize ? `Size: ${selectedSize}. ` : ''}${selectedColor ? `Color: ${selectedColor}. ` : ''}Product link: ${productUrl}${activeImage ? ` Image: ${activeImage}` : ''}`;
 
+  // ✅ FIXED: Share URL only — no title/text
+  // When navigator.share sends title+text+url together, WhatsApp treats it as a message
+  // and does NOT generate a link preview.
+  // Sharing URL alone forces WhatsApp to fetch the page and show the OG image preview.
   const onShare = async () => {
     const url = window.location.href;
-    const data = { title: `${product.name} | SETHI PURSE`, text: `${product.name} - ${rupee(salePrice)} at SETHI PURSE`, url };
+
     if (navigator.share) {
-      try { await navigator.share(data); } catch (e) { /* dismissed */ }
+      try {
+        // ✅ Share URL only — this is what makes WhatsApp show the image preview
+        await navigator.share({ url });
+      } catch (e) {
+        // User dismissed — do nothing
+      }
       return;
     }
-    await navigator.clipboard.writeText(url);
-    toast.success('Product link copied');
+
+    // Fallback for desktop: copy URL to clipboard
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success('Product link copied — paste in WhatsApp to share');
+    } catch (e) {
+      toast.error('Could not copy link');
+    }
   };
 
   return (
