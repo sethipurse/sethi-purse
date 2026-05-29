@@ -1,11 +1,13 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Search, Sparkles, X } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
+import { categoryPath } from '@/lib/categoryUtils';
 
 function SkeletonCard() {
   return <div className="h-[360px] animate-pulse rounded bg-white shadow-sm ring-1 ring-[#ede8df]" />;
@@ -79,14 +81,24 @@ function ProductsContent() {
       {/* Category filters */}
       <div className="flex gap-3 overflow-x-auto pb-4 mb-6">
         {['All', ...categories.map((c) => c.name)].map((name) => (
-          <button
-            key={name}
-            type="button"
-            onClick={() => setActiveCategory(name)}
-            className={`shrink-0 rounded-full border px-5 py-2 text-base font-semibold transition ${activeCategory === name ? 'border-[#c9a84c] bg-[#c9a84c] text-white' : 'border-[#ede8df] bg-white text-[#6b5544] hover:border-[#c9a84c]'}`}
-          >
-            {name}
-          </button>
+          name === 'All' ? (
+            <button
+              key={name}
+              type="button"
+              onClick={() => setActiveCategory(name)}
+              className={`shrink-0 rounded-full border px-5 py-2 text-base font-semibold transition ${activeCategory === name ? 'border-[#c9a84c] bg-[#c9a84c] text-white' : 'border-[#ede8df] bg-white text-[#6b5544] hover:border-[#c9a84c]'}`}
+            >
+              {name}
+            </button>
+          ) : (
+            <Link
+              key={name}
+              href={categoryPath(name)}
+              className="shrink-0 rounded-full border border-[#ede8df] bg-white px-5 py-2 text-base font-semibold text-[#6b5544] transition hover:border-[#c9a84c] hover:text-[#a07a28]"
+            >
+              {name}
+            </Link>
+          )
         ))}
       </div>
 

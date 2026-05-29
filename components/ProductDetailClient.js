@@ -6,7 +6,7 @@ import { ArrowLeft, Check, MessageCircle, Minus, Plus, Share2, ShoppingBag, Star
 import { toast } from 'sonner';
 import ProductCard from '@/components/ProductCard';
 import ReviewCard from '@/components/ReviewCard';
-import { buildWhatsAppLink, resolveImage } from '@/lib/constants';
+import { buildBuyNowMessage, buildProductUrl, buildWhatsAppLink, resolveImage } from '@/lib/constants';
 
 function rupee(value) {
   return `Rs.${Number(value || 0).toLocaleString('en-IN')}`;
@@ -41,8 +41,13 @@ export default function ProductDetailClient({ product, related = [], reviews = [
     toast.success('Added to cart');
   };
 
-  const productUrl = typeof window !== 'undefined' ? window.location.href : '';
-  const waMsg = `Hi SETHI PURSE, I am interested in ${product.name}${product.brand ? ` by ${product.brand}` : ''} priced at ${rupee(salePrice)}. Quantity: ${qty}. ${selectedSize ? `Size: ${selectedSize}. ` : ''}${selectedColor ? `Color: ${selectedColor}. ` : ''}Product link: ${productUrl}${activeImage ? ` Image: ${activeImage}` : ''}`;
+  const productUrl = buildProductUrl(product.id);
+  const buyNowMessage = buildBuyNowMessage(product, {
+    quantity: qty,
+    size: selectedSize,
+    color: selectedColor,
+    productUrl,
+  });
 
   // ✅ FIXED: Share URL only — no title/text
   // When navigator.share sends title+text+url together, WhatsApp treats it as a message
@@ -130,7 +135,7 @@ export default function ProductDetailClient({ product, related = [], reviews = [
 
           <div className="mt-7 grid gap-3 sm:grid-cols-2">
             <button type="button" onClick={addToCart} disabled={outOfStock} className="flex h-14 items-center justify-center gap-2 rounded bg-[#c9a84c] text-xl font-bold text-white transition hover:bg-[#a07a28] disabled:opacity-60"><ShoppingBag className="h-5 w-5" /> Add to Cart</button>
-            <a href={buildWhatsAppLink(waMsg)} target="_blank" rel="noopener noreferrer" className="flex h-14 items-center justify-center gap-2 rounded border border-[#c9a84c] text-xl font-bold text-[#a07a28] transition hover:bg-[#f5f0e8]"><MessageCircle className="h-5 w-5" /> WhatsApp</a>
+            <a href={outOfStock ? undefined : buildWhatsAppLink(buyNowMessage)} target="_blank" rel="noopener noreferrer" aria-disabled={outOfStock} onClick={(e) => outOfStock && e.preventDefault()} className={`flex h-14 items-center justify-center gap-2 rounded border border-[#c9a84c] text-xl font-bold text-[#a07a28] transition hover:bg-[#f5f0e8] ${outOfStock ? 'pointer-events-none opacity-60' : ''}`}><MessageCircle className="h-5 w-5" /> Buy Now</a>
           </div>
           <button type="button" onClick={onShare} className="mt-3 flex h-12 items-center gap-2 text-lg font-semibold text-[#6b5544] hover:text-[#c9a84c]"><Share2 className="h-4 w-4" /> Share product</button>
 

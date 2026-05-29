@@ -43,7 +43,7 @@ export default function Navbar() {
 
         <nav className="hidden lg:flex items-center gap-6 xl:gap-8">
           {LINKS.map((l) => {
-            const active = pathname === l.href || (l.href !== '/' && pathname.startsWith(l.href));
+            const active = pathname === l.href || (l.href !== '/' && pathname.startsWith(l.href)) || (l.href === '/categories' && pathname.startsWith('/category'));
             return (
               <Link key={l.href} href={l.href} className={`nav-link ${active ? '!text-sethi-gold' : ''}`}>{l.label}</Link>
             );
@@ -71,7 +71,7 @@ export default function Navbar() {
         </div>
         <div className="px-6 pt-6 pb-10 flex flex-col gap-5 overflow-y-auto h-[calc(100vh-4rem)]">
           {LINKS.map((l) => {
-            const active = pathname === l.href || (l.href !== '/' && pathname.startsWith(l.href));
+            const active = pathname === l.href || (l.href !== '/' && pathname.startsWith(l.href)) || (l.href === '/categories' && pathname.startsWith('/category'));
             return (
               <Link key={l.href} href={l.href} onClick={() => setOpen(false)} className={`font-serif text-[26px] leading-tight ${active ? 'text-sethi-gold' : 'hover:text-sethi-gold'}`}>
                 {l.label}

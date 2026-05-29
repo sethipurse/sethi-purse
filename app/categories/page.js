@@ -2,6 +2,7 @@ import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { getCategories } from '@/lib/data';
+import { categoryPath } from '@/lib/categoryUtils';
 
 export const metadata = {
   title: 'Shop by Category | SETHI PURSE',
@@ -22,7 +23,7 @@ export default async function CategoriesPage() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 md:gap-6">
             {categories.map((c) => (
-              <Link key={c.id} href={`/products?category=${encodeURIComponent(c.name)}`} className="group relative h-[250px] rounded-[4px] overflow-hidden bg-sethi-black">
+              <Link key={c.id} href={categoryPath(c.name)} className="group relative h-[250px] rounded-[4px] overflow-hidden bg-sethi-black">
                 {c.image_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={c.image_url} alt={c.name} className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-80 group-hover:scale-105 transition-all duration-500" />

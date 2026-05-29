@@ -1,10 +1,10 @@
 'use client';
 import Link from 'next/link';
 import { useState } from 'react';
-import { ShoppingBag } from 'lucide-react';
-import { buildWhatsAppLink, resolveImage } from '@/lib/constants';
+import { MessageCircle, ShoppingBag } from 'lucide-react';
+import { buildBuyNowMessage, buildProductUrl, buildWhatsAppLink, resolveImage } from '@/lib/constants';
 
-export default function ProductCard({ product }) {
+export default function ProductCard({ product, onAddToCart }) {
   const [imgErr, setImgErr] = useState(false);
   const salePrice = product.sale_price ?? product.salePrice ?? product.price ?? 0;
   const mrp = product.mrp ?? product.original_price ?? 0;
@@ -16,8 +16,8 @@ export default function ProductCard({ product }) {
   const outOfStock = product.stock === 0;
   const lowStock = typeof product.stock === 'number' && product.stock > 0 && product.stock <= 5;
   const img = resolveImage(normalizedProduct);
-
-  const waMsg = `Hi SETHI PURSE, I am interested in ${product.name} by ${product.brand} priced at Rs.${salePrice}. Product link: ${typeof window !== 'undefined' ? `${window.location.origin}/product/${product.id}` : `/product/${product.id}`}${img ? ` Image: ${img}` : ''}. Please confirm availability.`;
+  const productUrl = buildProductUrl(product.id);
+  const buyNowMessage = buildBuyNowMessage(product, { quantity: 1, productUrl });
 
   return (
     <div className={`card-sethi overflow-hidden group flex flex-col ${outOfStock ? 'opacity-70' : ''}`}>
@@ -56,16 +56,28 @@ export default function ProductCard({ product }) {
             <span className="badge-save">Save Rs.{save.toLocaleString('en-IN')}</span>
           </div>
         )}
-        <a
-          href={outOfStock ? undefined : buildWhatsAppLink(waMsg)}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-disabled={outOfStock}
-          onClick={(e) => outOfStock && e.preventDefault()}
-          className={`btn-primary mt-4 w-full text-sm ${outOfStock ? 'pointer-events-none opacity-60' : ''}`}
-        >
-          {outOfStock ? 'Out of Stock' : 'Inquire on WhatsApp'}
-        </a>
+        <div className={`mt-4 grid gap-2 ${onAddToCart ? 'sm:grid-cols-2' : ''}`}>
+          {onAddToCart && (
+            <button
+              type="button"
+              disabled={outOfStock}
+              onClick={() => onAddToCart(product)}
+              className="btn-secondary min-h-[46px] w-full !px-3 !py-2 text-sm disabled:pointer-events-none disabled:opacity-60"
+            >
+              <ShoppingBag className="h-4 w-4" /> Add to Cart
+            </button>
+          )}
+          <a
+            href={outOfStock ? undefined : buildWhatsAppLink(buyNowMessage)}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-disabled={outOfStock}
+            onClick={(e) => outOfStock && e.preventDefault()}
+            className={`btn-primary min-h-[46px] w-full !px-3 !py-2 text-sm ${outOfStock ? 'pointer-events-none opacity-60' : ''}`}
+          >
+            {outOfStock ? 'Out of Stock' : <><MessageCircle className="h-4 w-4" /> Buy Now</>}
+          </a>
+        </div>
       </div>
     </div>
   );

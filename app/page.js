@@ -8,6 +8,8 @@ import ProductCard from '@/components/ProductCard';
 import OfferCard from '@/components/OfferCard';
 import ReviewCard from '@/components/ReviewCard';
 import Footer from '@/components/Footer';
+import { buildCartOrderMessage, buildWhatsAppLink, cartTotal } from '@/lib/constants';
+import { categoryPath } from '@/lib/categoryUtils';
 
 const C = {
   bg: '#faf8f4',
@@ -155,14 +157,24 @@ export default function HomePage() {
       <section className="mx-auto w-full max-w-6xl px-4 pb-8">
         <div className="flex gap-3 overflow-x-auto pb-3">
           {['All', ...categories.map((c) => c.name)].map((name) => (
-            <button
-              key={name}
-              type="button"
-              onClick={() => setActiveCategory(name)}
-              className={`shrink-0 rounded-full border px-5 py-2 text-base font-semibold transition ${activeCategory === name ? 'border-[#c9a84c] bg-[#c9a84c] text-white' : 'border-[#ede8df] bg-white text-[#6b5544]'}`}
-            >
-              {name}
-            </button>
+            name === 'All' ? (
+              <button
+                key={name}
+                type="button"
+                onClick={() => setActiveCategory(name)}
+                className={`shrink-0 rounded-full border px-5 py-2 text-base font-semibold transition ${activeCategory === name ? 'border-[#c9a84c] bg-[#c9a84c] text-white' : 'border-[#ede8df] bg-white text-[#6b5544]'}`}
+              >
+                {name}
+              </button>
+            ) : (
+              <Link
+                key={name}
+                href={categoryPath(name)}
+                className="shrink-0 rounded-full border border-[#ede8df] bg-white px-5 py-2 text-base font-semibold text-[#6b5544] transition hover:border-[#c9a84c] hover:text-[#a07a28]"
+              >
+                {name}
+              </Link>
+            )
           ))}
         </div>
       </section>
@@ -171,11 +183,11 @@ export default function HomePage() {
         <h2 className="text-4xl font-bold text-[#c9a84c]">Shop by Category</h2>
         <div className="mt-5 grid grid-cols-2 gap-4 md:grid-cols-4">
           {categories.map((category) => (
-            <button key={category.id || category.name} type="button" onClick={() => setActiveCategory(category.name)} className="group relative aspect-[4/5] overflow-hidden rounded bg-white text-left shadow-sm ring-1 ring-[#ede8df]">
+            <Link key={category.id || category.name} href={categoryPath(category.name)} className="group relative aspect-[4/5] overflow-hidden rounded bg-white text-left shadow-sm ring-1 ring-[#ede8df]">
               {imageOf(category) ? <img src={imageOf(category)} alt={category.name} className="h-full w-full object-cover transition group-hover:scale-105" /> : <div className="h-full w-full bg-[#f5f0e8]" />}
               <div className="absolute inset-0 bg-gradient-to-t from-[#2c1f14]/80 to-transparent" />
               <span className="absolute bottom-4 left-4 right-4 text-2xl font-bold text-white">{category.name}</span>
-            </button>
+            </Link>
           ))}
         </div>
       </section>
@@ -210,12 +222,7 @@ export default function HomePage() {
             </div>
           ) : (
             filteredProducts.slice(0, 9).map((product) => (
-              <div key={product.id} className="relative">
-                <ProductCard product={product} />
-                <button type="button" onClick={() => addToCart(product)} className="absolute bottom-5 left-5 right-5 flex h-11 translate-y-[-54px] items-center justify-center gap-2 rounded bg-white/95 text-base font-bold text-[#2c1f14] shadow transition hover:bg-[#c9a84c] hover:text-white">
-                  <ShoppingBag className="h-4 w-4" /> Add to Cart
-                </button>
-              </div>
+              <ProductCard key={product.id} product={product} onAddToCart={addToCart} />
             ))
           )}
         </div>
@@ -244,7 +251,7 @@ export default function HomePage() {
             </div>
             <nav className="mt-8 grid gap-3 text-xl font-semibold">
               <Link href="/products">All Products</Link>
-              {categories.map((category) => <Link key={category.id || category.name} href={`/products?category=${encodeURIComponent(category.name)}`}>{category.name}</Link>)}
+              {categories.map((category) => <Link key={category.id || category.name} href={categoryPath(category.name)}>{category.name}</Link>)}
               <Link href="/offers">Offers</Link>
               <Link href="/reviews">Reviews</Link>
               <Link href="/contact">Contact</Link>
@@ -277,7 +284,7 @@ export default function HomePage() {
                       {item.image ? <img src={item.image} alt={item.name} className="h-14 w-14 rounded object-cover bg-[#f5f0e8]" /> : <div className="h-14 w-14 rounded bg-[#f5f0e8]" />}
                       <div className="flex-1 min-w-0">
                         <div className="font-semibold text-[#2c1f14] truncate text-sm">{item.name}</div>
-                        <div className="text-[#c9a84c] font-bold text-sm">₹{item.price?.toLocaleString('en-IN')}</div>
+                        <div className="text-[#c9a84c] font-bold text-sm">Rs.{item.price?.toLocaleString('en-IN')} x {item.qty || 1}</div>
                       </div>
                       <button type="button" onClick={() => { const next = cart.filter((_, i) => i !== idx); setCart(next); window.localStorage.setItem('sethi-cart', JSON.stringify(next)); }} className="text-[#8a7060] hover:text-red-500 p-1">
                         <X className="h-4 w-4" />
@@ -288,10 +295,10 @@ export default function HomePage() {
                 <div className="border-t border-[#ede8df] px-5 py-4 space-y-3">
                   <div className="flex justify-between font-bold text-[#2c1f14] text-lg">
                     <span>Total</span>
-                    <span>₹{cart.reduce((s, i) => s + (i.price || 0), 0).toLocaleString('en-IN')}</span>
+                    <span>Rs.{cartTotal(cart).toLocaleString('en-IN')}</span>
                   </div>
                   <a
-                    href={`https://wa.me/917009579554?text=${encodeURIComponent('Hi! I want to order:\n' + cart.map((i, n) => `${n+1}. ${i.name} - ₹${i.price}`).join('\n') + `\n\nTotal: ₹${cart.reduce((s,i)=>s+(i.price||0),0)}`)} `}
+                    href={buildWhatsAppLink(buildCartOrderMessage(cart))}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex w-full items-center justify-center gap-2 rounded bg-[#25D366] py-3 text-base font-bold text-white hover:bg-[#1ebe5c]"
