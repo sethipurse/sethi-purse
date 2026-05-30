@@ -18,7 +18,7 @@ function getImages(product) {
   return [resolveImage(product), ...parsed].filter(Boolean);
 }
 
-// ── Hover Zoom Component ──────────────────────────────────────────────────────
+// ── Desktop Hover Zoom ────────────────────────────────────────────────────────
 function ZoomImage({ src, alt, onClickFullscreen }) {
   const containerRef = useRef(null);
   const [zoom, setZoom] = useState({ active: false, x: 50, y: 50 });
@@ -35,7 +35,6 @@ function ZoomImage({ src, alt, onClickFullscreen }) {
     setZoom({ active: false, x: 50, y: 50 });
   }, []);
 
-  // Mobile: tap opens fullscreen (no hover on touch)
   return (
     <div
       ref={containerRef}
@@ -43,25 +42,17 @@ function ZoomImage({ src, alt, onClickFullscreen }) {
       onMouseLeave={handleMouseLeave}
       onClick={onClickFullscreen}
       className="relative aspect-[4/5] w-full overflow-hidden rounded bg-white shadow-sm ring-1 ring-[#ede8df] cursor-zoom-in"
-      style={{ userSelect: 'none' }}
     >
       {src ? (
         <img
           src={src}
           alt={alt}
           draggable={false}
-          className="h-full w-full object-cover transition-transform duration-100"
+          className="h-full w-full object-cover"
           style={
             zoom.active
-              ? {
-                  transformOrigin: `${zoom.x}% ${zoom.y}%`,
-                  transform: 'scale(2)',
-                  transition: 'transform 0.1s ease',
-                }
-              : {
-                  transform: 'scale(1)',
-                  transition: 'transform 0.3s ease',
-                }
+              ? { transformOrigin: `${zoom.x}% ${zoom.y}%`, transform: 'scale(2)', transition: 'transform 0.1s ease' }
+              : { transform: 'scale(1)', transition: 'transform 0.3s ease' }
           }
         />
       ) : (
@@ -69,13 +60,139 @@ function ZoomImage({ src, alt, onClickFullscreen }) {
           <ShoppingBag className="h-24 w-24 text-[#c9a84c]" />
         </div>
       )}
-
-      {/* Zoom hint — hides when zooming */}
       {!zoom.active && (
         <span className="absolute bottom-4 left-4 flex items-center gap-1 rounded bg-white/95 px-3 py-1 text-sm font-bold text-[#6b5544] shadow pointer-events-none">
           <ZoomIn className="h-4 w-4" /> Hover to zoom · Tap for fullscreen
         </span>
       )}
+    </div>
+  );
+}
+
+// ── Mobile Fullscreen with Pinch + Double-Tap Zoom ───────────────────────────
+function MobileFullscreen({ src, alt, onClose }) {
+  const imgRef = useRef(null);
+  const containerRef = useRef(null);
+
+  // Pinch zoom state
+  const scaleRef = useRef(1);
+  const lastScaleRef = useRef(1);
+  const originRef = useRef({ x: 0, y: 0 });
+  const translateRef = useRef({ x: 0, y: 0 });
+  const lastTranslateRef = useRef({ x: 0, y: 0 });
+  const lastTapRef = useRef(0);
+  const touchStartRef = useRef([]);
+
+  const applyTransform = () => {
+    if (!imgRef.current) return;
+    imgRef.current.style.transform = `translate(${translateRef.current.x}px, ${translateRef.current.y}px) scale(${scaleRef.current})`;
+  };
+
+  const resetTransform = () => {
+    scaleRef.current = 1;
+    translateRef.current = { x: 0, y: 0 };
+    applyTransform();
+  };
+
+  const onTouchStart = (e) => {
+    touchStartRef.current = Array.from(e.touches);
+
+    // Double tap to zoom
+    if (e.touches.length === 1) {
+      const now = Date.now();
+      if (now - lastTapRef.current < 300) {
+        // Double tap detected
+        if (scaleRef.current > 1) {
+          resetTransform();
+        } else {
+          scaleRef.current = 2.5;
+          translateRef.current = { x: 0, y: 0 };
+          applyTransform();
+        }
+      }
+      lastTapRef.current = now;
+    }
+
+    if (e.touches.length === 2) {
+      lastScaleRef.current = scaleRef.current;
+      lastTranslateRef.current = { ...translateRef.current };
+    }
+  };
+
+  const onTouchMove = (e) => {
+    e.preventDefault();
+
+    if (e.touches.length === 2) {
+      // Pinch zoom
+      const startTouches = touchStartRef.current;
+      if (startTouches.length < 2) return;
+
+      const startDist = Math.hypot(
+        startTouches[0].clientX - startTouches[1].clientX,
+        startTouches[0].clientY - startTouches[1].clientY
+      );
+      const currentDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+
+      const pinchScale = currentDist / startDist;
+      scaleRef.current = Math.min(4, Math.max(1, lastScaleRef.current * pinchScale));
+      applyTransform();
+    } else if (e.touches.length === 1 && scaleRef.current > 1) {
+      // Pan when zoomed in
+      const startTouch = touchStartRef.current[0];
+      if (!startTouch) return;
+      const dx = e.touches[0].clientX - startTouch.clientX;
+      const dy = e.touches[0].clientY - startTouch.clientY;
+      translateRef.current = {
+        x: lastTranslateRef.current.x + dx,
+        y: lastTranslateRef.current.y + dy,
+      };
+      applyTransform();
+    }
+  };
+
+  const onTouchEnd = () => {
+    lastScaleRef.current = scaleRef.current;
+    lastTranslateRef.current = { ...translateRef.current };
+    touchStartRef.current = [];
+    // If scale went below 1, reset
+    if (scaleRef.current < 1) resetTransform();
+  };
+
+  return (
+    <div
+      ref={containerRef}
+      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black"
+      style={{ touchAction: 'none' }}
+    >
+      {/* Close button */}
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute right-4 top-4 z-10 rounded-full bg-white/20 px-4 py-2 font-bold text-white backdrop-blur-sm"
+      >
+        ✕ Close
+      </button>
+
+      {/* Hint */}
+      <div className="absolute bottom-6 left-0 right-0 text-center text-sm text-white/70 pointer-events-none">
+        Double tap to zoom · Pinch to zoom · Drag to pan
+      </div>
+
+      {/* Zoomable image */}
+      <img
+        ref={imgRef}
+        src={src}
+        alt={alt}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        className="max-h-screen max-w-full object-contain"
+        style={{ transform: 'scale(1)', transformOrigin: 'center center', willChange: 'transform' }}
+        draggable={false}
+      />
     </div>
   );
 }
@@ -106,19 +223,12 @@ export default function ProductDetailClient({ product, related = [], reviews = [
   };
 
   const productUrl = buildProductUrl(product.id);
-  const buyNowMessage = buildBuyNowMessage(product, {
-    quantity: qty,
-    size: selectedSize,
-    color: selectedColor,
-    productUrl,
-  });
+  const buyNowMessage = buildBuyNowMessage(product, { quantity: qty, size: selectedSize, color: selectedColor, productUrl });
 
   const onShare = async () => {
     const url = window.location.href;
     if (navigator.share) {
-      try {
-        await navigator.share({ url });
-      } catch (e) {}
+      try { await navigator.share({ url }); } catch (e) {}
       return;
     }
     try {
@@ -133,22 +243,15 @@ export default function ProductDetailClient({ product, related = [], reviews = [
     <div className="space-y-14">
       <div className="grid gap-8 lg:grid-cols-[1.02fr_0.98fr]">
         <div className="space-y-4">
-          {/* Discount badge on top of image area */}
           <div className="relative">
             {discount > 0 && (
               <span className="absolute right-4 top-4 z-10 rounded bg-[#c9a84c] px-3 py-1 text-sm font-bold text-white shadow">
                 {discount}% OFF
               </span>
             )}
-            {/* ── Hover Zoom Image ── */}
-            <ZoomImage
-              src={activeImage}
-              alt={product.name}
-              onClickFullscreen={() => setZoomOpen(true)}
-            />
+            <ZoomImage src={activeImage} alt={product.name} onClickFullscreen={() => setZoomOpen(true)} />
           </div>
 
-          {/* Thumbnail Gallery */}
           {images.length > 1 && (
             <div className="grid grid-cols-5 gap-3">
               {images.map((image) => (
@@ -167,18 +270,13 @@ export default function ProductDetailClient({ product, related = [], reviews = [
           )}
         </div>
 
-        {/* Product Info Panel */}
         <div className="rounded bg-white p-6 shadow-sm ring-1 ring-[#ede8df] md:p-8">
           <Link href="/products" className="inline-flex items-center gap-2 text-base font-semibold text-[#8a7060] hover:text-[#c9a84c]">
             <ArrowLeft className="h-4 w-4" /> Back to products
           </Link>
           <div className="mt-6 text-sm font-bold uppercase tracking-[0.18em] text-[#c9a84c]">{category}</div>
           <h1 className="mt-2 text-5xl font-bold leading-none text-[#2c1f14] md:text-6xl">{product.name}</h1>
-          {product.brand && (
-            <p className="mt-3 text-xl text-[#6b5544]">
-              by <span className="font-bold text-[#2c1f14]">{product.brand}</span>
-            </p>
-          )}
+          {product.brand && <p className="mt-3 text-xl text-[#6b5544]">by <span className="font-bold text-[#2c1f14]">{product.brand}</span></p>}
           <div className="mt-6 flex flex-wrap items-end gap-4">
             <span className="text-4xl font-bold text-[#2c1f14]">{rupee(salePrice)}</span>
             {mrp > salePrice && <span className="pb-1 text-xl text-[#8a7060] line-through">{rupee(mrp)}</span>}
@@ -257,12 +355,13 @@ export default function ProductDetailClient({ product, related = [], reviews = [
         </section>
       )}
 
-      {/* Fullscreen Modal */}
+      {/* Mobile Fullscreen with pinch/double-tap zoom */}
       {zoomOpen && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/85 p-4" onClick={() => setZoomOpen(false)}>
-          <button type="button" className="absolute right-4 top-4 rounded-full bg-white px-4 py-2 font-bold text-[#2c1f14] hover:bg-[#f5f0e8]">Close ✕</button>
-          {activeImage && <img src={activeImage} alt={product.name} className="max-h-[90vh] max-w-[95vw] rounded object-contain shadow-2xl" />}
-        </div>
+        <MobileFullscreen
+          src={activeImage}
+          alt={product.name}
+          onClose={() => setZoomOpen(false)}
+        />
       )}
     </div>
   );
