@@ -14,7 +14,7 @@ export default function ProductCard({ product, onAddToCart }) {
   const discount = product.discount_percent || (mrp > salePrice ? Math.round(((mrp - salePrice) / mrp) * 100) : 0);
   const save = mrp - salePrice;
   const outOfStock = product.stock === 0;
-  const lowStock = typeof product.stock === 'number' && product.stock > 0 && product.stock <= 5;
+  const lowStock = typeof product.stock === 'number' && product.stock > 0 && product.stock <= 3;
   const img = resolveImage(normalizedProduct);
   const productUrl = buildProductUrl(product.id);
   const buyNowMessage = buildBuyNowMessage(product, { quantity: 1, productUrl });
