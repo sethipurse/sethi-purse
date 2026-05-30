@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import AdminShell from '@/components/AdminShell';
 import { toast } from 'sonner';
-import { Trash2, Edit, Plus, Search } from 'lucide-react';
+import { Trash2, Edit, Plus, Search, CheckSquare, Square, Loader2 } from 'lucide-react';
 import { resolveImage } from '@/lib/constants';
 
 export default function AdminProductsPage() {
@@ -13,7 +13,10 @@ export default function AdminProductsPage() {
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('All');
   const [sort, setSort] = useState('newest');
-  const [confirm, setConfirm] = useState(null);
+  const [confirm, setConfirm] = useState(null); // single delete
+  const [selected, setSelected] = useState(new Set()); // bulk selection
+  const [bulkConfirm, setBulkConfirm] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -54,6 +57,40 @@ export default function AdminProductsPage() {
     return list;
   }, [products, q, cat, sort]);
 
+  // ── Selection helpers ──
+  const allFilteredIds = filtered.map((p) => p.id);
+  const allSelected = allFilteredIds.length > 0 && allFilteredIds.every((id) => selected.has(id));
+  const someSelected = allFilteredIds.some((id) => selected.has(id));
+
+  const toggleOne = (id) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (allSelected) {
+      // deselect all filtered
+      setSelected((prev) => {
+        const next = new Set(prev);
+        allFilteredIds.forEach((id) => next.delete(id));
+        return next;
+      });
+    } else {
+      // select all filtered
+      setSelected((prev) => {
+        const next = new Set(prev);
+        allFilteredIds.forEach((id) => next.add(id));
+        return next;
+      });
+    }
+  };
+
+  const clearSelection = () => setSelected(new Set());
+
+  // ── Single delete ──
   const doDelete = async (id) => {
     if (!id) { toast.error('Invalid product'); setConfirm(null); return; }
     try {
@@ -62,12 +99,10 @@ export default function AdminProductsPage() {
         headers: { 'Content-Type': 'application/json' },
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(data.error || `Failed to delete (status ${res.status})`);
-        return;
-      }
+      if (!res.ok) { toast.error(data.error || `Failed to delete (status ${res.status})`); return; }
       toast.success('Product deleted');
       setConfirm(null);
+      setSelected((prev) => { const next = new Set(prev); next.delete(id); return next; });
       load();
     } catch (err) {
       console.error('Delete product failed:', err);
@@ -76,6 +111,34 @@ export default function AdminProductsPage() {
     }
   };
 
+  // ── Bulk delete ──
+  const doBulkDelete = async () => {
+    setBulkDeleting(true);
+    const ids = [...selected];
+    let successCount = 0;
+    let failCount = 0;
+    for (const id of ids) {
+      try {
+        const res = await fetch(`/api/products/${encodeURIComponent(id)}`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        if (res.ok) { successCount++; }
+        else { failCount++; }
+      } catch {
+        failCount++;
+      }
+    }
+    setBulkDeleting(false);
+    setBulkConfirm(false);
+    clearSelection();
+    if (successCount > 0) toast.success(`${successCount} product${successCount > 1 ? 's' : ''} deleted`);
+    if (failCount > 0) toast.error(`${failCount} product${failCount > 1 ? 's' : ''} failed to delete`);
+    load();
+  };
+
+  const selectedCount = selected.size;
+
   return (
     <AdminShell>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
@@ -83,7 +146,8 @@ export default function AdminProductsPage() {
         <Link href="/admin/products/add" className="btn-primary"><Plus className="w-4 h-4" /> Add New Product</Link>
       </div>
 
-      <div className="bg-white border border-sethi-gray200 rounded-sm p-4 mb-5 grid gap-3 md:grid-cols-3">
+      {/* Filters */}
+      <div className="bg-white border border-sethi-gray200 rounded-sm p-4 mb-4 grid gap-3 md:grid-cols-3">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-sethi-gray500" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or brand..." className="input-sethi !pl-10" />
@@ -100,12 +164,37 @@ export default function AdminProductsPage() {
         </select>
       </div>
 
+      {/* Bulk action bar — appears when items are selected */}
+      {selectedCount > 0 && (
+        <div className="flex items-center justify-between bg-sethi-gold/10 border border-sethi-gold rounded-sm px-4 py-3 mb-4">
+          <div className="flex items-center gap-3">
+            <span className="font-semibold text-sethi-black">
+              {selectedCount} product{selectedCount > 1 ? 's' : ''} selected
+            </span>
+            <button onClick={clearSelection} className="text-sm text-sethi-gray500 hover:text-sethi-black underline">
+              Clear
+            </button>
+          </div>
+          <button
+            onClick={() => setBulkConfirm(true)}
+            className="inline-flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-sm text-sm font-semibold hover:bg-red-700 transition-colors"
+          >
+            <Trash2 className="w-4 h-4" /> Delete {selectedCount} selected
+          </button>
+        </div>
+      )}
+
       <div className="bg-white border border-sethi-gray200 rounded-sm overflow-hidden">
         {/* Desktop table */}
         <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-sethi-gray100 text-left text-xs uppercase tracking-wider text-sethi-gray500">
               <tr>
+                <th className="px-4 py-3 w-10">
+                  <button onClick={toggleAll} className="text-sethi-gray500 hover:text-sethi-gold transition-colors" title={allSelected ? 'Deselect all' : 'Select all'}>
+                    {allSelected ? <CheckSquare className="w-5 h-5 text-sethi-gold" /> : someSelected ? <CheckSquare className="w-5 h-5 text-sethi-gray400" /> : <Square className="w-5 h-5" />}
+                  </button>
+                </th>
                 <th className="px-4 py-3">Image</th>
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Brand</th>
@@ -117,11 +206,16 @@ export default function AdminProductsPage() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="7" className="text-center p-8 text-sethi-gray500">Loading...</td></tr>
+                <tr><td colSpan="8" className="text-center p-8 text-sethi-gray500">Loading...</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan="7" className="text-center p-8 text-sethi-gray500">No products found.</td></tr>
+                <tr><td colSpan="8" className="text-center p-8 text-sethi-gray500">No products found.</td></tr>
               ) : filtered.map((p) => (
-                <tr key={p.id} className="border-t border-sethi-gray200 hover:bg-sethi-gray100/50">
+                <tr key={p.id} className={`border-t border-sethi-gray200 transition-colors ${selected.has(p.id) ? 'bg-sethi-gold/5' : 'hover:bg-sethi-gray100/50'}`}>
+                  <td className="px-4 py-3">
+                    <button onClick={() => toggleOne(p.id)} className="text-sethi-gray500 hover:text-sethi-gold transition-colors">
+                      {selected.has(p.id) ? <CheckSquare className="w-5 h-5 text-sethi-gold" /> : <Square className="w-5 h-5" />}
+                    </button>
+                  </td>
                   <td className="px-4 py-3">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={resolveImage(p)} alt="" className="w-12 h-12 object-cover rounded-sm bg-sethi-gray100" />
@@ -130,7 +224,11 @@ export default function AdminProductsPage() {
                   <td className="px-4 py-3 text-sethi-gray500">{p.brand}</td>
                   <td className="px-4 py-3">{p.category}</td>
                   <td className="px-4 py-3 font-semibold">Rs.{p.salePrice ?? p.sale_price ?? p.price}</td>
-                  <td className="px-4 py-3">{p.stock === null || p.stock === undefined ? '∞' : p.stock}</td>
+                  <td className="px-4 py-3">
+                    <span className={`font-medium ${typeof p.stock === 'number' && p.stock <= 5 ? 'text-red-600' : ''}`}>
+                      {p.stock === null || p.stock === undefined ? '∞' : p.stock}
+                    </span>
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <Link href={`/admin/products/edit/${p.id}`} className="inline-flex items-center gap-1 border border-sethi-gold text-sethi-gold px-3 py-1 rounded-sm hover:bg-sethi-gold hover:text-sethi-black transition-colors">
@@ -146,22 +244,40 @@ export default function AdminProductsPage() {
             </tbody>
           </table>
         </div>
+
         {/* Mobile cards */}
         <div className="md:hidden divide-y divide-sethi-gray200">
+          {/* Mobile select all */}
+          {!loading && filtered.length > 0 && (
+            <div className="px-4 py-3 flex items-center justify-between bg-sethi-gray100">
+              <button onClick={toggleAll} className="flex items-center gap-2 text-sm font-medium">
+                {allSelected ? <CheckSquare className="w-5 h-5 text-sethi-gold" /> : <Square className="w-5 h-5 text-sethi-gray500" />}
+                {allSelected ? 'Deselect all' : 'Select all'}
+              </button>
+              {selectedCount > 0 && (
+                <span className="text-sm text-sethi-gold font-semibold">{selectedCount} selected</span>
+              )}
+            </div>
+          )}
           {loading ? (
             <div className="p-6 text-sethi-gray500 text-center">Loading...</div>
           ) : filtered.length === 0 ? (
             <div className="p-6 text-sethi-gray500 text-center">No products found.</div>
           ) : filtered.map((p) => (
-            <div key={p.id} className="p-4 flex gap-3">
+            <div key={p.id} className={`p-4 flex gap-3 ${selected.has(p.id) ? 'bg-sethi-gold/5' : ''}`}>
+              <button onClick={() => toggleOne(p.id)} className="mt-1 shrink-0">
+                {selected.has(p.id) ? <CheckSquare className="w-5 h-5 text-sethi-gold" /> : <Square className="w-5 h-5 text-sethi-gray400" />}
+              </button>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={resolveImage(p)} alt="" className="w-16 h-16 object-cover rounded-sm bg-sethi-gray100" />
+              <img src={resolveImage(p)} alt="" className="w-16 h-16 object-cover rounded-sm bg-sethi-gray100 shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="font-medium truncate">{p.name}</div>
                 <div className="text-xs text-sethi-gray500">{p.brand} • {p.category}</div>
                 <div className="flex items-center gap-3 mt-1 text-sm">
                   <span className="font-semibold">Rs.{p.salePrice ?? p.sale_price ?? p.price}</span>
-                  <span className="text-sethi-gray500">Stock: {p.stock ?? '∞'}</span>
+                  <span className={`text-sm ${typeof p.stock === 'number' && p.stock <= 5 ? 'text-red-600 font-semibold' : 'text-sethi-gray500'}`}>
+                    Stock: {p.stock ?? '∞'}
+                  </span>
                 </div>
                 <div className="flex gap-2 mt-2">
                   <Link href={`/admin/products/edit/${p.id}`} className="text-sm text-sethi-gold underline">Edit</Link>
@@ -173,14 +289,35 @@ export default function AdminProductsPage() {
         </div>
       </div>
 
+      {/* Single delete confirm */}
       {confirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="bg-white rounded-sm p-6 max-w-md w-full">
             <h3 className="font-serif text-xl mb-2">Delete product?</h3>
-            <p className="text-sethi-gray500 text-sm mb-5">Are you sure you want to delete “{confirm.name}”? This cannot be undone.</p>
+            <p className="text-sethi-gray500 text-sm mb-5">Are you sure you want to delete "<strong>{confirm.name}</strong>"? This cannot be undone.</p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setConfirm(null)} className="btn-ghost">Cancel</button>
-              <button onClick={() => doDelete(confirm.id)} className="inline-flex items-center gap-2 min-h-[48px] px-6 bg-red-600 text-white font-semibold rounded-sm hover:bg-red-700">Delete</button>
+              <button onClick={() => doDelete(confirm.id)} className="inline-flex items-center gap-2 min-h-[48px] px-6 bg-red-600 text-white font-semibold rounded-sm hover:bg-red-700">
+                <Trash2 className="w-4 h-4" /> Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk delete confirm */}
+      {bulkConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="bg-white rounded-sm p-6 max-w-md w-full">
+            <h3 className="font-serif text-xl mb-2 text-red-700">Delete {selectedCount} products?</h3>
+            <p className="text-sethi-gray500 text-sm mb-5">
+              You are about to permanently delete <strong>{selectedCount} product{selectedCount > 1 ? 's' : ''}</strong>. This cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setBulkConfirm(false)} disabled={bulkDeleting} className="btn-ghost">Cancel</button>
+              <button onClick={doBulkDelete} disabled={bulkDeleting} className="inline-flex items-center gap-2 min-h-[48px] px-6 bg-red-600 text-white font-semibold rounded-sm hover:bg-red-700 disabled:opacity-60">
+                {bulkDeleting ? <><Loader2 className="w-4 h-4 animate-spin" /> Deleting...</> : <><Trash2 className="w-4 h-4" /> Delete {selectedCount}</>}
+              </button>
             </div>
           </div>
         </div>
