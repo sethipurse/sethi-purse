@@ -8,6 +8,8 @@ import PWAInstall from '@/components/PWAInstall';
 const OG_IMAGE =
   'https://bbdatviaaiqpfvwumkkd.supabase.co/storage/v1/object/public/products/og-default.jpg';
 
+const GA_ID = 'G-Z3JBN45975';
+
 export const metadata = {
   metadataBase: new URL('https://sethi-purse.vercel.app'),
   title: "SETHI PURSE | Punjab's Trusted Premium Luggage Destination",
@@ -43,6 +45,21 @@ export default function RootLayout({ children }) {
         <meta property="og:image:height" content="630" />
         <meta property="og:image:type" content="image/jpeg" />
         <meta name="twitter:image" content={OG_IMAGE} />
+
+        {/* Google Analytics */}
+        <script async src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', '${GA_ID}', {
+                page_path: window.location.pathname,
+              });
+            `,
+          }}
+        />
       </head>
       <body className="bg-[#faf8f4] text-[#2c1f14] antialiased">
         {children}
