@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useState } from 'react';
 import { MessageCircle, ShoppingBag } from 'lucide-react';
 import { buildBuyNowMessage, buildProductUrl, buildWhatsAppLink, resolveImage } from '@/lib/constants';
@@ -26,12 +27,13 @@ export default function ProductCard({ product, onAddToCart }) {
         {outOfStock && <span className="badge-out">Out of Stock</span>}
         {!outOfStock && lowStock && <span className="badge-stock-low">Only {product.stock} left!</span>}
         {img && !imgErr ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={img}
             alt={product.name}
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            className="object-cover transition-transform duration-500 group-hover:scale-105"
             onError={() => setImgErr(true)}
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-[#f5f0e8]">
