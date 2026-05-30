@@ -51,7 +51,7 @@ export default function DashboardPage() {
     const stock = typeof p.stock === 'number' ? p.stock : 0;
     return sum + price * stock;
   }, 0);
-  const featuredCount = products.filter((p) => p.isFeatured).length;
+  const featuredCount = products.filter((p) => p.featured).length;
 
   const formatValue = (val) => {
     if (val >= 100000) return `₹${(val / 100000).toFixed(1)}L`;
