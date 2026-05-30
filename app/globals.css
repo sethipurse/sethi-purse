@@ -42,10 +42,10 @@
     line-height: 1.7;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    animation: bodyFadeIn 0.35s ease both;
+    animation: bodyFadeIn 0.4s ease both;
   }
 
-  /* Mobile sticky WhatsApp bar is 56px tall \u2014 reserve space so footer/CTAs aren't hidden */
+  /* Mobile sticky WhatsApp bar is 56px tall — reserve space so footer/CTAs aren't hidden */
   @media (max-width: 767px) {
     body.has-sticky-wa {
       padding-bottom: 56px;
@@ -53,8 +53,8 @@
   }
 
   @keyframes bodyFadeIn {
-    from { opacity: 0; }
-    to   { opacity: 1; }
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
   }
 
   ::selection {
@@ -103,6 +103,7 @@
   }
   .nav-link:hover { color: #c9a84c; }
 
+  /* ── Buttons ── */
   .btn-primary {
     display: inline-flex;
     align-items: center;
@@ -114,14 +115,21 @@
     color: #2c1f14;
     font-weight: 600;
     border-radius: 2px;
-    transition: all 0.2s ease;
+    transition: background 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
     cursor: pointer;
     text-decoration: none;
+    position: relative;
+    overflow: hidden;
   }
   .btn-primary:hover {
     background: #a07a28;
-    transform: scale(1.02);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(201,168,76,0.35);
     color: #2c1f14;
+  }
+  .btn-primary:active {
+    transform: scale(0.97) translateY(0);
+    box-shadow: none;
   }
 
   .btn-secondary {
@@ -136,13 +144,19 @@
     color: #c9a84c;
     font-weight: 600;
     border-radius: 2px;
-    transition: all 0.2s ease;
+    transition: background 0.2s ease, color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
     cursor: pointer;
     text-decoration: none;
   }
   .btn-secondary:hover {
     background: #c9a84c;
     color: #2c1f14;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(201,168,76,0.25);
+  }
+  .btn-secondary:active {
+    transform: scale(0.97) translateY(0);
+    box-shadow: none;
   }
 
   .btn-ghost {
@@ -161,18 +175,27 @@
   }
   .btn-ghost:hover { text-decoration: underline; text-underline-offset: 4px; }
 
+  /* ── Product Card ── */
   .card-sethi {
     background: #fff;
     border: 1px solid #ede8df;
     border-radius: 4px;
-    box-shadow: 0 2px 20px rgba(0,0,0,0.06);
-    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    transition: transform 0.3s cubic-bezier(0.25,0.46,0.45,0.94),
+                box-shadow 0.3s cubic-bezier(0.25,0.46,0.45,0.94),
+                border-color 0.3s ease;
+    will-change: transform;
   }
   .card-sethi:hover {
-    box-shadow: 0 8px 40px rgba(0,0,0,0.12);
+    box-shadow: 0 16px 48px rgba(0,0,0,0.14), 0 4px 16px rgba(201,168,76,0.12);
+    transform: translateY(-6px);
+    border-color: #e8d5a3;
+  }
+  .card-sethi:active {
     transform: translateY(-2px);
   }
 
+  /* ── Headings ── */
   .heading-hero {
     font-family: var(--font-playfair), 'Playfair Display', serif;
     font-size: 32px;
@@ -192,6 +215,7 @@
     .heading-section { font-size: 36px; }
   }
 
+  /* ── Input ── */
   .input-sethi {
     display: block;
     width: 100%;
@@ -210,6 +234,7 @@
     box-shadow: 0 0 0 2px rgba(201, 168, 76, 0.2);
   }
 
+  /* ── Badges ── */
   .badge-discount {
     position: absolute;
     top: 12px;
@@ -221,7 +246,9 @@
     padding: 4px 10px;
     border-radius: 2px;
     letter-spacing: 0.04em;
+    z-index: 2;
   }
+
   .badge-stock-low {
     position: absolute;
     top: 12px;
@@ -232,7 +259,10 @@
     font-weight: 700;
     padding: 4px 10px;
     border-radius: 2px;
+    z-index: 2;
+    animation: urgencyPulse 2s ease-in-out infinite;
   }
+
   .badge-out {
     position: absolute;
     top: 12px;
@@ -243,7 +273,10 @@
     font-weight: 700;
     padding: 4px 10px;
     border-radius: 2px;
+    z-index: 2;
   }
+
+  /* Gold shimmer on sale badge */
   .badge-save {
     display: inline-flex;
     align-items: center;
@@ -253,7 +286,25 @@
     font-weight: 700;
     padding: 4px 10px;
     border-radius: 2px;
+    position: relative;
+    overflow: hidden;
   }
+  .badge-save::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 60%;
+    height: 100%;
+    background: linear-gradient(
+      120deg,
+      transparent 0%,
+      rgba(255,255,255,0.5) 50%,
+      transparent 100%
+    );
+    animation: shimmer 2.5s ease-in-out infinite;
+  }
+
   .badge-cat {
     display: inline-block;
     font-size: 11px;
@@ -262,4 +313,16 @@
     text-transform: uppercase;
     color: #c9a84c;
   }
+}
+
+/* ── Keyframe Animations ── */
+@keyframes shimmer {
+  0%   { left: -100%; }
+  60%  { left: 150%; }
+  100% { left: 150%; }
+}
+
+@keyframes urgencyPulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.75; }
 }
