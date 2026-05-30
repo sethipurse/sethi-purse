@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import AdminShell from '@/components/AdminShell';
 import { toast } from 'sonner';
-import { Trash2, Edit, Plus, Search, CheckSquare, Square, Loader2 } from 'lucide-react';
+import { Trash2, Edit, Plus, Search, CheckSquare, Square, Loader2, Package } from 'lucide-react';
 import { resolveImage } from '@/lib/constants';
 
 export default function AdminProductsPage() {
@@ -13,10 +13,13 @@ export default function AdminProductsPage() {
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('All');
   const [sort, setSort] = useState('newest');
-  const [confirm, setConfirm] = useState(null); // single delete
-  const [selected, setSelected] = useState(new Set()); // bulk selection
+  const [confirm, setConfirm] = useState(null);
+  const [selected, setSelected] = useState(new Set());
   const [bulkConfirm, setBulkConfirm] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  // Inline stock edit state: { [productId]: { value, saving } }
+  const [stockEdits, setStockEdits] = useState({});
 
   const load = async () => {
     setLoading(true);
@@ -62,29 +65,17 @@ export default function AdminProductsPage() {
   const allSelected = allFilteredIds.length > 0 && allFilteredIds.every((id) => selected.has(id));
   const someSelected = allFilteredIds.some((id) => selected.has(id));
 
-  const toggleOne = (id) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
+  const toggleOne = (id) => setSelected((prev) => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
 
   const toggleAll = () => {
     if (allSelected) {
-      // deselect all filtered
-      setSelected((prev) => {
-        const next = new Set(prev);
-        allFilteredIds.forEach((id) => next.delete(id));
-        return next;
-      });
+      setSelected((prev) => { const next = new Set(prev); allFilteredIds.forEach((id) => next.delete(id)); return next; });
     } else {
-      // select all filtered
-      setSelected((prev) => {
-        const next = new Set(prev);
-        allFilteredIds.forEach((id) => next.add(id));
-        return next;
-      });
+      setSelected((prev) => { const next = new Set(prev); allFilteredIds.forEach((id) => next.add(id)); return next; });
     }
   };
 
@@ -94,10 +85,7 @@ export default function AdminProductsPage() {
   const doDelete = async (id) => {
     if (!id) { toast.error('Invalid product'); setConfirm(null); return; }
     try {
-      const res = await fetch(`/api/products/${encodeURIComponent(id)}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-      });
+      const res = await fetch(`/api/products/${encodeURIComponent(id)}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' } });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { toast.error(data.error || `Failed to delete (status ${res.status})`); return; }
       toast.success('Product deleted');
@@ -115,29 +103,97 @@ export default function AdminProductsPage() {
   const doBulkDelete = async () => {
     setBulkDeleting(true);
     const ids = [...selected];
-    let successCount = 0;
-    let failCount = 0;
+    let successCount = 0; let failCount = 0;
     for (const id of ids) {
       try {
-        const res = await fetch(`/api/products/${encodeURIComponent(id)}`, {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-        });
-        if (res.ok) { successCount++; }
-        else { failCount++; }
-      } catch {
-        failCount++;
-      }
+        const res = await fetch(`/api/products/${encodeURIComponent(id)}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' } });
+        res.ok ? successCount++ : failCount++;
+      } catch { failCount++; }
     }
-    setBulkDeleting(false);
-    setBulkConfirm(false);
-    clearSelection();
+    setBulkDeleting(false); setBulkConfirm(false); clearSelection();
     if (successCount > 0) toast.success(`${successCount} product${successCount > 1 ? 's' : ''} deleted`);
     if (failCount > 0) toast.error(`${failCount} product${failCount > 1 ? 's' : ''} failed to delete`);
     load();
   };
 
+  // ── Inline stock edit ──
+  const startStockEdit = (p) => {
+    setStockEdits((prev) => ({ ...prev, [p.id]: { value: String(p.stock ?? ''), saving: false } }));
+  };
+
+  const cancelStockEdit = (id) => {
+    setStockEdits((prev) => { const next = { ...prev }; delete next[id]; return next; });
+  };
+
+  const saveStock = async (p) => {
+    const edit = stockEdits[p.id];
+    if (!edit) return;
+    const newStock = edit.value === '' ? null : parseInt(edit.value, 10);
+    if (edit.value !== '' && (isNaN(newStock) || newStock < 0)) {
+      toast.error('Stock must be a valid number (0 or more)'); return;
+    }
+    setStockEdits((prev) => ({ ...prev, [p.id]: { ...prev[p.id], saving: true } }));
+    try {
+      const res = await fetch(`/api/products/${encodeURIComponent(p.id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...p, stock: newStock }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error(data.error || 'Failed to update stock'); setStockEdits((prev) => ({ ...prev, [p.id]: { ...prev[p.id], saving: false } })); return; }
+      toast.success(`Stock updated to ${newStock ?? '∞'}`);
+      cancelStockEdit(p.id);
+      // Update locally without full reload for snappy UX
+      setProducts((prev) => prev.map((pr) => pr.id === p.id ? { ...pr, stock: newStock } : pr));
+    } catch (err) {
+      console.error('Update stock failed:', err);
+      toast.error('Network error. Please try again.');
+      setStockEdits((prev) => ({ ...prev, [p.id]: { ...prev[p.id], saving: false } }));
+    }
+  };
+
   const selectedCount = selected.size;
+
+  const StockCell = ({ p }) => {
+    const edit = stockEdits[p.id];
+    const isLow = typeof p.stock === 'number' && p.stock <= 5;
+
+    if (edit) {
+      return (
+        <div className="flex items-center gap-1">
+          <input
+            type="number"
+            min="0"
+            value={edit.value}
+            onChange={(e) => setStockEdits((prev) => ({ ...prev, [p.id]: { ...prev[p.id], value: e.target.value } }))}
+            onKeyDown={(e) => { if (e.key === 'Enter') saveStock(p); if (e.key === 'Escape') cancelStockEdit(p.id); }}
+            className="w-16 border border-sethi-gold rounded-sm px-2 py-1 text-sm text-center focus:outline-none focus:ring-1 focus:ring-sethi-gold"
+            autoFocus
+          />
+          {edit.saving ? (
+            <Loader2 className="w-4 h-4 animate-spin text-sethi-gold" />
+          ) : (
+            <>
+              <button onClick={() => saveStock(p)} className="text-green-600 hover:text-green-800 font-bold text-lg leading-none" title="Save">✓</button>
+              <button onClick={() => cancelStockEdit(p.id)} className="text-red-400 hover:text-red-600 font-bold text-lg leading-none" title="Cancel">✕</button>
+            </>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <button
+        onClick={() => startStockEdit(p)}
+        title="Click to edit stock"
+        className={`group flex items-center gap-1.5 rounded px-2 py-1 hover:bg-sethi-gold/10 transition-colors ${isLow ? 'text-red-600 font-semibold' : ''}`}
+      >
+        <Package className="w-3.5 h-3.5 text-sethi-gray400 group-hover:text-sethi-gold" />
+        <span>{p.stock === null || p.stock === undefined ? '∞' : p.stock}</span>
+        <span className="text-[10px] text-sethi-gray400 group-hover:text-sethi-gold hidden group-hover:inline">edit</span>
+      </button>
+    );
+  };
 
   return (
     <AdminShell>
@@ -164,21 +220,14 @@ export default function AdminProductsPage() {
         </select>
       </div>
 
-      {/* Bulk action bar — appears when items are selected */}
+      {/* Bulk action bar */}
       {selectedCount > 0 && (
         <div className="flex items-center justify-between bg-sethi-gold/10 border border-sethi-gold rounded-sm px-4 py-3 mb-4">
           <div className="flex items-center gap-3">
-            <span className="font-semibold text-sethi-black">
-              {selectedCount} product{selectedCount > 1 ? 's' : ''} selected
-            </span>
-            <button onClick={clearSelection} className="text-sm text-sethi-gray500 hover:text-sethi-black underline">
-              Clear
-            </button>
+            <span className="font-semibold text-sethi-black">{selectedCount} product{selectedCount > 1 ? 's' : ''} selected</span>
+            <button onClick={clearSelection} className="text-sm text-sethi-gray500 hover:text-sethi-black underline">Clear</button>
           </div>
-          <button
-            onClick={() => setBulkConfirm(true)}
-            className="inline-flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-sm text-sm font-semibold hover:bg-red-700 transition-colors"
-          >
+          <button onClick={() => setBulkConfirm(true)} className="inline-flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-sm text-sm font-semibold hover:bg-red-700 transition-colors">
             <Trash2 className="w-4 h-4" /> Delete {selectedCount} selected
           </button>
         </div>
@@ -191,7 +240,7 @@ export default function AdminProductsPage() {
             <thead className="bg-sethi-gray100 text-left text-xs uppercase tracking-wider text-sethi-gray500">
               <tr>
                 <th className="px-4 py-3 w-10">
-                  <button onClick={toggleAll} className="text-sethi-gray500 hover:text-sethi-gold transition-colors" title={allSelected ? 'Deselect all' : 'Select all'}>
+                  <button onClick={toggleAll} className="text-sethi-gray500 hover:text-sethi-gold transition-colors">
                     {allSelected ? <CheckSquare className="w-5 h-5 text-sethi-gold" /> : someSelected ? <CheckSquare className="w-5 h-5 text-sethi-gray400" /> : <Square className="w-5 h-5" />}
                   </button>
                 </th>
@@ -200,7 +249,9 @@ export default function AdminProductsPage() {
                 <th className="px-4 py-3">Brand</th>
                 <th className="px-4 py-3">Category</th>
                 <th className="px-4 py-3">Sale Price</th>
-                <th className="px-4 py-3">Stock</th>
+                <th className="px-4 py-3">
+                  <span className="flex items-center gap-1">Stock <span className="text-[10px] normal-case tracking-normal text-sethi-gray400 font-normal">(click to edit)</span></span>
+                </th>
                 <th className="px-4 py-3">Actions</th>
               </tr>
             </thead>
@@ -224,11 +275,7 @@ export default function AdminProductsPage() {
                   <td className="px-4 py-3 text-sethi-gray500">{p.brand}</td>
                   <td className="px-4 py-3">{p.category}</td>
                   <td className="px-4 py-3 font-semibold">Rs.{p.salePrice ?? p.sale_price ?? p.price}</td>
-                  <td className="px-4 py-3">
-                    <span className={`font-medium ${typeof p.stock === 'number' && p.stock <= 5 ? 'text-red-600' : ''}`}>
-                      {p.stock === null || p.stock === undefined ? '∞' : p.stock}
-                    </span>
-                  </td>
+                  <td className="px-4 py-3"><StockCell p={p} /></td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <Link href={`/admin/products/edit/${p.id}`} className="inline-flex items-center gap-1 border border-sethi-gold text-sethi-gold px-3 py-1 rounded-sm hover:bg-sethi-gold hover:text-sethi-black transition-colors">
@@ -247,16 +294,13 @@ export default function AdminProductsPage() {
 
         {/* Mobile cards */}
         <div className="md:hidden divide-y divide-sethi-gray200">
-          {/* Mobile select all */}
           {!loading && filtered.length > 0 && (
             <div className="px-4 py-3 flex items-center justify-between bg-sethi-gray100">
               <button onClick={toggleAll} className="flex items-center gap-2 text-sm font-medium">
                 {allSelected ? <CheckSquare className="w-5 h-5 text-sethi-gold" /> : <Square className="w-5 h-5 text-sethi-gray500" />}
                 {allSelected ? 'Deselect all' : 'Select all'}
               </button>
-              {selectedCount > 0 && (
-                <span className="text-sm text-sethi-gold font-semibold">{selectedCount} selected</span>
-              )}
+              {selectedCount > 0 && <span className="text-sm text-sethi-gold font-semibold">{selectedCount} selected</span>}
             </div>
           )}
           {loading ? (
@@ -273,11 +317,9 @@ export default function AdminProductsPage() {
               <div className="flex-1 min-w-0">
                 <div className="font-medium truncate">{p.name}</div>
                 <div className="text-xs text-sethi-gray500">{p.brand} • {p.category}</div>
-                <div className="flex items-center gap-3 mt-1 text-sm">
+                <div className="flex items-center gap-3 mt-1 text-sm flex-wrap">
                   <span className="font-semibold">Rs.{p.salePrice ?? p.sale_price ?? p.price}</span>
-                  <span className={`text-sm ${typeof p.stock === 'number' && p.stock <= 5 ? 'text-red-600 font-semibold' : 'text-sethi-gray500'}`}>
-                    Stock: {p.stock ?? '∞'}
-                  </span>
+                  <StockCell p={p} />
                 </div>
                 <div className="flex gap-2 mt-2">
                   <Link href={`/admin/products/edit/${p.id}`} className="text-sm text-sethi-gold underline">Edit</Link>
@@ -310,9 +352,7 @@ export default function AdminProductsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="bg-white rounded-sm p-6 max-w-md w-full">
             <h3 className="font-serif text-xl mb-2 text-red-700">Delete {selectedCount} products?</h3>
-            <p className="text-sethi-gray500 text-sm mb-5">
-              You are about to permanently delete <strong>{selectedCount} product{selectedCount > 1 ? 's' : ''}</strong>. This cannot be undone.
-            </p>
+            <p className="text-sethi-gray500 text-sm mb-5">You are about to permanently delete <strong>{selectedCount} product{selectedCount > 1 ? 's' : ''}</strong>. This cannot be undone.</p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setBulkConfirm(false)} disabled={bulkDeleting} className="btn-ghost">Cancel</button>
               <button onClick={doBulkDelete} disabled={bulkDeleting} className="inline-flex items-center gap-2 min-h-[48px] px-6 bg-red-600 text-white font-semibold rounded-sm hover:bg-red-700 disabled:opacity-60">
