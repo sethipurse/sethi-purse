@@ -41,6 +41,7 @@ export default function Navbar() {
           <img src={LOGO_URL} alt={BUSINESS.name} className="h-10 md:h-12 object-contain" />
         </Link>
 
+        {/* Desktop nav */}
         <nav className="hidden lg:flex items-center gap-6 xl:gap-8">
           {LINKS.map((l) => {
             const active = pathname === l.href || (l.href !== '/' && pathname.startsWith(l.href)) || (l.href === '/categories' && pathname.startsWith('/category'));
@@ -56,31 +57,74 @@ export default function Navbar() {
           </a>
         </div>
 
-        <button aria-label="Open menu" onClick={() => setOpen(true)} className="lg:hidden inline-flex items-center justify-center w-11 h-11 text-sethi-gold">
-          <Menu className="w-7 h-7" />
-        </button>
+        {/* Mobile: WhatsApp icon + hamburger */}
+        <div className="flex items-center gap-1 lg:hidden">
+          <a
+            href={waLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="WhatsApp"
+            className="inline-flex items-center justify-center w-12 h-12 rounded-full text-sethi-gold active:bg-sethi-gold/10"
+          >
+            <MessageCircle className="w-6 h-6" />
+          </a>
+          <button
+            aria-label="Open menu"
+            onClick={() => setOpen(true)}
+            className="inline-flex items-center justify-center w-12 h-12 rounded-full text-sethi-gold active:bg-sethi-gold/10"
+          >
+            <Menu className="w-7 h-7" />
+          </button>
+        </div>
       </div>
 
+      {/* Mobile drawer */}
       <div className={`fixed inset-0 z-50 bg-sethi-black text-white transition-transform duration-300 lg:hidden ${open ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="flex items-center justify-between h-16 px-4 border-b border-white/10">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={LOGO_URL} alt={BUSINESS.name} className="h-9 object-contain bg-white p-0.5 rounded-sm" />
-          <button aria-label="Close menu" onClick={() => setOpen(false)} className="w-11 h-11 inline-flex items-center justify-center text-sethi-gold">
+          <button
+            aria-label="Close menu"
+            onClick={() => setOpen(false)}
+            className="w-12 h-12 inline-flex items-center justify-center text-sethi-gold active:bg-white/10 rounded-full"
+          >
             <X className="w-7 h-7" />
           </button>
         </div>
-        <div className="px-6 pt-6 pb-10 flex flex-col gap-5 overflow-y-auto h-[calc(100vh-4rem)]">
-          {LINKS.map((l) => {
-            const active = pathname === l.href || (l.href !== '/' && pathname.startsWith(l.href)) || (l.href === '/categories' && pathname.startsWith('/category'));
-            return (
-              <Link key={l.href} href={l.href} onClick={() => setOpen(false)} className={`font-serif text-[26px] leading-tight ${active ? 'text-sethi-gold' : 'hover:text-sethi-gold'}`}>
-                {l.label}
-              </Link>
-            );
-          })}
-          <a href={waLink} target="_blank" rel="noopener noreferrer" className="btn-primary mt-4">
-            <MessageCircle className="w-5 h-5" /> WhatsApp Us
-          </a>
+
+        <div className="px-6 pt-8 pb-10 flex flex-col overflow-y-auto h-[calc(100vh-4rem)]">
+          {/* Nav links — big tap targets */}
+          <nav className="flex flex-col">
+            {LINKS.map((l) => {
+              const active = pathname === l.href || (l.href !== '/' && pathname.startsWith(l.href)) || (l.href === '/categories' && pathname.startsWith('/category'));
+              return (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  onClick={() => setOpen(false)}
+                  className={`font-serif text-[28px] leading-tight py-4 border-b border-white/10 flex items-center justify-between
+                    ${active ? 'text-sethi-gold' : 'text-white active:text-sethi-gold'}`}
+                >
+                  {l.label}
+                  {active && <span className="w-2 h-2 rounded-full bg-sethi-gold" />}
+                </Link>
+              );
+            })}
+          </nav>
+
+          {/* Bottom CTA */}
+          <div className="mt-auto pt-8">
+            <a
+              href={waLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setOpen(false)}
+              className="btn-primary w-full !min-h-[56px] text-base"
+            >
+              <MessageCircle className="w-5 h-5" /> WhatsApp Us Now
+            </a>
+            <p className="mt-4 text-center text-white/40 text-sm">{BUSINESS.phone}</p>
+          </div>
         </div>
       </div>
     </header>
