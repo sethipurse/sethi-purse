@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useMemo, useState, useRef, useCallback } from 'react';
 import { ArrowLeft, Check, MessageCircle, Minus, Plus, Share2, ShoppingBag, Star, ZoomIn } from 'lucide-react';
 import { toast } from 'sonner';
@@ -44,16 +45,19 @@ function ZoomImage({ src, alt, onClickFullscreen }) {
       className="relative aspect-[4/5] w-full overflow-hidden rounded bg-white shadow-sm ring-1 ring-[#ede8df] cursor-zoom-in"
     >
       {src ? (
-        <img
+        <Image
           src={src}
           alt={alt}
-          draggable={false}
-          className="h-full w-full object-cover"
+          fill
+          sizes="(max-width: 1024px) 100vw, 50vw"
+          priority
+          className="object-cover"
           style={
             zoom.active
               ? { transformOrigin: `${zoom.x}% ${zoom.y}%`, transform: 'scale(2)', transition: 'transform 0.1s ease' }
               : { transform: 'scale(1)', transition: 'transform 0.3s ease' }
           }
+          draggable={false}
         />
       ) : (
         <div className="flex h-full items-center justify-center bg-[#f5f0e8]">
@@ -74,10 +78,8 @@ function MobileFullscreen({ src, alt, onClose }) {
   const imgRef = useRef(null);
   const containerRef = useRef(null);
 
-  // Pinch zoom state
   const scaleRef = useRef(1);
   const lastScaleRef = useRef(1);
-  const originRef = useRef({ x: 0, y: 0 });
   const translateRef = useRef({ x: 0, y: 0 });
   const lastTranslateRef = useRef({ x: 0, y: 0 });
   const lastTapRef = useRef(0);
@@ -96,12 +98,9 @@ function MobileFullscreen({ src, alt, onClose }) {
 
   const onTouchStart = (e) => {
     touchStartRef.current = Array.from(e.touches);
-
-    // Double tap to zoom
     if (e.touches.length === 1) {
       const now = Date.now();
       if (now - lastTapRef.current < 300) {
-        // Double tap detected
         if (scaleRef.current > 1) {
           resetTransform();
         } else {
@@ -112,7 +111,6 @@ function MobileFullscreen({ src, alt, onClose }) {
       }
       lastTapRef.current = now;
     }
-
     if (e.touches.length === 2) {
       lastScaleRef.current = scaleRef.current;
       lastTranslateRef.current = { ...translateRef.current };
@@ -121,12 +119,9 @@ function MobileFullscreen({ src, alt, onClose }) {
 
   const onTouchMove = (e) => {
     e.preventDefault();
-
     if (e.touches.length === 2) {
-      // Pinch zoom
       const startTouches = touchStartRef.current;
       if (startTouches.length < 2) return;
-
       const startDist = Math.hypot(
         startTouches[0].clientX - startTouches[1].clientX,
         startTouches[0].clientY - startTouches[1].clientY
@@ -135,12 +130,10 @@ function MobileFullscreen({ src, alt, onClose }) {
         e.touches[0].clientX - e.touches[1].clientX,
         e.touches[0].clientY - e.touches[1].clientY
       );
-
       const pinchScale = currentDist / startDist;
       scaleRef.current = Math.min(4, Math.max(1, lastScaleRef.current * pinchScale));
       applyTransform();
     } else if (e.touches.length === 1 && scaleRef.current > 1) {
-      // Pan when zoomed in
       const startTouch = touchStartRef.current[0];
       if (!startTouch) return;
       const dx = e.touches[0].clientX - startTouch.clientX;
@@ -157,7 +150,6 @@ function MobileFullscreen({ src, alt, onClose }) {
     lastScaleRef.current = scaleRef.current;
     lastTranslateRef.current = { ...translateRef.current };
     touchStartRef.current = [];
-    // If scale went below 1, reset
     if (scaleRef.current < 1) resetTransform();
   };
 
@@ -167,7 +159,6 @@ function MobileFullscreen({ src, alt, onClose }) {
       className="fixed inset-0 z-[10000] flex items-center justify-center bg-black"
       style={{ touchAction: 'none' }}
     >
-      {/* Close button */}
       <button
         type="button"
         onClick={onClose}
@@ -175,13 +166,10 @@ function MobileFullscreen({ src, alt, onClose }) {
       >
         ✕ Close
       </button>
-
-      {/* Hint */}
       <div className="absolute bottom-6 left-0 right-0 text-center text-sm text-white/70 pointer-events-none">
         Double tap to zoom · Pinch to zoom · Drag to pan
       </div>
-
-      {/* Zoomable image */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         ref={imgRef}
         src={src}
@@ -259,11 +247,17 @@ export default function ProductDetailClient({ product, related = [], reviews = [
                   key={image}
                   type="button"
                   onClick={() => setActiveImage(image)}
-                  className={`aspect-square overflow-hidden rounded bg-white ring-2 transition-all duration-200 hover:ring-[#c9a84c] ${
+                  className={`aspect-square overflow-hidden rounded bg-white ring-2 transition-all duration-200 hover:ring-[#c9a84c] relative ${
                     activeImage === image ? 'ring-[#c9a84c] scale-105' : 'ring-[#ede8df]'
                   }`}
                 >
-                  <img src={image} alt="" className="h-full w-full object-cover" />
+                  <Image
+                    src={image}
+                    alt=""
+                    fill
+                    sizes="10vw"
+                    className="object-cover"
+                  />
                 </button>
               ))}
             </div>
@@ -355,7 +349,6 @@ export default function ProductDetailClient({ product, related = [], reviews = [
         </section>
       )}
 
-      {/* Mobile Fullscreen with pinch/double-tap zoom */}
       {zoomOpen && (
         <MobileFullscreen
           src={activeImage}
