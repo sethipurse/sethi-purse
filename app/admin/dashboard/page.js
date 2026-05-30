@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import AdminShell from '@/components/AdminShell';
 import { toast } from 'sonner';
-import { ShoppingBag, Grid, Tag, MessageSquare, AlertCircle, CheckCircle2, Edit, Phone, MessageCircle } from 'lucide-react';
+import { ShoppingBag, Grid, Tag, MessageSquare, AlertCircle, CheckCircle2, Edit, Phone, MessageCircle, PackageX, IndianRupee, Star } from 'lucide-react';
 import { resolveImage, formatIST } from '@/lib/constants';
 
 export default function DashboardPage() {
@@ -44,6 +44,21 @@ export default function DashboardPage() {
   const recentInquiries = [...inquiries].slice(0, 5);
   const lowStock = products.filter((p) => typeof p.stock === 'number' && p.stock <= 5);
 
+  // NEW stats
+  const outOfStock = products.filter((p) => typeof p.stock === 'number' && p.stock === 0).length;
+  const totalInventoryValue = products.reduce((sum, p) => {
+    const price = parseFloat(p.salePrice) || 0;
+    const stock = typeof p.stock === 'number' ? p.stock : 0;
+    return sum + price * stock;
+  }, 0);
+  const featuredCount = products.filter((p) => p.isFeatured).length;
+
+  const formatValue = (val) => {
+    if (val >= 100000) return `₹${(val / 100000).toFixed(1)}L`;
+    if (val >= 1000) return `₹${(val / 1000).toFixed(1)}K`;
+    return `₹${val.toLocaleString('en-IN')}`;
+  };
+
   const stats = [
     { label: 'Total Products', value: products.length, icon: ShoppingBag, href: '/admin/products' },
     { label: 'Total Categories', value: categories.length, icon: Grid, href: '/admin/categories' },
@@ -51,9 +66,33 @@ export default function DashboardPage() {
     { label: 'New Inquiries', value: newInquiries, icon: MessageSquare, href: '/admin/inquiries', badge: newInquiries > 0 },
   ];
 
+  const inventoryStats = [
+    {
+      label: 'Out of Stock',
+      value: outOfStock,
+      icon: PackageX,
+      href: '/admin/products',
+      alert: outOfStock > 0,
+    },
+    {
+      label: 'Inventory Value',
+      value: loading ? '—' : formatValue(totalInventoryValue),
+      icon: IndianRupee,
+      href: '/admin/products',
+      raw: true,
+    },
+    {
+      label: 'Featured Products',
+      value: featuredCount,
+      icon: Star,
+      href: '/admin/products',
+    },
+  ];
+
   return (
     <AdminShell>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      {/* Primary stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
         {stats.map((s) => (
           <Link key={s.label} href={s.href} className="bg-white border border-sethi-gray200 rounded-sm p-5 flex items-start justify-between hover:border-sethi-gold transition-colors">
             <div>
@@ -61,6 +100,21 @@ export default function DashboardPage() {
               <div className={`font-serif text-3xl md:text-4xl mt-2 ${s.badge ? 'text-red-600' : ''}`}>{loading ? '—' : s.value}</div>
             </div>
             <s.icon className={`w-7 h-7 ${s.badge ? 'text-red-600' : 'text-sethi-gold'}`} />
+          </Link>
+        ))}
+      </div>
+
+      {/* Inventory stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        {inventoryStats.map((s) => (
+          <Link key={s.label} href={s.href} className={`bg-white border rounded-sm p-5 flex items-start justify-between hover:border-sethi-gold transition-colors ${s.alert ? 'border-red-300 bg-red-50' : 'border-sethi-gray200'}`}>
+            <div>
+              <div className={`text-xs uppercase tracking-wider ${s.alert ? 'text-red-500' : 'text-sethi-gray500'}`}>{s.label}</div>
+              <div className={`font-serif text-3xl md:text-4xl mt-2 ${s.alert ? 'text-red-600' : ''}`}>
+                {loading ? '—' : s.value}
+              </div>
+            </div>
+            <s.icon className={`w-7 h-7 ${s.alert ? 'text-red-500' : 'text-sethi-gold'}`} />
           </Link>
         ))}
       </div>
@@ -152,7 +206,7 @@ export default function DashboardPage() {
             {loading ? (
               <p className="p-5 text-sethi-gray500 text-sm">Loading...</p>
             ) : recentInquiries.length === 0 ? (
-              <p className="p-6 text-sethi-gray500 text-sm text-center">No inquiries yet. When customers fill the contact form, they’ll show up here.</p>
+              <p className="p-6 text-sethi-gray500 text-sm text-center">No inquiries yet. When customers fill the contact form, they'll show up here.</p>
             ) : (
               <ul className="divide-y divide-sethi-gray200">
                 {recentInquiries.map((i) => (
