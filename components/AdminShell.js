@@ -35,12 +35,7 @@ export default function AdminShell({ children }) {
   const [newInquiries, setNewInquiries] = useState(0);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const token = window.localStorage.getItem('sethi_admin_token');
-    if (token) {
-      setReady(true);
-      return;
-    }
+    // Cookie-only auth — no localStorage
     fetch('/api/auth/session')
       .then((res) => res.ok ? res.json() : { authenticated: false })
       .then((data) => {
@@ -70,7 +65,6 @@ export default function AdminShell({ children }) {
 
   const logout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null);
-    if (typeof window !== 'undefined') window.localStorage.removeItem('sethi_admin_token');
     router.replace('/admin');
   };
 
