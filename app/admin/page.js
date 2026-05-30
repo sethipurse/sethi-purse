@@ -13,9 +13,13 @@ export default function AdminLoginPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && localStorage.getItem('sethi_admin_token')) {
-      router.replace('/admin/dashboard');
-    }
+    // Check cookie-based session instead of localStorage
+    fetch('/api/auth/session')
+      .then((res) => res.ok ? res.json() : { authenticated: false })
+      .then((data) => {
+        if (data.authenticated) router.replace('/admin/dashboard');
+      })
+      .catch(() => null);
   }, [router]);
 
   const submit = async (e) => {
@@ -33,7 +37,7 @@ export default function AdminLoginPage() {
         setErr(data.error || `Login failed (status ${res.status})`);
         return;
       }
-      localStorage.setItem('sethi_admin_token', data.token);
+      // Cookie is set by the server — no localStorage needed
       router.replace('/admin/dashboard');
     } catch (err) {
       console.error('Login failed:', err);
