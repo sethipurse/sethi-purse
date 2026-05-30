@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
-import { ArrowLeft, Check, MessageCircle, Minus, Plus, Share2, ShoppingBag, Star } from 'lucide-react';
+import { useMemo, useState, useRef, useCallback } from 'react';
+import { ArrowLeft, Check, MessageCircle, Minus, Plus, Share2, ShoppingBag, Star, ZoomIn } from 'lucide-react';
 import { toast } from 'sonner';
 import ProductCard from '@/components/ProductCard';
 import ReviewCard from '@/components/ReviewCard';
@@ -18,6 +18,69 @@ function getImages(product) {
   return [resolveImage(product), ...parsed].filter(Boolean);
 }
 
+// ── Hover Zoom Component ──────────────────────────────────────────────────────
+function ZoomImage({ src, alt, onClickFullscreen }) {
+  const containerRef = useRef(null);
+  const [zoom, setZoom] = useState({ active: false, x: 50, y: 50 });
+
+  const handleMouseMove = useCallback((e) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    setZoom({ active: true, x, y });
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    setZoom({ active: false, x: 50, y: 50 });
+  }, []);
+
+  // Mobile: tap opens fullscreen (no hover on touch)
+  return (
+    <div
+      ref={containerRef}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      onClick={onClickFullscreen}
+      className="relative aspect-[4/5] w-full overflow-hidden rounded bg-white shadow-sm ring-1 ring-[#ede8df] cursor-zoom-in"
+      style={{ userSelect: 'none' }}
+    >
+      {src ? (
+        <img
+          src={src}
+          alt={alt}
+          draggable={false}
+          className="h-full w-full object-cover transition-transform duration-100"
+          style={
+            zoom.active
+              ? {
+                  transformOrigin: `${zoom.x}% ${zoom.y}%`,
+                  transform: 'scale(2)',
+                  transition: 'transform 0.1s ease',
+                }
+              : {
+                  transform: 'scale(1)',
+                  transition: 'transform 0.3s ease',
+                }
+          }
+        />
+      ) : (
+        <div className="flex h-full items-center justify-center bg-[#f5f0e8]">
+          <ShoppingBag className="h-24 w-24 text-[#c9a84c]" />
+        </div>
+      )}
+
+      {/* Zoom hint — hides when zooming */}
+      {!zoom.active && (
+        <span className="absolute bottom-4 left-4 flex items-center gap-1 rounded bg-white/95 px-3 py-1 text-sm font-bold text-[#6b5544] shadow pointer-events-none">
+          <ZoomIn className="h-4 w-4" /> Hover to zoom · Tap for fullscreen
+        </span>
+      )}
+    </div>
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function ProductDetailClient({ product, related = [], reviews = [] }) {
   const images = useMemo(() => getImages(product), [product]);
   const [activeImage, setActiveImage] = useState(images[0] || '');
@@ -25,6 +88,7 @@ export default function ProductDetailClient({ product, related = [], reviews = [
   const [qty, setQty] = useState(1);
   const [selectedSize, setSelectedSize] = useState('');
   const [selectedColor, setSelectedColor] = useState('');
+
   const salePrice = product.sale_price ?? product.salePrice ?? product.price ?? 0;
   const mrp = product.mrp ?? product.original_price ?? 0;
   const discount = product.discount_percent || (mrp > salePrice ? Math.round(((mrp - salePrice) / mrp) * 100) : 0);
@@ -49,24 +113,14 @@ export default function ProductDetailClient({ product, related = [], reviews = [
     productUrl,
   });
 
-  // ✅ FIXED: Share URL only — no title/text
-  // When navigator.share sends title+text+url together, WhatsApp treats it as a message
-  // and does NOT generate a link preview.
-  // Sharing URL alone forces WhatsApp to fetch the page and show the OG image preview.
   const onShare = async () => {
     const url = window.location.href;
-
     if (navigator.share) {
       try {
-        // ✅ Share URL only — this is what makes WhatsApp show the image preview
         await navigator.share({ url });
-      } catch (e) {
-        // User dismissed — do nothing
-      }
+      } catch (e) {}
       return;
     }
-
-    // Fallback for desktop: copy URL to clipboard
     try {
       await navigator.clipboard.writeText(url);
       toast.success('Product link copied — paste in WhatsApp to share');
@@ -79,15 +133,33 @@ export default function ProductDetailClient({ product, related = [], reviews = [
     <div className="space-y-14">
       <div className="grid gap-8 lg:grid-cols-[1.02fr_0.98fr]">
         <div className="space-y-4">
-          <button type="button" onClick={() => setZoomOpen(true)} className="relative aspect-[4/5] w-full overflow-hidden rounded bg-white text-left shadow-sm ring-1 ring-[#ede8df]">
-            {discount > 0 && <span className="absolute right-4 top-4 z-10 rounded bg-[#c9a84c] px-3 py-1 text-sm font-bold text-white">{discount}% OFF</span>}
-            {activeImage ? <img src={activeImage} alt={product.name} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center bg-[#f5f0e8]"><ShoppingBag className="h-24 w-24 text-[#c9a84c]" /></div>}
-            <span className="absolute bottom-4 left-4 rounded bg-white/95 px-3 py-1 text-sm font-bold text-[#6b5544] shadow">Tap to zoom</span>
-          </button>
+          {/* Discount badge on top of image area */}
+          <div className="relative">
+            {discount > 0 && (
+              <span className="absolute right-4 top-4 z-10 rounded bg-[#c9a84c] px-3 py-1 text-sm font-bold text-white shadow">
+                {discount}% OFF
+              </span>
+            )}
+            {/* ── Hover Zoom Image ── */}
+            <ZoomImage
+              src={activeImage}
+              alt={product.name}
+              onClickFullscreen={() => setZoomOpen(true)}
+            />
+          </div>
+
+          {/* Thumbnail Gallery */}
           {images.length > 1 && (
             <div className="grid grid-cols-5 gap-3">
               {images.map((image) => (
-                <button key={image} type="button" onClick={() => setActiveImage(image)} className={`aspect-square overflow-hidden rounded bg-white ring-2 ${activeImage === image ? 'ring-[#c9a84c]' : 'ring-[#ede8df]'}`}>
+                <button
+                  key={image}
+                  type="button"
+                  onClick={() => setActiveImage(image)}
+                  className={`aspect-square overflow-hidden rounded bg-white ring-2 transition-all duration-200 hover:ring-[#c9a84c] ${
+                    activeImage === image ? 'ring-[#c9a84c] scale-105' : 'ring-[#ede8df]'
+                  }`}
+                >
                   <img src={image} alt="" className="h-full w-full object-cover" />
                 </button>
               ))}
@@ -95,23 +167,35 @@ export default function ProductDetailClient({ product, related = [], reviews = [
           )}
         </div>
 
+        {/* Product Info Panel */}
         <div className="rounded bg-white p-6 shadow-sm ring-1 ring-[#ede8df] md:p-8">
-          <Link href="/products" className="inline-flex items-center gap-2 text-base font-semibold text-[#8a7060] hover:text-[#c9a84c]"><ArrowLeft className="h-4 w-4" /> Back to products</Link>
+          <Link href="/products" className="inline-flex items-center gap-2 text-base font-semibold text-[#8a7060] hover:text-[#c9a84c]">
+            <ArrowLeft className="h-4 w-4" /> Back to products
+          </Link>
           <div className="mt-6 text-sm font-bold uppercase tracking-[0.18em] text-[#c9a84c]">{category}</div>
           <h1 className="mt-2 text-5xl font-bold leading-none text-[#2c1f14] md:text-6xl">{product.name}</h1>
-          {product.brand && <p className="mt-3 text-xl text-[#6b5544]">by <span className="font-bold text-[#2c1f14]">{product.brand}</span></p>}
+          {product.brand && (
+            <p className="mt-3 text-xl text-[#6b5544]">
+              by <span className="font-bold text-[#2c1f14]">{product.brand}</span>
+            </p>
+          )}
           <div className="mt-6 flex flex-wrap items-end gap-4">
             <span className="text-4xl font-bold text-[#2c1f14]">{rupee(salePrice)}</span>
             {mrp > salePrice && <span className="pb-1 text-xl text-[#8a7060] line-through">{rupee(mrp)}</span>}
           </div>
-          <p className="mt-6 text-xl leading-8 text-[#6b5544]">{product.description || 'Premium quality product from SETHI PURSE, Jalandhar. Message us for availability, latest images, and best store price.'}</p>
+          <p className="mt-6 text-xl leading-8 text-[#6b5544]">
+            {product.description || 'Premium quality product from SETHI PURSE, Jalandhar. Message us for availability, latest images, and best store price.'}
+          </p>
 
           <div className="mt-7 grid gap-5 border-y border-[#ede8df] py-6">
             <div>
               <div className="mb-3 text-lg font-bold text-[#2c1f14]">Size</div>
               <div className="flex flex-wrap gap-2">
                 {sizes.map((size) => (
-                  <button key={size} type="button" onClick={() => setSelectedSize(size)} className={`rounded border px-4 py-2 text-base font-semibold ${selectedSize === size ? 'border-[#c9a84c] bg-[#c9a84c] text-white' : 'border-[#ede8df] text-[#6b5544]'}`}>{size}</button>
+                  <button key={size} type="button" onClick={() => setSelectedSize(size)}
+                    className={`rounded border px-4 py-2 text-base font-semibold transition ${selectedSize === size ? 'border-[#c9a84c] bg-[#c9a84c] text-white' : 'border-[#ede8df] text-[#6b5544] hover:border-[#c9a84c]'}`}>
+                    {size}
+                  </button>
                 ))}
               </div>
             </div>
@@ -119,28 +203,42 @@ export default function ProductDetailClient({ product, related = [], reviews = [
               <div className="mb-3 text-lg font-bold text-[#2c1f14]">Color</div>
               <div className="flex flex-wrap gap-2">
                 {colors.map((color) => (
-                  <button key={color} type="button" onClick={() => setSelectedColor(color)} className={`rounded border px-4 py-2 text-base font-semibold ${selectedColor === color ? 'border-[#c9a84c] bg-[#c9a84c] text-white' : 'border-[#ede8df] text-[#6b5544]'}`}>{color}</button>
+                  <button key={color} type="button" onClick={() => setSelectedColor(color)}
+                    className={`rounded border px-4 py-2 text-base font-semibold transition ${selectedColor === color ? 'border-[#c9a84c] bg-[#c9a84c] text-white' : 'border-[#ede8df] text-[#6b5544] hover:border-[#c9a84c]'}`}>
+                    {color}
+                  </button>
                 ))}
               </div>
             </div>
             <div className="flex items-center gap-4">
               <span className="text-lg font-bold">Quantity</span>
               <div className="flex h-11 items-center overflow-hidden rounded border border-[#ede8df]">
-                <button type="button" onClick={() => setQty(Math.max(1, qty - 1))} className="flex h-11 w-11 items-center justify-center"><Minus className="h-4 w-4" /></button>
+                <button type="button" onClick={() => setQty(Math.max(1, qty - 1))} className="flex h-11 w-11 items-center justify-center hover:bg-[#f5f0e8]"><Minus className="h-4 w-4" /></button>
                 <span className="w-12 text-center text-lg font-bold">{qty}</span>
-                <button type="button" onClick={() => setQty(qty + 1)} className="flex h-11 w-11 items-center justify-center"><Plus className="h-4 w-4" /></button>
+                <button type="button" onClick={() => setQty(qty + 1)} className="flex h-11 w-11 items-center justify-center hover:bg-[#f5f0e8]"><Plus className="h-4 w-4" /></button>
               </div>
             </div>
           </div>
 
           <div className="mt-7 grid gap-3 sm:grid-cols-2">
-            <button type="button" onClick={addToCart} disabled={outOfStock} className="flex h-14 items-center justify-center gap-2 rounded bg-[#c9a84c] text-xl font-bold text-white transition hover:bg-[#a07a28] disabled:opacity-60"><ShoppingBag className="h-5 w-5" /> Add to Cart</button>
-            <a href={outOfStock ? undefined : buildWhatsAppLink(buyNowMessage)} target="_blank" rel="noopener noreferrer" aria-disabled={outOfStock} onClick={(e) => outOfStock && e.preventDefault()} className={`flex h-14 items-center justify-center gap-2 rounded border border-[#c9a84c] text-xl font-bold text-[#a07a28] transition hover:bg-[#f5f0e8] ${outOfStock ? 'pointer-events-none opacity-60' : ''}`}><MessageCircle className="h-5 w-5" /> Buy Now</a>
+            <button type="button" onClick={addToCart} disabled={outOfStock}
+              className="flex h-14 items-center justify-center gap-2 rounded bg-[#c9a84c] text-xl font-bold text-white transition hover:bg-[#a07a28] disabled:opacity-60">
+              <ShoppingBag className="h-5 w-5" /> Add to Cart
+            </button>
+            <a href={outOfStock ? undefined : buildWhatsAppLink(buyNowMessage)} target="_blank" rel="noopener noreferrer"
+              aria-disabled={outOfStock} onClick={(e) => outOfStock && e.preventDefault()}
+              className={`flex h-14 items-center justify-center gap-2 rounded border border-[#c9a84c] text-xl font-bold text-[#a07a28] transition hover:bg-[#f5f0e8] ${outOfStock ? 'pointer-events-none opacity-60' : ''}`}>
+              <MessageCircle className="h-5 w-5" /> Buy Now
+            </a>
           </div>
-          <button type="button" onClick={onShare} className="mt-3 flex h-12 items-center gap-2 text-lg font-semibold text-[#6b5544] hover:text-[#c9a84c]"><Share2 className="h-4 w-4" /> Share product</button>
+          <button type="button" onClick={onShare} className="mt-3 flex h-12 items-center gap-2 text-lg font-semibold text-[#6b5544] hover:text-[#c9a84c]">
+            <Share2 className="h-4 w-4" /> Share product
+          </button>
 
           <div className="mt-6 grid gap-2 text-lg text-[#6b5544]">
-            {['Original branded collection', 'Store pickup and WhatsApp support', 'Best available SETHI PURSE pricing'].map((text) => <div key={text} className="flex items-center gap-2"><Check className="h-5 w-5 text-[#c9a84c]" /> {text}</div>)}
+            {['Original branded collection', 'Store pickup and WhatsApp support', 'Best available SETHI PURSE pricing'].map((text) => (
+              <div key={text} className="flex items-center gap-2"><Check className="h-5 w-5 text-[#c9a84c]" /> {text}</div>
+            ))}
           </div>
         </div>
       </div>
@@ -159,9 +257,10 @@ export default function ProductDetailClient({ product, related = [], reviews = [
         </section>
       )}
 
+      {/* Fullscreen Modal */}
       {zoomOpen && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/85 p-4" onClick={() => setZoomOpen(false)}>
-          <button type="button" className="absolute right-4 top-4 rounded-full bg-white px-4 py-2 font-bold text-[#2c1f14]">Close</button>
+          <button type="button" className="absolute right-4 top-4 rounded-full bg-white px-4 py-2 font-bold text-[#2c1f14] hover:bg-[#f5f0e8]">Close ✕</button>
           {activeImage && <img src={activeImage} alt={product.name} className="max-h-[90vh] max-w-[95vw] rounded object-contain shadow-2xl" />}
         </div>
       )}
