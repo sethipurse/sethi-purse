@@ -31,7 +31,7 @@ const compressImage = (file) =>
     img.src = url;
   });
 
-function ImageUploader({ value, onChange, bucket = 'categories' }) {
+function ImageUploader({ value, onChange, bucket = 'products' }) {
   const [uploading, setUploading] = useState(false);
 
   const handleFile = async (e) => {
@@ -43,7 +43,7 @@ function ImageUploader({ value, onChange, bucket = 'categories' }) {
       const sizeKB = Math.round(compressed.size / 1024);
       const form = new FormData();
       form.append('file', compressed);
-      form.append('bucket', bucket);
+      form.append('bucket', 'products'); // FIX: 'categories' bucket doesn't exist; use 'products'
       const res = await fetch('/api/upload', { method: 'POST', body: form });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { toast.error(data.error || 'Upload failed'); return; }
