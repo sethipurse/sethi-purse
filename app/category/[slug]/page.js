@@ -6,11 +6,12 @@ import ProductCard from '@/components/ProductCard';
 import { getCategories, getProducts } from '@/lib/data';
 import { categoryPath, findCategoryBySlug, productMatchesCategorySlug, titleFromSlug } from '@/lib/categoryUtils';
 
+export const revalidate = 0;
+
 function matchesCategory(product, category, slug) {
   if (productMatchesCategorySlug(product, slug)) return true;
   if (!category) return false;
   if (product.category_id === category.id) return true;
-  // Case-insensitive name match
   return (product.category || '').toLowerCase() === (category.name || '').toLowerCase();
 }
 
