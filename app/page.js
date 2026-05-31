@@ -88,7 +88,10 @@ export default function HomePage() {
       const productCategory = product.category || product.category_id || '';
       const categoryMatch = activeCategory === 'All' || productCategory === activeCategory;
       const text = `${product.name || ''} ${product.brand || ''} ${product.description || ''} ${productCategory}`.toLowerCase();
-      return categoryMatch && (!q || text.includes(q));
+      const searchMatch = !q || text.includes(q);
+      // Show only featured products when not searching
+      const featuredMatch = q ? true : product.featured === true;
+      return categoryMatch && searchMatch && featuredMatch;
     });
   }, [activeCategory, products, query]);
 
@@ -176,7 +179,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* CATEGORIES SECTION — id added for navbar anchor link */}
+      {/* CATEGORIES SECTION */}
       <section id="categories" className="mx-auto w-full max-w-6xl px-4 pb-12">
         <h2 className="text-4xl font-bold text-[#c9a84c]">Shop by Category</h2>
         <div className="mt-5 grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -200,15 +203,23 @@ export default function HomePage() {
           </div>
           <Link href="/products" className="hidden text-lg font-semibold text-[#a07a28] hover:underline md:inline">View all</Link>
         </div>
+
+        {/* If no featured products set up yet, show a helpful message */}
+        {!loading && filteredProducts.length === 0 && !query && activeCategory === 'All' && (
+          <div className="mt-4 rounded-lg bg-[#fdf4e3] border border-[#c9a84c] px-5 py-3 text-sm text-[#a07a28]">
+            💡 No featured products yet. Go to the admin panel and mark products as <strong>featured</strong> to show them here.
+          </div>
+        )}
+
         <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {loading ? (
             Array.from({ length: 6 }).map((_, index) => <SkeletonCard key={index} />)
           ) : filteredProducts.length === 0 ? (
-            <div className="col-span-full rounded bg-white p-10 text-center ring-1 ring-[#ede8df]">
-              <Sparkles className="mx-auto h-10 w-10 text-[#c9a84c]" />
-              <h3 className="mt-3 text-2xl font-bold">No products found</h3>
-              <p className="mt-1 text-[#8a7060]">Try another search or category.</p>
-              {(query || activeCategory !== 'All') && (
+            (query || activeCategory !== 'All') && (
+              <div className="col-span-full rounded bg-white p-10 text-center ring-1 ring-[#ede8df]">
+                <Sparkles className="mx-auto h-10 w-10 text-[#c9a84c]" />
+                <h3 className="mt-3 text-2xl font-bold">No products found</h3>
+                <p className="mt-1 text-[#8a7060]">Try another search or category.</p>
                 <button
                   type="button"
                   onClick={() => { setQuery(''); setActiveCategory('All'); }}
@@ -216,8 +227,8 @@ export default function HomePage() {
                 >
                   Clear filters
                 </button>
-              )}
-            </div>
+              </div>
+            )
           ) : (
             filteredProducts.slice(0, 9).map((product) => (
               <ProductCard key={product.id} product={product} onAddToCart={addToCart} />
