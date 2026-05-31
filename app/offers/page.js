@@ -4,6 +4,8 @@ import OfferCard from '@/components/OfferCard';
 import SectionHeading from '@/components/SectionHeading';
 import { getOffers } from '@/lib/data';
 
+export const revalidate = 0;
+
 const OG_IMAGE = 'https://bbdatviaaiqpfvwumkkd.supabase.co/storage/v1/object/public/products/og-default.jpg';
 
 export const metadata = {
