@@ -6,6 +6,8 @@ import { BUSINESS } from '@/lib/constants';
 import { getReviews } from '@/lib/data';
 import { ExternalLink } from 'lucide-react';
 
+export const revalidate = 0;
+
 export const metadata = {
   title: 'Customer Reviews | SETHI PURSE',
   description: "See what our customers say about SETHI PURSE — Punjab's most trusted luggage destination.",
