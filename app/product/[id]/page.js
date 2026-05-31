@@ -5,6 +5,8 @@ import Footer from '@/components/Footer';
 import ProductDetailClient from '@/components/ProductDetailClient';
 import { getProduct, getProducts, getReviews } from '@/lib/data';
 
+export const revalidate = 0;
+
 const OG_IMAGE =
   'https://bbdatviaaiqpfvwumkkd.supabase.co/storage/v1/object/public/products/og-default.jpg';
 
@@ -35,7 +37,6 @@ export async function generateMetadata({ params }) {
     const bundle = await getProductBundle(params.id);
     const product = bundle?.product;
 
-    // If product not found — still return valid OG tags with store defaults
     if (!product) {
       return {
         title: 'Product | SETHI PURSE',
@@ -48,11 +49,8 @@ export async function generateMetadata({ params }) {
     }
 
     const price = product.sale_price ?? product.salePrice ?? product.price;
-
-    // Use product image — must be a full https:// URL for WhatsApp to load it
     const rawImage = product.image_url || product.imageUrl || '';
-    const image =
-      rawImage.startsWith('http') ? rawImage : OG_IMAGE;
+    const image = rawImage.startsWith('http') ? rawImage : OG_IMAGE;
 
     return {
       title: `${product.name} | SETHI PURSE`,
