@@ -68,7 +68,6 @@ export default function HomePage() {
       if (!live) return;
       const nextSlides = Array.isArray(results[0]) ? results[0].filter((s) => s.is_active !== false) : [];
       const nextCategories = Array.isArray(results[1]) ? results[1] : [];
-      // ✅ FIXED: No longer falls back to DEMO_PRODUCTS
       const nextProducts = Array.isArray(results[2]) ? results[2].filter((p) => p.is_active !== false) : [];
       const nextOffers = Array.isArray(results[3]) ? results[3].filter((o) => o.is_active !== false) : [];
       const nextReviews = Array.isArray(results[4]) ? results[4].filter((r) => r.is_approved !== false) : [];
@@ -83,7 +82,6 @@ export default function HomePage() {
     return () => { live = false; };
   }, []);
 
-  // ✅ FIXED: Search now works correctly against real data
   const filteredProducts = useMemo(() => {
     const q = query.trim().toLowerCase();
     return products.filter((product) => {
@@ -138,7 +136,6 @@ export default function HomePage() {
             </button>
           )}
         </div>
-        {/* ✅ Live search result count */}
         {query.length > 0 && (
           <p className="mt-2 text-base text-[#8a7060]">
             {filteredProducts.length === 0
@@ -179,7 +176,8 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-6xl px-4 pb-12">
+      {/* CATEGORIES SECTION — id added for navbar anchor link */}
+      <section id="categories" className="mx-auto w-full max-w-6xl px-4 pb-12">
         <h2 className="text-4xl font-bold text-[#c9a84c]">Shop by Category</h2>
         <div className="mt-5 grid grid-cols-2 gap-4 md:grid-cols-4">
           {categories.map((category) => (
