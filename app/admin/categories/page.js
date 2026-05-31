@@ -2,7 +2,94 @@
 import { useEffect, useState } from 'react';
 import AdminShell from '@/components/AdminShell';
 import { toast } from 'sonner';
-import { Plus, Trash2, Edit, ImageOff, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Edit, ImageOff, Loader2, Upload, X } from 'lucide-react';
+
+// Same compress logic as ProductForm — JPEG, max 1200px, WhatsApp ready
+const compressImage = (file) =>
+  new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const maxW = 1200;
+      let { width, height } = img;
+      const ratio = Math.min(maxW / width, maxW / height, 1);
+      width = Math.round(width * ratio);
+      height = Math.round(height * ratio);
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob((blob) => {
+        if (!blob) return reject(new Error('Compression failed'));
+        resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' }));
+      }, 'image/jpeg', 0.82);
+    };
+    img.onerror = () => reject(new Error('Could not read image'));
+    img.src = url;
+  });
+
+function ImageUploader({ value, onChange, bucket = 'categories' }) {
+  const [uploading, setUploading] = useState(false);
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const compressed = await compressImage(file);
+      const sizeKB = Math.round(compressed.size / 1024);
+      const form = new FormData();
+      form.append('file', compressed);
+      form.append('bucket', bucket);
+      const res = await fetch('/api/upload', { method: 'POST', body: form });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error(data.error || 'Upload failed'); return; }
+      onChange(data.url);
+      toast.success(`Image uploaded ✓ (${sizeKB}KB)`);
+    } catch (err) {
+      toast.error(err.message || 'Upload failed');
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  return (
+    <div>
+      <label className="block text-sm font-medium mb-1.5">Category Image</label>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="input-sethi"
+        placeholder="Paste URL or upload below"
+      />
+      <div className="mt-2 flex items-center gap-3">
+        <label className={`inline-flex items-center gap-2 px-4 py-2 border border-sethi-gold text-sethi-gold rounded-sm text-sm font-medium cursor-pointer hover:bg-sethi-gold hover:text-sethi-black transition-colors ${uploading ? 'opacity-60 pointer-events-none' : ''}`}>
+          {uploading ? <><Loader2 className="w-4 h-4 animate-spin" /> Uploading...</> : <><Upload className="w-4 h-4" /> Upload Image</>}
+          <input type="file" accept="image/*" className="hidden" onChange={handleFile} disabled={uploading} />
+        </label>
+        {value && (
+          <button type="button" onClick={() => onChange('')} className="text-sm text-red-500 hover:text-red-700 flex items-center gap-1">
+            <X className="w-3 h-3" /> Remove
+          </button>
+        )}
+      </div>
+      <div className="mt-3 w-full max-w-[280px] h-[140px] bg-sethi-gray100 border border-sethi-gray200 rounded-sm overflow-hidden flex items-center justify-center">
+        {value ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={value} alt="" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+        ) : (
+          <div className="flex flex-col items-center text-sethi-gray500 text-xs gap-1">
+            <ImageOff className="w-6 h-6" /> No preview
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function AdminCategoriesPage() {
   const [categories, setCategories] = useState([]);
@@ -22,8 +109,7 @@ export default function AdminCategoriesPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setCategories(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error('Load categories failed:', err);
+    } catch {
       toast.error('Could not load categories. Please refresh.');
       setCategories([]);
     } finally {
@@ -47,8 +133,7 @@ export default function AdminCategoriesPage() {
       toast.success('Category added');
       setName(''); setImageUrl('');
       load();
-    } catch (err) {
-      console.error('Add category failed:', err);
+    } catch {
       toast.error('Network error. Please try again.');
     } finally {
       setAdding(false);
@@ -56,30 +141,22 @@ export default function AdminCategoriesPage() {
   };
 
   const doDelete = async (id) => {
-    if (!id) { toast.error('Invalid category'); setConfirm(null); return; }
+    if (!id) { setConfirm(null); return; }
     try {
-      const res = await fetch(`/api/categories/${encodeURIComponent(id)}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-      });
+      const res = await fetch(`/api/categories/${encodeURIComponent(id)}`, { method: 'DELETE' });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(data.error || `Failed to delete (status ${res.status})`);
-        return;
-      }
+      if (!res.ok) { toast.error(data.error || 'Failed to delete'); return; }
       toast.success('Category deleted');
       setConfirm(null);
       load();
-    } catch (err) {
-      console.error('Delete category failed:', err);
-      toast.error('Network error while deleting. Please try again.');
+    } catch {
+      toast.error('Network error while deleting.');
       setConfirm(null);
     }
   };
 
   const saveEdit = async () => {
     if (!editName.trim()) { toast.error('Name required'); return; }
-    if (!editing?.id) { toast.error('Invalid category'); return; }
     try {
       const res = await fetch(`/api/categories/${encodeURIComponent(editing.id)}`, {
         method: 'PUT',
@@ -91,9 +168,8 @@ export default function AdminCategoriesPage() {
       toast.success('Category updated');
       setEditing(null);
       load();
-    } catch (err) {
-      console.error('Edit category failed:', err);
-      toast.error('Network error while updating. Please try again.');
+    } catch {
+      toast.error('Network error while updating.');
     }
   };
 
@@ -106,25 +182,16 @@ export default function AdminCategoriesPage() {
             <label className="block text-sm font-medium mb-1.5">Category Name</label>
             <input value={name} onChange={(e) => setName(e.target.value)} className="input-sethi" placeholder="e.g. Trolley Bags" />
           </div>
-          <div>
-            <label className="block text-sm font-medium mb-1.5">Image URL</label>
-            <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} className="input-sethi" placeholder="https://..." />
-            <div className="mt-3 w-full max-w-[280px] h-[140px] bg-sethi-gray100 border border-sethi-gray200 rounded-sm overflow-hidden flex items-center justify-center">
-              {imageUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={imageUrl} alt="" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-              ) : (
-                <div className="flex flex-col items-center text-sethi-gray500 text-xs"><ImageOff className="w-6 h-6" /> No preview</div>
-              )}
-            </div>
-          </div>
+          <ImageUploader value={imageUrl} onChange={setImageUrl} />
           <button type="submit" disabled={adding} className="btn-primary">
             {adding ? <><Loader2 className="w-4 h-4 animate-spin" /> Adding...</> : <><Plus className="w-4 h-4" /> Add Category</>}
           </button>
         </form>
 
         <div className="bg-white border border-sethi-gray200 rounded-sm">
-          <div className="p-5 border-b border-sethi-gray200"><h2 className="font-serif text-xl">All Categories ({categories.length})</h2></div>
+          <div className="p-5 border-b border-sethi-gray200">
+            <h2 className="font-serif text-xl">All Categories ({categories.length})</h2>
+          </div>
           <ul className="divide-y divide-sethi-gray200">
             {loading ? (
               <li className="p-6 text-sethi-gray500 text-center">Loading...</li>
@@ -132,11 +199,21 @@ export default function AdminCategoriesPage() {
               <li className="p-6 text-sethi-gray500 text-center">No categories yet.</li>
             ) : categories.map((c) => (
               <li key={c.id} className="p-4 flex items-center gap-3">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={c.imageUrl} alt="" className="w-14 h-14 object-cover rounded-sm bg-sethi-gray100" />
+                {(c.image_url || c.imageUrl) ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={c.image_url || c.imageUrl} alt="" className="w-14 h-14 object-cover rounded-sm bg-sethi-gray100 shrink-0" />
+                ) : (
+                  <div className="w-14 h-14 bg-sethi-gray100 rounded-sm flex items-center justify-center shrink-0">
+                    <ImageOff className="w-5 h-5 text-sethi-gray500" />
+                  </div>
+                )}
                 <div className="flex-1 font-medium">{c.name}</div>
-                <button onClick={() => { setEditing(c); setEditName(c.name); setEditImg(c.imageUrl || ''); }} className="inline-flex items-center gap-1 border border-sethi-gold text-sethi-gold px-3 py-1.5 rounded-sm hover:bg-sethi-gold hover:text-sethi-black text-sm"><Edit className="w-3.5 h-3.5" /> Edit</button>
-                <button onClick={() => setConfirm(c)} className="inline-flex items-center gap-1 border border-red-500 text-red-600 px-3 py-1.5 rounded-sm hover:bg-red-500 hover:text-white text-sm"><Trash2 className="w-3.5 h-3.5" /> Delete</button>
+                <button onClick={() => { setEditing(c); setEditName(c.name); setEditImg(c.image_url || c.imageUrl || ''); }} className="inline-flex items-center gap-1 border border-sethi-gold text-sethi-gold px-3 py-1.5 rounded-sm hover:bg-sethi-gold hover:text-sethi-black text-sm">
+                  <Edit className="w-3.5 h-3.5" /> Edit
+                </button>
+                <button onClick={() => setConfirm(c)} className="inline-flex items-center gap-1 border border-red-500 text-red-600 px-3 py-1.5 rounded-sm hover:bg-red-500 hover:text-white text-sm">
+                  <Trash2 className="w-3.5 h-3.5" /> Delete
+                </button>
               </li>
             ))}
           </ul>
@@ -147,7 +224,7 @@ export default function AdminCategoriesPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="bg-white rounded-sm p-6 max-w-md w-full">
             <h3 className="font-serif text-xl mb-2">Delete category?</h3>
-            <p className="text-sethi-gray500 text-sm mb-5">Are you sure you want to delete “{confirm.name}”?</p>
+            <p className="text-sethi-gray500 text-sm mb-5">Are you sure you want to delete "{confirm.name}"?</p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setConfirm(null)} className="btn-ghost">Cancel</button>
               <button onClick={() => doDelete(confirm.id)} className="inline-flex items-center gap-2 min-h-[48px] px-6 bg-red-600 text-white font-semibold rounded-sm hover:bg-red-700">Delete</button>
@@ -158,17 +235,19 @@ export default function AdminCategoriesPage() {
 
       {editing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-white rounded-sm p-6 max-w-md w-full space-y-4">
-            <h3 className="font-serif text-xl">Edit Category</h3>
-            <div>
-              <label className="block text-sm font-medium mb-1.5">Name</label>
-              <input value={editName} onChange={(e) => setEditName(e.target.value)} className="input-sethi" />
+          <div className="bg-white rounded-sm w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b border-sethi-gray200">
+              <h3 className="font-serif text-xl">Edit Category</h3>
+              <button onClick={() => setEditing(null)} className="w-9 h-9 inline-flex items-center justify-center"><X className="w-5 h-5" /></button>
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-1.5">Image URL</label>
-              <input value={editImg} onChange={(e) => setEditImg(e.target.value)} className="input-sethi" />
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Name</label>
+                <input value={editName} onChange={(e) => setEditName(e.target.value)} className="input-sethi" />
+              </div>
+              <ImageUploader value={editImg} onChange={setEditImg} />
             </div>
-            <div className="flex justify-end gap-3">
+            <div className="flex justify-end gap-3 p-5 border-t border-sethi-gray200">
               <button onClick={() => setEditing(null)} className="btn-ghost">Cancel</button>
               <button onClick={saveEdit} className="btn-primary">Save</button>
             </div>
