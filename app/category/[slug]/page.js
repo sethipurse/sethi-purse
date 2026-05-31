@@ -9,7 +9,9 @@ import { categoryPath, findCategoryBySlug, productMatchesCategorySlug, titleFrom
 function matchesCategory(product, category, slug) {
   if (productMatchesCategorySlug(product, slug)) return true;
   if (!category) return false;
-  return product.category_id === category.id || product.category === category.name;
+  if (product.category_id === category.id) return true;
+  // Case-insensitive name match
+  return (product.category || '').toLowerCase() === (category.name || '').toLowerCase();
 }
 
 export async function generateMetadata({ params }) {
@@ -38,7 +40,7 @@ export default async function CategoryPage({ params }) {
           <nav className="mb-7 text-base text-[#8a7060] md:text-lg">
             <Link href="/" className="hover:text-[#c9a84c]">Home</Link>
             <span className="mx-2">/</span>
-            <Link href="/categories" className="hover:text-[#c9a84c]">Categories</Link>
+            <Link href="/#categories" className="hover:text-[#c9a84c]">Categories</Link>
             <span className="mx-2">/</span>
             <span className="font-semibold text-[#2c1f14]">{title}</span>
           </nav>
