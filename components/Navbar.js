@@ -8,6 +8,7 @@ import { LOGO_URL, BUSINESS, getWALinkForPath } from '@/lib/constants';
 const LINKS = [
   { href: '/', label: 'Home' },
   { href: '/products', label: 'Products' },
+  { href: '/#categories', label: 'Categories' },
   { href: '/offers', label: 'Offers' },
   { href: '/reviews', label: 'Reviews' },
   { href: '/contact', label: 'Contact' },
@@ -43,7 +44,9 @@ export default function Navbar() {
         {/* Desktop nav */}
         <nav className="hidden lg:flex items-center gap-6 xl:gap-8">
           {LINKS.map((l) => {
-            const active = pathname === l.href || (l.href !== '/' && pathname.startsWith(l.href));
+            const active = l.href === '/#categories'
+              ? false
+              : pathname === l.href || (l.href !== '/' && pathname.startsWith(l.href));
             return (
               <Link key={l.href} href={l.href} className={`nav-link ${active ? '!text-sethi-gold' : ''}`}>{l.label}</Link>
             );
@@ -92,10 +95,11 @@ export default function Navbar() {
         </div>
 
         <div className="px-6 pt-8 pb-10 flex flex-col overflow-y-auto h-[calc(100vh-4rem)]">
-          {/* Nav links — big tap targets */}
           <nav className="flex flex-col">
             {LINKS.map((l) => {
-              const active = pathname === l.href || (l.href !== '/' && pathname.startsWith(l.href));
+              const active = l.href === '/#categories'
+                ? false
+                : pathname === l.href || (l.href !== '/' && pathname.startsWith(l.href));
               return (
                 <Link
                   key={l.href}
@@ -111,7 +115,6 @@ export default function Navbar() {
             })}
           </nav>
 
-          {/* Bottom CTA */}
           <div className="mt-auto pt-8">
             <a
               href={waLink}
