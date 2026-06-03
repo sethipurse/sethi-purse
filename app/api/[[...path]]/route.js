@@ -27,8 +27,15 @@ function json(data, status = 200) {
 async function handle(request, { params }) {
   const segments = (params?.path || []);
   const method = request.method;
+
+  // Global rate limit: max 60 requests per minute per IP (all routes)
+  const globalLimited = rateLimit(request, 'global', 60);
+  if (globalLimited) return globalLimited;
+
+  // Per-route rate limit (stricter for mutations)
   const limited = rateLimit(request, `${method}:${segments[0] || 'root'}`, method === 'GET' ? 180 : 45);
   if (limited) return limited;
+
   const isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
   const publicMutation =
     (segments[0] === 'auth' && segments[1] === 'login') ||
@@ -131,7 +138,6 @@ async function handle(request, { params }) {
   if (segments[0] === 'products') {
     if (segments.length === 1) {
       if (method === 'GET') {
-        // Returns real Supabase data, falls back to local JSON if DB is empty
         const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false });
         if (error) return json(LOCAL_PRODUCTS);
         return json(data && data.length > 0 ? data : LOCAL_PRODUCTS);
@@ -169,7 +175,6 @@ async function handle(request, { params }) {
     if (segments.length === 2) {
       const id = segments[1];
       if (method === 'GET') {
-        // ✅ FIXED: No longer falls back to DEMO_PRODUCTS
         const { data, error } = await supabase.from('products').select('*').eq('id', id).single();
         if (error) return json({ error: 'Not found' }, 404);
         return json(data);
@@ -213,7 +218,6 @@ async function handle(request, { params }) {
   if (segments[0] === 'categories') {
     if (segments.length === 1) {
       if (method === 'GET') {
-        // Returns real Supabase data, falls back to local JSON if DB is empty
         const { data, error } = await supabase.from('categories').select('*').order('created_at', { ascending: true });
         if (error) return json(LOCAL_CATEGORIES);
         return json(data && data.length > 0 ? data : LOCAL_CATEGORIES);
@@ -258,7 +262,6 @@ async function handle(request, { params }) {
   if (segments[0] === 'offers') {
     if (segments.length === 1) {
       if (method === 'GET') {
-        // ✅ FIXED: No longer falls back to DEMO_OFFERS
         const { data, error } = await supabase.from('offers').select('*').order('created_at', { ascending: false });
         if (error) return json({ error: error.message }, 500);
         return json(data || []);
@@ -357,7 +360,6 @@ async function handle(request, { params }) {
   if (segments[0] === 'reviews') {
     if (segments.length === 1) {
       if (method === 'GET') {
-        // ✅ FIXED: No longer falls back to DEMO_REVIEWS
         const { data, error } = await supabase.from('reviews').select('*').order('created_at', { ascending: false });
         if (error) return json({ error: error.message }, 500);
         return json(data || []);
