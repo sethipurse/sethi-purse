@@ -2,29 +2,31 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Bell, LayoutDashboard, ShoppingBag, Grid, Settings as SettingsIcon, LogOut, Menu, X, ExternalLink, Tag, MessageSquare, Star } from 'lucide-react';
+import { Bell, LayoutDashboard, ShoppingBag, Grid, Settings as SettingsIcon, LogOut, Menu, X, ExternalLink, Tag, MessageSquare, Star, Images } from 'lucide-react';
 import { LOGO_URL } from '@/lib/constants';
 
 const NAV = [
-  { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/admin/products', label: 'Products', icon: ShoppingBag },
-  { href: '/admin/categories', label: 'Categories', icon: Grid },
-  { href: '/admin/offers', label: 'Offers', icon: Tag },
-  { href: '/admin/inquiries', label: 'Inquiries', icon: MessageSquare, hasBadge: true },
-  { href: '/admin/reviews', label: 'Reviews', icon: Star },
+  { href: '/admin/dashboard',     label: 'Dashboard',     icon: LayoutDashboard },
+  { href: '/admin/products',      label: 'Products',      icon: ShoppingBag },
+  { href: '/admin/categories',    label: 'Categories',    icon: Grid },
+  { href: '/admin/slider',        label: 'Hero Slider',   icon: Images },
+  { href: '/admin/offers',        label: 'Offers',        icon: Tag },
+  { href: '/admin/inquiries',     label: 'Inquiries',     icon: MessageSquare, hasBadge: true },
+  { href: '/admin/reviews',       label: 'Reviews',       icon: Star },
   { href: '/admin/notifications', label: 'Notifications', icon: Bell },
 ];
 
 const TITLES = {
-  '/admin/dashboard': 'Dashboard',
-  '/admin/products': 'Products',
-  '/admin/products/add': 'Add Product',
-  '/admin/categories': 'Categories',
-  '/admin/offers': 'Offers',
-  '/admin/inquiries': 'Inquiries',
-  '/admin/reviews': 'Reviews',
+  '/admin/dashboard':     'Dashboard',
+  '/admin/products':      'Products',
+  '/admin/products/add':  'Add Product',
+  '/admin/categories':    'Categories',
+  '/admin/slider':        'Hero Slider',
+  '/admin/offers':        'Offers',
+  '/admin/inquiries':     'Inquiries',
+  '/admin/reviews':       'Reviews',
   '/admin/notifications': 'Notifications',
-  '/admin/settings': 'Settings',
+  '/admin/settings':      'Settings',
 };
 
 export default function AdminShell({ children }) {
@@ -35,7 +37,6 @@ export default function AdminShell({ children }) {
   const [newInquiries, setNewInquiries] = useState(0);
 
   useEffect(() => {
-    // Cookie-only auth — no localStorage
     fetch('/api/auth/session')
       .then((res) => res.ok ? res.json() : { authenticated: false })
       .then((data) => {
@@ -103,6 +104,7 @@ export default function AdminShell({ children }) {
 
   return (
     <div className="min-h-screen bg-sethi-gray100 flex">
+      {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col w-[260px] bg-sethi-black text-white sticky top-0 h-screen">
         <div className="p-4 border-b border-white/10 bg-white">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -121,6 +123,7 @@ export default function AdminShell({ children }) {
         </div>
       </aside>
 
+      {/* Mobile sidebar */}
       <div className={`md:hidden fixed inset-0 z-50 ${open ? '' : 'pointer-events-none'}`}>
         <div onClick={() => setOpen(false)} className={`absolute inset-0 bg-black/60 transition-opacity ${open ? 'opacity-100' : 'opacity-0'}`} />
         <aside className={`absolute left-0 top-0 h-full w-[280px] bg-sethi-black text-white flex flex-col transition-transform ${open ? 'translate-x-0' : '-translate-x-full'}`}>
@@ -143,6 +146,7 @@ export default function AdminShell({ children }) {
         </aside>
       </div>
 
+      {/* Main content */}
       <div className="flex-1 min-w-0">
         <header className="sticky top-0 z-30 bg-white border-b border-sethi-gray200">
           <div className="flex items-center justify-between h-16 px-4 md:px-8">
