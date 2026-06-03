@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import AdminShell from '@/components/AdminShell';
 import { toast } from 'sonner';
-import { ShoppingBag, Grid, Tag, MessageSquare, AlertCircle, CheckCircle2, Edit, Phone, MessageCircle, PackageX, IndianRupee, Star } from 'lucide-react';
+import { ShoppingBag, Grid, Tag, MessageSquare, AlertCircle, CheckCircle2, Edit, Phone, MessageCircle } from 'lucide-react';
 import { resolveImage, formatIST } from '@/lib/constants';
 
 export default function DashboardPage() {
@@ -38,26 +38,12 @@ export default function DashboardPage() {
     return () => { cancelled = true; };
   }, []);
 
-  const activeOffers = offers.filter((o) => o.isActive).length;
+  // ✅ FIXED: handle both snake_case (Supabase) and camelCase (local JSON)
+  const activeOffers = offers.filter((o) => o.is_active ?? o.isActive).length;
   const newInquiries = inquiries.filter((i) => i.status === 'new').length;
   const recent = [...products].slice(0, 5);
   const recentInquiries = [...inquiries].slice(0, 5);
   const lowStock = products.filter((p) => typeof p.stock === 'number' && p.stock <= 5);
-
-  // NEW stats
-  const outOfStock = products.filter((p) => typeof p.stock === 'number' && p.stock === 0).length;
-  const totalInventoryValue = products.reduce((sum, p) => {
-    const price = parseFloat(p.salePrice) || 0;
-    const stock = typeof p.stock === 'number' ? p.stock : 0;
-    return sum + price * stock;
-  }, 0);
-  const featuredCount = products.filter((p) => p.featured).length;
-
-  const formatValue = (val) => {
-    if (val >= 100000) return `₹${(val / 100000).toFixed(1)}L`;
-    if (val >= 1000) return `₹${(val / 1000).toFixed(1)}K`;
-    return `₹${val.toLocaleString('en-IN')}`;
-  };
 
   const stats = [
     { label: 'Total Products', value: products.length, icon: ShoppingBag, href: '/admin/products' },
@@ -66,33 +52,9 @@ export default function DashboardPage() {
     { label: 'New Inquiries', value: newInquiries, icon: MessageSquare, href: '/admin/inquiries', badge: newInquiries > 0 },
   ];
 
-  const inventoryStats = [
-    {
-      label: 'Out of Stock',
-      value: outOfStock,
-      icon: PackageX,
-      href: '/admin/products',
-      alert: outOfStock > 0,
-    },
-    {
-      label: 'Inventory Value',
-      value: loading ? '—' : formatValue(totalInventoryValue),
-      icon: IndianRupee,
-      href: '/admin/products',
-      raw: true,
-    },
-    {
-      label: 'Featured Products',
-      value: featuredCount,
-      icon: Star,
-      href: '/admin/products',
-    },
-  ];
-
   return (
     <AdminShell>
-      {/* Primary stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         {stats.map((s) => (
           <Link key={s.label} href={s.href} className="bg-white border border-sethi-gray200 rounded-sm p-5 flex items-start justify-between hover:border-sethi-gold transition-colors">
             <div>
@@ -100,21 +62,6 @@ export default function DashboardPage() {
               <div className={`font-serif text-3xl md:text-4xl mt-2 ${s.badge ? 'text-red-600' : ''}`}>{loading ? '—' : s.value}</div>
             </div>
             <s.icon className={`w-7 h-7 ${s.badge ? 'text-red-600' : 'text-sethi-gold'}`} />
-          </Link>
-        ))}
-      </div>
-
-      {/* Inventory stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-        {inventoryStats.map((s) => (
-          <Link key={s.label} href={s.href} className={`bg-white border rounded-sm p-5 flex items-start justify-between hover:border-sethi-gold transition-colors ${s.alert ? 'border-red-300 bg-red-50' : 'border-sethi-gray200'}`}>
-            <div>
-              <div className={`text-xs uppercase tracking-wider ${s.alert ? 'text-red-500' : 'text-sethi-gray500'}`}>{s.label}</div>
-              <div className={`font-serif text-3xl md:text-4xl mt-2 ${s.alert ? 'text-red-600' : ''}`}>
-                {loading ? '—' : s.value}
-              </div>
-            </div>
-            <s.icon className={`w-7 h-7 ${s.alert ? 'text-red-500' : 'text-sethi-gold'}`} />
           </Link>
         ))}
       </div>
@@ -152,7 +99,7 @@ export default function DashboardPage() {
                     </td>
                     <td className="px-4 py-2 font-medium">{p.name}</td>
                     <td className="px-4 py-2 text-sethi-gray500">{p.category}</td>
-                    <td className="px-4 py-2 font-semibold">Rs.{p.salePrice}</td>
+                    <td className="px-4 py-2 font-semibold">Rs.{p.salePrice ?? p.sale_price}</td>
                     <td className="px-4 py-2"><Link href={`/admin/products/edit/${p.id}`} className="text-sethi-gold hover:underline">Edit</Link></td>
                   </tr>
                 ))}
@@ -198,7 +145,11 @@ export default function DashboardPage() {
           <div className="p-5 border-b border-sethi-gray200 flex items-center justify-between">
             <h2 className="font-serif text-xl flex items-center gap-2">
               <MessageSquare className="w-5 h-5 text-sethi-gold" /> Recent Inquiries
-              {newInquiries > 0 && <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full text-[11px] font-bold bg-red-600 text-white">{newInquiries} new</span>}
+              {newInquiries > 0 && (
+                <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full text-[11px] font-bold bg-red-600 text-white">
+                  {newInquiries} new
+                </span>
+              )}
             </h2>
             <Link href="/admin/inquiries" className="text-sm text-sethi-gold hover:underline">View all</Link>
           </div>
@@ -215,7 +166,9 @@ export default function DashboardPage() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold">{i.name}</span>
                         <span className="text-xs text-sethi-gray500">• {i.city}</span>
-                        <span className={`inline-block px-2 py-0.5 rounded-sm text-[10px] font-bold ${i.status === 'new' ? 'bg-red-100 text-red-700' : i.status === 'contacted' ? 'bg-blue-100 text-blue-700' : i.status === 'converted' ? 'bg-green-100 text-green-700' : 'bg-sethi-gray200 text-sethi-gray800'}`}>{(i.status || 'new').toUpperCase()}</span>
+                        <span className={`inline-block px-2 py-0.5 rounded-sm text-[10px] font-bold ${i.status === 'new' ? 'bg-red-100 text-red-700' : i.status === 'contacted' ? 'bg-blue-100 text-blue-700' : i.status === 'converted' ? 'bg-green-100 text-green-700' : 'bg-sethi-gray200 text-sethi-gray800'}`}>
+                          {(i.status || 'new').toUpperCase()}
+                        </span>
                       </div>
                       <div className="text-xs text-sethi-gray500 mt-0.5">{formatIST(i.createdAt)} • {i.productInterest}</div>
                       <p className="text-sm mt-1 line-clamp-2 text-sethi-gray800">{i.message}</p>
