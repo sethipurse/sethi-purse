@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { Award, RefreshCw, Search, ShieldCheck, ShoppingBag, Sparkles, Truck, X } from 'lucide-react';
+import { Award, MessageCircle, RefreshCw, Search, ShieldCheck, ShoppingBag, Sparkles, Truck, X } from 'lucide-react';
 import HeroSlider from '@/components/HeroSlider';
 import ProductCard from '@/components/ProductCard';
 import OfferCard from '@/components/OfferCard';
@@ -68,6 +68,7 @@ export default function HomePage() {
       if (!live) return;
       const nextSlides = Array.isArray(results[0]) ? results[0].filter((s) => s.is_active !== false) : [];
       const nextCategories = Array.isArray(results[1]) ? results[1] : [];
+      // ✅ FIXED: No longer falls back to DEMO_PRODUCTS
       const nextProducts = Array.isArray(results[2]) ? results[2].filter((p) => p.is_active !== false) : [];
       const nextOffers = Array.isArray(results[3]) ? results[3].filter((o) => o.is_active !== false) : [];
       const nextReviews = Array.isArray(results[4]) ? results[4].filter((r) => r.is_approved !== false) : [];
@@ -82,16 +83,14 @@ export default function HomePage() {
     return () => { live = false; };
   }, []);
 
+  // ✅ FIXED: Search now works correctly against real data
   const filteredProducts = useMemo(() => {
     const q = query.trim().toLowerCase();
     return products.filter((product) => {
       const productCategory = product.category || product.category_id || '';
       const categoryMatch = activeCategory === 'All' || productCategory === activeCategory;
       const text = `${product.name || ''} ${product.brand || ''} ${product.description || ''} ${productCategory}`.toLowerCase();
-      const searchMatch = !q || text.includes(q);
-      // Show only featured products when not searching
-      const featuredMatch = q ? true : product.featured === true;
-      return categoryMatch && searchMatch && featuredMatch;
+      return categoryMatch && (!q || text.includes(q));
     });
   }, [activeCategory, products, query]);
 
@@ -139,6 +138,7 @@ export default function HomePage() {
             </button>
           )}
         </div>
+        {/* ✅ Live search result count */}
         {query.length > 0 && (
           <p className="mt-2 text-base text-[#8a7060]">
             {filteredProducts.length === 0
@@ -179,8 +179,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* CATEGORIES SECTION */}
-      <section id="categories" className="mx-auto w-full max-w-6xl px-4 pb-12">
+      <section className="mx-auto w-full max-w-6xl px-4 pb-12">
         <h2 className="text-4xl font-bold text-[#c9a84c]">Shop by Category</h2>
         <div className="mt-5 grid grid-cols-2 gap-4 md:grid-cols-4">
           {categories.map((category) => (
@@ -203,23 +202,15 @@ export default function HomePage() {
           </div>
           <Link href="/products" className="hidden text-lg font-semibold text-[#a07a28] hover:underline md:inline">View all</Link>
         </div>
-
-        {/* If no featured products set up yet, show a helpful message */}
-        {!loading && filteredProducts.length === 0 && !query && activeCategory === 'All' && (
-          <div className="mt-4 rounded-lg bg-[#fdf4e3] border border-[#c9a84c] px-5 py-3 text-sm text-[#a07a28]">
-            💡 No featured products yet. Go to the admin panel and mark products as <strong>featured</strong> to show them here.
-          </div>
-        )}
-
         <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {loading ? (
             Array.from({ length: 6 }).map((_, index) => <SkeletonCard key={index} />)
           ) : filteredProducts.length === 0 ? (
-            (query || activeCategory !== 'All') && (
-              <div className="col-span-full rounded bg-white p-10 text-center ring-1 ring-[#ede8df]">
-                <Sparkles className="mx-auto h-10 w-10 text-[#c9a84c]" />
-                <h3 className="mt-3 text-2xl font-bold">No products found</h3>
-                <p className="mt-1 text-[#8a7060]">Try another search or category.</p>
+            <div className="col-span-full rounded bg-white p-10 text-center ring-1 ring-[#ede8df]">
+              <Sparkles className="mx-auto h-10 w-10 text-[#c9a84c]" />
+              <h3 className="mt-3 text-2xl font-bold">No products found</h3>
+              <p className="mt-1 text-[#8a7060]">Try another search or category.</p>
+              {(query || activeCategory !== 'All') && (
                 <button
                   type="button"
                   onClick={() => { setQuery(''); setActiveCategory('All'); }}
@@ -227,8 +218,8 @@ export default function HomePage() {
                 >
                   Clear filters
                 </button>
-              </div>
-            )
+              )}
+            </div>
           ) : (
             filteredProducts.slice(0, 9).map((product) => (
               <ProductCard key={product.id} product={product} onAddToCart={addToCart} />
@@ -271,50 +262,95 @@ export default function HomePage() {
 
       {/* Cart Drawer */}
       {cartOpen && (
-        <div className="fixed inset-0 z-50 bg-[#2c1f14]/35" onClick={() => setCartOpen(false)}>
-          <aside className="absolute right-0 top-0 h-full w-full max-w-[360px] bg-white shadow-xl flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-[#ede8df] px-5 py-4">
-              <div className="flex items-center gap-2 text-xl font-bold text-[#2c1f14]">
+        <div className="fixed inset-0 z-50 bg-[#2c1f14]/50" onClick={() => setCartOpen(false)}>
+          <aside
+            className="fixed right-0 top-0 h-full w-full max-w-[380px] bg-white shadow-2xl flex flex-col"
+            style={{ zIndex: 51 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-[#ede8df] px-5 py-4 bg-[#2c1f14]">
+              <div className="flex items-center gap-2 text-xl font-bold text-white">
                 <ShoppingBag className="h-5 w-5 text-[#c9a84c]" /> Cart ({cart.length})
               </div>
-              <button type="button" onClick={() => setCartOpen(false)} aria-label="Close cart"><X className="h-6 w-6" /></button>
+              <button type="button" onClick={() => setCartOpen(false)} aria-label="Close cart" className="text-white hover:text-[#c9a84c] w-10 h-10 flex items-center justify-center">
+                <X className="h-6 w-6" />
+              </button>
             </div>
+
             {cart.length === 0 ? (
-              <div className="flex flex-1 flex-col items-center justify-center gap-3 text-[#8a7060]">
-                <ShoppingBag className="h-14 w-14 opacity-30" />
-                <p className="text-lg font-semibold">Your cart is empty</p>
-                <p className="text-sm">Browse products and add items!</p>
+              <div className="flex flex-1 flex-col items-center justify-center gap-3 text-[#8a7060] px-6">
+                <ShoppingBag className="h-16 w-16 opacity-20" />
+                <p className="text-xl font-bold text-[#2c1f14]">Your cart is empty</p>
+                <p className="text-sm text-center">Browse our products and add items to your cart!</p>
+                <button
+                  onClick={() => setCartOpen(false)}
+                  className="mt-2 rounded bg-[#c9a84c] px-6 py-2.5 text-sm font-bold text-[#2c1f14] hover:bg-[#a07a28]"
+                >
+                  Browse Products
+                </button>
               </div>
             ) : (
               <>
+                {/* Cart items */}
                 <div className="flex-1 overflow-y-auto divide-y divide-[#ede8df]">
-                  {cart.map((item, idx) => (
-                    <div key={idx} className="flex items-center gap-3 px-5 py-3">
-                      {item.image ? <img src={item.image} alt={item.name} className="h-14 w-14 rounded object-cover bg-[#f5f0e8]" /> : <div className="h-14 w-14 rounded bg-[#f5f0e8]" />}
-                      <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-[#2c1f14] truncate text-sm">{item.name}</div>
-                        <div className="text-[#c9a84c] font-bold text-sm">Rs.{item.price?.toLocaleString('en-IN')} x {item.qty || 1}</div>
+                  {cart.map((item, idx) => {
+                    const buyMsg = `Hi SETHI PURSE, I want to buy: ${item.name} (Rs.${item.price?.toLocaleString('en-IN')}). Please confirm availability.`;
+                    return (
+                      <div key={idx} className="flex gap-3 px-4 py-4">
+                        {item.image
+                          ? <img src={item.image} alt={item.name} className="h-16 w-16 rounded-sm object-cover bg-[#f5f0e8] shrink-0" />
+                          : <div className="h-16 w-16 rounded-sm bg-[#f5f0e8] shrink-0 flex items-center justify-center"><ShoppingBag className="h-6 w-6 text-[#c9a84c]" /></div>
+                        }
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-[#2c1f14] text-sm leading-snug line-clamp-2">{item.name}</div>
+                          <div className="text-[#c9a84c] font-bold text-sm mt-0.5">Rs.{item.price?.toLocaleString('en-IN')}</div>
+                          {/* Per-item Buy Now button */}
+                          <a
+                            href={buildWhatsAppLink(buyMsg)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-2 inline-flex items-center gap-1.5 rounded bg-[#25D366] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#1ebe5c]"
+                          >
+                            <MessageCircle className="h-3.5 w-3.5" /> Buy Now
+                          </a>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = cart.filter((_, i) => i !== idx);
+                            setCart(next);
+                            window.localStorage.setItem('sethi-cart', JSON.stringify(next));
+                          }}
+                          className="text-[#8a7060] hover:text-red-500 p-1 self-start mt-1 shrink-0"
+                          aria-label="Remove"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
                       </div>
-                      <button type="button" onClick={() => { const next = cart.filter((_, i) => i !== idx); setCart(next); window.localStorage.setItem('sethi-cart', JSON.stringify(next)); }} className="text-[#8a7060] hover:text-red-500 p-1">
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
-                <div className="border-t border-[#ede8df] px-5 py-4 space-y-3">
+
+                {/* Footer */}
+                <div className="border-t-2 border-[#ede8df] px-5 py-4 space-y-3 bg-[#faf8f4]">
                   <div className="flex justify-between font-bold text-[#2c1f14] text-lg">
-                    <span>Total</span>
-                    <span>Rs.{cartTotal(cart).toLocaleString('en-IN')}</span>
+                    <span>Total ({cart.length} item{cart.length > 1 ? 's' : ''})</span>
+                    <span className="text-[#c9a84c]">Rs.{cartTotal(cart).toLocaleString('en-IN')}</span>
                   </div>
                   <a
                     href={buildWhatsAppLink(buildCartOrderMessage(cart))}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex w-full items-center justify-center gap-2 rounded bg-[#25D366] py-3 text-base font-bold text-white hover:bg-[#1ebe5c]"
+                    className="flex w-full items-center justify-center gap-2 rounded bg-[#25D366] py-3.5 text-base font-bold text-white hover:bg-[#1ebe5c] active:scale-95 transition-transform"
                   >
-                    Order via WhatsApp
+                    <MessageCircle className="h-5 w-5" /> Order All via WhatsApp
                   </a>
-                  <button type="button" onClick={() => { setCart([]); window.localStorage.removeItem('sethi-cart'); }} className="w-full text-sm text-[#8a7060] hover:text-red-500">
+                  <button
+                    type="button"
+                    onClick={() => { setCart([]); window.localStorage.removeItem('sethi-cart'); }}
+                    className="w-full text-sm text-[#8a7060] hover:text-red-500 py-1"
+                  >
                     Clear cart
                   </button>
                 </div>
