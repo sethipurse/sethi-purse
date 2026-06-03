@@ -48,9 +48,19 @@ export default function HomePage() {
   const [cartOpen, setCartOpen] = useState(false);
   const [cart, setCart] = useState([]);
 
+  // Load cart from localStorage on mount
   useEffect(() => {
     const saved = window.localStorage.getItem('sethi-cart');
-    if (saved) setCart(JSON.parse(saved));
+    if (saved) {
+      try { setCart(JSON.parse(saved)); } catch { setCart([]); }
+    }
+  }, []);
+
+  // Listen for navbar cart icon click to open drawer
+  useEffect(() => {
+    const openCart = () => setCartOpen(true);
+    window.addEventListener('open-cart', openCart);
+    return () => window.removeEventListener('open-cart', openCart);
   }, []);
 
   useEffect(() => {
@@ -68,7 +78,6 @@ export default function HomePage() {
       if (!live) return;
       const nextSlides = Array.isArray(results[0]) ? results[0].filter((s) => s.is_active !== false) : [];
       const nextCategories = Array.isArray(results[1]) ? results[1] : [];
-      // ✅ FIXED: No longer falls back to DEMO_PRODUCTS
       const nextProducts = Array.isArray(results[2]) ? results[2].filter((p) => p.is_active !== false) : [];
       const nextOffers = Array.isArray(results[3]) ? results[3].filter((o) => o.is_active !== false) : [];
       const nextReviews = Array.isArray(results[4]) ? results[4].filter((r) => r.is_approved !== false) : [];
@@ -83,7 +92,6 @@ export default function HomePage() {
     return () => { live = false; };
   }, []);
 
-  // ✅ FIXED: Search now works correctly against real data
   const filteredProducts = useMemo(() => {
     const q = query.trim().toLowerCase();
     return products.filter((product) => {
@@ -94,10 +102,20 @@ export default function HomePage() {
     });
   }, [activeCategory, products, query]);
 
+  // FIX 1: Prevent duplicates + fire cart-updated so navbar count updates
   const addToCart = (product) => {
-    const next = [...cart, { id: product.id, name: product.name, price: priceOf(product), image: imageOf(product), qty: 1 }];
+    const exists = cart.find((item) => item.id === product.id);
+    if (exists) return; // already in cart, don't add again
+    const next = [...cart, {
+      id: product.id,
+      name: product.name,
+      price: priceOf(product),
+      image: imageOf(product),
+      qty: 1,
+    }];
     setCart(next);
     window.localStorage.setItem('sethi-cart', JSON.stringify(next));
+    window.dispatchEvent(new Event('cart-updated')); // FIX: notify navbar
   };
 
   return (
@@ -138,7 +156,6 @@ export default function HomePage() {
             </button>
           )}
         </div>
-        {/* ✅ Live search result count */}
         {query.length > 0 && (
           <p className="mt-2 text-base text-[#8a7060]">
             {filteredProducts.length === 0
@@ -192,7 +209,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-6xl px-4 pb-12">
+      <section id="products" className="mx-auto w-full max-w-6xl px-4 pb-12">
         <div className="flex items-end justify-between gap-4">
           <div>
             <h2 className="text-4xl font-bold text-[#c9a84c]">
@@ -305,7 +322,6 @@ export default function HomePage() {
                         <div className="flex-1 min-w-0">
                           <div className="font-semibold text-[#2c1f14] text-sm leading-snug line-clamp-2">{item.name}</div>
                           <div className="text-[#c9a84c] font-bold text-sm mt-0.5">Rs.{item.price?.toLocaleString('en-IN')}</div>
-                          {/* Per-item Buy Now button */}
                           <a
                             href={buildWhatsAppLink(buyMsg)}
                             target="_blank"
@@ -321,6 +337,7 @@ export default function HomePage() {
                             const next = cart.filter((_, i) => i !== idx);
                             setCart(next);
                             window.localStorage.setItem('sethi-cart', JSON.stringify(next));
+                            window.dispatchEvent(new Event('cart-updated'));
                           }}
                           className="text-[#8a7060] hover:text-red-500 p-1 self-start mt-1 shrink-0"
                           aria-label="Remove"
@@ -348,7 +365,11 @@ export default function HomePage() {
                   </a>
                   <button
                     type="button"
-                    onClick={() => { setCart([]); window.localStorage.removeItem('sethi-cart'); }}
+                    onClick={() => {
+                      setCart([]);
+                      window.localStorage.removeItem('sethi-cart');
+                      window.dispatchEvent(new Event('cart-updated'));
+                    }}
                     className="w-full text-sm text-[#8a7060] hover:text-red-500 py-1"
                   >
                     Clear cart
