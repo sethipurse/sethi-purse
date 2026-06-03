@@ -1,12 +1,13 @@
 'use client';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useState } from 'react';
-import { MessageCircle, ShoppingBag } from 'lucide-react';
+import { MessageCircle, ShoppingBag, Check } from 'lucide-react';
 import { buildBuyNowMessage, buildProductUrl, buildWhatsAppLink, resolveImage } from '@/lib/constants';
 
 export default function ProductCard({ product, onAddToCart }) {
   const [imgErr, setImgErr] = useState(false);
+  const [added, setAdded] = useState(false);
+
   const salePrice = product.sale_price ?? product.salePrice ?? product.price ?? 0;
   const mrp = product.mrp ?? product.original_price ?? 0;
   const imageUrl = product.image_url ?? product.imageUrl;
@@ -20,6 +21,13 @@ export default function ProductCard({ product, onAddToCart }) {
   const productUrl = buildProductUrl(product.id);
   const buyNowMessage = buildBuyNowMessage(product, { quantity: 1, productUrl });
 
+  const handleAddToCart = () => {
+    if (outOfStock || !onAddToCart) return;
+    onAddToCart(product);
+    setAdded(true);
+    setTimeout(() => setAdded(false), 2000);
+  };
+
   return (
     <div className={`card-sethi overflow-hidden group flex flex-col ${outOfStock ? 'opacity-70' : ''}`}>
       <Link href={`/product/${product.id}`} className="block relative bg-[#f5f0e8] aspect-[4/5] overflow-hidden">
@@ -27,13 +35,12 @@ export default function ProductCard({ product, onAddToCart }) {
         {outOfStock && <span className="badge-out">Out of Stock</span>}
         {!outOfStock && lowStock && <span className="badge-stock-low">Only {product.stock} left!</span>}
         {img && !imgErr ? (
-          <Image
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
             src={img}
             alt={product.name}
-            fill
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            className="object-cover transition-transform duration-500 group-hover:scale-105"
             onError={() => setImgErr(true)}
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-[#f5f0e8]">
@@ -63,10 +70,17 @@ export default function ProductCard({ product, onAddToCart }) {
             <button
               type="button"
               disabled={outOfStock}
-              onClick={() => onAddToCart(product)}
-              className="btn-secondary min-h-[46px] w-full !px-3 !py-2 text-sm disabled:pointer-events-none disabled:opacity-60"
+              onClick={handleAddToCart}
+              className={`min-h-[46px] w-full !px-3 !py-2 text-sm font-semibold rounded-sm border transition-all duration-300 flex items-center justify-center gap-2 disabled:pointer-events-none disabled:opacity-60
+                ${added
+                  ? 'bg-green-500 border-green-500 text-white scale-95'
+                  : 'bg-transparent border-sethi-gold text-sethi-gold hover:bg-sethi-gold hover:text-sethi-black'
+                }`}
             >
-              <ShoppingBag className="h-4 w-4" /> Add to Cart
+              {added
+                ? <><Check className="h-4 w-4" /> Added!</>
+                : <><ShoppingBag className="h-4 w-4" /> Add to Cart</>
+              }
             </button>
           )}
           <a
