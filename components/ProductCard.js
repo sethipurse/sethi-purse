@@ -24,6 +24,7 @@ export default function ProductCard({ product, onAddToCart }) {
   const handleAddToCart = () => {
     if (outOfStock || !onAddToCart) return;
     onAddToCart(product);
+    window.dispatchEvent(new Event('cart-updated'));
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
   };
