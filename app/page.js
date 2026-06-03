@@ -262,10 +262,10 @@ export default function HomePage() {
 
       {/* Cart Drawer */}
       {cartOpen && (
-        <div className="fixed inset-0 z-50 bg-[#2c1f14]/50" onClick={() => setCartOpen(false)}>
+        <div className="fixed inset-0 bg-[#2c1f14]/50" onClick={() => setCartOpen(false)} style={{ zIndex: 9998 }}>
           <aside
             className="fixed right-0 top-0 h-full w-full max-w-[380px] bg-white shadow-2xl flex flex-col"
-            style={{ zIndex: 51 }}
+            style={{ zIndex: 9999, position: 'fixed', top: 0, right: 0, height: '100dvh' }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
