@@ -23,7 +23,7 @@ export default async function sitemap() {
     if (products) {
       productPages = products.map((p) => ({
         url: `${BASE_URL}/product/${p.id}`,
-        lastModified: new Date(p.created_at),
+        lastModified: p.created_at ? new Date(p.created_at) : new Date(),
         changeFrequency: 'weekly',
         priority: 0.7,
       }));
@@ -39,7 +39,7 @@ export default async function sitemap() {
     if (categories) {
       categoryPages = categories.map((c) => ({
         url: `${BASE_URL}/category/${encodeURIComponent(c.name.toLowerCase().replace(/\s+/g, '-'))}`,
-        lastModified: new Date(c.created_at),
+        lastModified: c.created_at ? new Date(c.created_at) : new Date(),
         changeFrequency: 'weekly',
         priority: 0.75,
       }));
