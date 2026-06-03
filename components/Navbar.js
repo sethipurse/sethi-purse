@@ -2,22 +2,44 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Menu, X, MessageCircle } from 'lucide-react';
+import { Menu, X, MessageCircle, ShoppingBag } from 'lucide-react';
 import { LOGO_URL, BUSINESS, getWALinkForPath } from '@/lib/constants';
 
 const LINKS = [
   { href: '/', label: 'Home' },
   { href: '/products', label: 'Products' },
-  { href: '/#categories', label: 'Categories' },
+  { href: '/categories', label: 'Categories' },
   { href: '/offers', label: 'Offers' },
   { href: '/reviews', label: 'Reviews' },
   { href: '/contact', label: 'Contact' },
 ];
 
+function useCartCount() {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    const read = () => {
+      try {
+        const cart = JSON.parse(localStorage.getItem('sethi-cart') || '[]');
+        setCount(Array.isArray(cart) ? cart.length : 0);
+      } catch { setCount(0); }
+    };
+    read();
+    // Update on storage change (other tabs) and custom event (same tab)
+    window.addEventListener('storage', read);
+    window.addEventListener('cart-updated', read);
+    return () => {
+      window.removeEventListener('storage', read);
+      window.removeEventListener('cart-updated', read);
+    };
+  }, []);
+  return count;
+}
+
 export default function Navbar() {
   const pathname = usePathname() || '/';
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
+  const cartCount = useCartCount();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 6);
@@ -32,6 +54,7 @@ export default function Navbar() {
   }, [open]);
 
   const waLink = getWALinkForPath(pathname);
+  const isHome = pathname === '/';
 
   return (
     <header className={`sticky top-0 z-40 bg-white border-b border-sethi-gray200 transition-shadow ${scrolled ? 'shadow-[0_2px_12px_rgba(0,0,0,0.06)]' : ''}`}>
@@ -44,22 +67,32 @@ export default function Navbar() {
         {/* Desktop nav */}
         <nav className="hidden lg:flex items-center gap-6 xl:gap-8">
           {LINKS.map((l) => {
-            const active = l.href === '/#categories'
-              ? false
-              : pathname === l.href || (l.href !== '/' && pathname.startsWith(l.href));
+            const active = pathname === l.href || (l.href !== '/' && pathname.startsWith(l.href)) || (l.href === '/categories' && pathname.startsWith('/category'));
             return (
               <Link key={l.href} href={l.href} className={`nav-link ${active ? '!text-sethi-gold' : ''}`}>{l.label}</Link>
             );
           })}
         </nav>
 
-        <div className="hidden lg:flex items-center">
+        {/* Desktop right side */}
+        <div className="hidden lg:flex items-center gap-3">
+          {/* Cart icon — only show on non-home pages since home has its own */}
+          {!isHome && (
+            <Link href="/#products" className="relative inline-flex items-center justify-center w-11 h-11 text-sethi-gold hover:text-[#a07a28] transition-colors">
+              <ShoppingBag className="w-6 h-6" />
+              {cartCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-sethi-gold text-[#2c1f14] text-[11px] font-bold flex items-center justify-center">
+                  {cartCount}
+                </span>
+              )}
+            </Link>
+          )}
           <a href={waLink} target="_blank" rel="noopener noreferrer" className="btn-primary !min-h-[44px] !px-5 !py-2 text-sm">
             <MessageCircle className="w-4 h-4" /> WhatsApp Us
           </a>
         </div>
 
-        {/* Mobile: WhatsApp icon + hamburger */}
+        {/* Mobile right side */}
         <div className="flex items-center gap-1 lg:hidden">
           <a
             href={waLink}
@@ -70,6 +103,21 @@ export default function Navbar() {
           >
             <MessageCircle className="w-6 h-6" />
           </a>
+          {/* Cart icon on mobile — only non-home pages */}
+          {!isHome && (
+            <Link
+              href="/#products"
+              aria-label="Cart"
+              className="relative inline-flex items-center justify-center w-12 h-12 rounded-full text-sethi-gold active:bg-sethi-gold/10"
+            >
+              <ShoppingBag className="w-6 h-6" />
+              {cartCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-sethi-gold text-[#2c1f14] text-[11px] font-bold flex items-center justify-center">
+                  {cartCount}
+                </span>
+              )}
+            </Link>
+          )}
           <button
             aria-label="Open menu"
             onClick={() => setOpen(true)}
@@ -97,9 +145,7 @@ export default function Navbar() {
         <div className="px-6 pt-8 pb-10 flex flex-col overflow-y-auto h-[calc(100vh-4rem)]">
           <nav className="flex flex-col">
             {LINKS.map((l) => {
-              const active = l.href === '/#categories'
-                ? false
-                : pathname === l.href || (l.href !== '/' && pathname.startsWith(l.href));
+              const active = pathname === l.href || (l.href !== '/' && pathname.startsWith(l.href)) || (l.href === '/categories' && pathname.startsWith('/category'));
               return (
                 <Link
                   key={l.href}
