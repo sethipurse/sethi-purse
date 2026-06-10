@@ -3,13 +3,11 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Search, Sparkles, X, SlidersHorizontal } from 'lucide-react';
+import { Search, Sparkles, X, SlidersHorizontal, ChevronLeft, ChevronRight } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
 import { categoryPath } from '@/lib/categoryUtils';
-
-const PAGE_SIZE = 20;
 
 const PRICE_RANGES = [
   { label: '₹500 – ₹2,000', min: 500, max: 2000 },
@@ -17,7 +15,9 @@ const PRICE_RANGES = [
   { label: '₹5,000+', min: 5000, max: Infinity },
 ];
 
-const BRANDS = ['American Tourister', 'Safari', 'Genie'];
+const BRANDS = ['American Tourister', 'Safari', 'Genie', 'Arctic Fox'];
+
+const PRODUCTS_PER_PAGE = 12;
 
 function SkeletonCard() {
   return <div className="h-[360px] animate-pulse rounded bg-white shadow-sm ring-1 ring-[#ede8df]" />;
@@ -32,58 +32,85 @@ function FilterPanel({ selectedPrice, selectedBrands, onPriceClick, onBrandClick
           <h3 className="font-semibold text-[#2c1f14] text-base">Filters</h3>
         </div>
         {hasFilters && (
-          <button
-            onClick={onClear}
-            className="text-sm text-red-500 hover:text-red-700 font-medium"
-          >
-            Clear All
-          </button>
+          <button onClick={onClear} className="text-sm text-red-500 hover:text-red-700 font-medium">Clear All</button>
         )}
       </div>
-
-      {/* Price Range */}
       <div className="mb-5">
-        <p className="text-xs font-semibold text-[#8a7060] uppercase tracking-wider mb-2">
-          Price Range
-        </p>
+        <p className="text-xs font-semibold text-[#8a7060] uppercase tracking-wider mb-2">Price Range</p>
         <div className="flex flex-col gap-2">
           {PRICE_RANGES.map((range) => (
-            <button
-              key={range.label}
-              onClick={() => onPriceClick(range)}
-              className={`text-left px-3 py-2 rounded-lg text-sm border transition-all ${
-                selectedPrice?.label === range.label
-                  ? 'bg-[#c9a84c] text-white border-[#c9a84c] font-semibold'
-                  : 'bg-[#faf8f4] text-[#6b5544] border-[#ede8df] hover:border-[#c9a84c] hover:bg-[#fdf4e3]'
-              }`}
-            >
+            <button key={range.label} onClick={() => onPriceClick(range)}
+              className={`text-left px-3 py-2 rounded-lg text-sm border transition-all ${selectedPrice?.label === range.label ? 'bg-[#c9a84c] text-white border-[#c9a84c] font-semibold' : 'bg-[#faf8f4] text-[#6b5544] border-[#ede8df] hover:border-[#c9a84c] hover:bg-[#fdf4e3]'}`}>
               {range.label}
             </button>
           ))}
         </div>
       </div>
-
-      {/* Brand */}
       <div>
-        <p className="text-xs font-semibold text-[#8a7060] uppercase tracking-wider mb-2">
-          Brand
-        </p>
+        <p className="text-xs font-semibold text-[#8a7060] uppercase tracking-wider mb-2">Brand</p>
         <div className="flex flex-col gap-2">
           {BRANDS.map((brand) => (
-            <button
-              key={brand}
-              onClick={() => onBrandClick(brand)}
-              className={`text-left px-3 py-2 rounded-lg text-sm border transition-all ${
-                selectedBrands.includes(brand)
-                  ? 'bg-[#c9a84c] text-white border-[#c9a84c] font-semibold'
-                  : 'bg-[#faf8f4] text-[#6b5544] border-[#ede8df] hover:border-[#c9a84c] hover:bg-[#fdf4e3]'
-              }`}
-            >
+            <button key={brand} onClick={() => onBrandClick(brand)}
+              className={`text-left px-3 py-2 rounded-lg text-sm border transition-all ${selectedBrands.includes(brand) ? 'bg-[#c9a84c] text-white border-[#c9a84c] font-semibold' : 'bg-[#faf8f4] text-[#6b5544] border-[#ede8df] hover:border-[#c9a84c] hover:bg-[#fdf4e3]'}`}>
               {brand}
             </button>
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+function Pagination({ currentPage, totalPages, onPageChange }) {
+  if (totalPages <= 1) return null;
+
+  const pages = [];
+  const delta = 1; // pages around current
+  const left = Math.max(1, currentPage - delta);
+  const right = Math.min(totalPages, currentPage + delta);
+
+  if (left > 1) { pages.push(1); if (left > 2) pages.push('...'); }
+  for (let i = left; i <= right; i++) pages.push(i);
+  if (right < totalPages) { if (right < totalPages - 1) pages.push('...'); pages.push(totalPages); }
+
+  return (
+    <div className="flex items-center justify-center gap-2 mt-10 flex-wrap">
+      {/* Prev */}
+      <button
+        onClick={() => onPageChange(currentPage - 1)}
+        disabled={currentPage === 1}
+        className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-[#ede8df] bg-white text-sm font-medium text-[#6b5544] hover:border-[#c9a84c] disabled:opacity-40 disabled:pointer-events-none transition-colors"
+      >
+        <ChevronLeft className="w-4 h-4" /> Prev
+      </button>
+
+      {/* Page numbers */}
+      {pages.map((page, idx) =>
+        page === '...' ? (
+          <span key={`dots-${idx}`} className="px-2 text-[#8a7060]">…</span>
+        ) : (
+          <button
+            key={page}
+            onClick={() => onPageChange(page)}
+            className={`w-10 h-10 rounded-lg border text-sm font-semibold transition-all ${
+              page === currentPage
+                ? 'bg-[#c9a84c] border-[#c9a84c] text-white shadow-sm'
+                : 'bg-white border-[#ede8df] text-[#6b5544] hover:border-[#c9a84c] hover:bg-[#fdf4e3]'
+            }`}
+          >
+            {page}
+          </button>
+        )
+      )}
+
+      {/* Next */}
+      <button
+        onClick={() => onPageChange(currentPage + 1)}
+        disabled={currentPage === totalPages}
+        className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-[#ede8df] bg-white text-sm font-medium text-[#6b5544] hover:border-[#c9a84c] disabled:opacity-40 disabled:pointer-events-none transition-colors"
+      >
+        Next <ChevronRight className="w-4 h-4" />
+      </button>
     </div>
   );
 }
@@ -95,14 +122,10 @@ function ProductsContent() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
-
-  // Filter state
   const [selectedPrice, setSelectedPrice] = useState(null);
   const [selectedBrands, setSelectedBrands] = useState([]);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
-
-  // Pagination
-  const [page, setPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     const cat = searchParams.get('category');
@@ -126,26 +149,12 @@ function ProductsContent() {
     return () => { live = false; };
   }, []);
 
-  // Reset to page 1 when any filter changes
-  useEffect(() => {
-    setPage(1);
-  }, [query, activeCategory, selectedPrice, selectedBrands]);
+  // Reset to page 1 whenever filters/search change
+  useEffect(() => { setCurrentPage(1); }, [query, activeCategory, selectedPrice, selectedBrands]);
 
-  const handlePriceClick = (range) => {
-    setSelectedPrice((prev) => prev?.label === range.label ? null : range);
-  };
-
-  const handleBrandClick = (brand) => {
-    setSelectedBrands((prev) =>
-      prev.includes(brand) ? prev.filter((b) => b !== brand) : [...prev, brand]
-    );
-  };
-
-  const clearFilters = () => {
-    setSelectedPrice(null);
-    setSelectedBrands([]);
-  };
-
+  const handlePriceClick = (range) => setSelectedPrice((prev) => prev?.label === range.label ? null : range);
+  const handleBrandClick = (brand) => setSelectedBrands((prev) => prev.includes(brand) ? prev.filter((b) => b !== brand) : [...prev, brand]);
+  const clearFilters = () => { setSelectedPrice(null); setSelectedBrands([]); };
   const hasFilters = selectedPrice !== null || selectedBrands.length > 0;
 
   const filteredProducts = useMemo(() => {
@@ -155,15 +164,24 @@ function ProductsContent() {
       const categoryMatch = activeCategory === 'All' || productCategory === activeCategory;
       const text = `${product.name || ''} ${product.brand || ''} ${product.description || ''} ${productCategory}`.toLowerCase();
       const searchMatch = !q || text.includes(q);
-      const price = product.salePrice ?? product.price ?? product.mrp ?? 0;
+      const price = product.salePrice ?? product.sale_price ?? product.price ?? product.mrp ?? 0;
       const priceMatch = !selectedPrice || (price >= selectedPrice.min && price < selectedPrice.max);
       const brandMatch = selectedBrands.length === 0 || selectedBrands.includes(product.brand);
       return categoryMatch && searchMatch && priceMatch && brandMatch;
     });
   }, [activeCategory, products, query, selectedPrice, selectedBrands]);
 
-  const totalPages = Math.ceil(filteredProducts.length / PAGE_SIZE);
-  const paginatedProducts = filteredProducts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  // Pagination
+  const totalPages = Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE);
+  const paginatedProducts = filteredProducts.slice(
+    (currentPage - 1) * PRODUCTS_PER_PAGE,
+    currentPage * PRODUCTS_PER_PAGE
+  );
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-10">
@@ -190,74 +208,51 @@ function ProductsContent() {
         </p>
       )}
 
-      {/* Category filters */}
+      {/* Category pills */}
       <div className="flex gap-3 overflow-x-auto pb-4 mb-6">
         {['All', ...categories.map((c) => c.name)].map((name) => (
           name === 'All' ? (
-            <button
-              key={name}
-              type="button"
-              onClick={() => setActiveCategory(name)}
-              className={`shrink-0 rounded-full border px-5 py-2 text-base font-semibold transition ${activeCategory === name ? 'border-[#c9a84c] bg-[#c9a84c] text-white' : 'border-[#ede8df] bg-white text-[#6b5544] hover:border-[#c9a84c]'}`}
-            >
+            <button key={name} type="button" onClick={() => setActiveCategory(name)}
+              className={`shrink-0 rounded-full border px-5 py-2 text-base font-semibold transition ${activeCategory === name ? 'border-[#c9a84c] bg-[#c9a84c] text-white' : 'border-[#ede8df] bg-white text-[#6b5544] hover:border-[#c9a84c]'}`}>
               {name}
             </button>
           ) : (
-            <Link
-              key={name}
-              href={categoryPath(name)}
-              className="shrink-0 rounded-full border border-[#ede8df] bg-white px-5 py-2 text-base font-semibold text-[#6b5544] transition hover:border-[#c9a84c] hover:text-[#a07a28]"
-            >
+            <Link key={name} href={categoryPath(name)}
+              className="shrink-0 rounded-full border border-[#ede8df] bg-white px-5 py-2 text-base font-semibold text-[#6b5544] transition hover:border-[#c9a84c] hover:text-[#a07a28]">
               {name}
             </Link>
           )
         ))}
       </div>
 
-      {/* Mobile: Filter toggle button */}
+      {/* Mobile filter toggle */}
       <div className="flex items-center justify-between mb-4 md:hidden">
         <p className="text-sm text-[#8a7060]">
           {loading ? '' : `${filteredProducts.length} product${filteredProducts.length !== 1 ? 's' : ''}`}
         </p>
-        <button
-          onClick={() => setShowMobileFilters((v) => !v)}
-          className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition ${hasFilters ? 'border-[#c9a84c] bg-[#c9a84c] text-white' : 'border-[#ede8df] bg-white text-[#6b5544]'}`}
-        >
+        <button onClick={() => setShowMobileFilters((v) => !v)}
+          className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition ${hasFilters ? 'border-[#c9a84c] bg-[#c9a84c] text-white' : 'border-[#ede8df] bg-white text-[#6b5544]'}`}>
           <SlidersHorizontal className="h-4 w-4" />
           Filters {hasFilters && `(${(selectedPrice ? 1 : 0) + selectedBrands.length})`}
         </button>
       </div>
 
-      {/* Mobile: Filter panel (collapsible) */}
       {showMobileFilters && (
         <div className="mb-6 md:hidden">
-          <FilterPanel
-            selectedPrice={selectedPrice}
-            selectedBrands={selectedBrands}
-            onPriceClick={handlePriceClick}
-            onBrandClick={handleBrandClick}
-            onClear={clearFilters}
-            hasFilters={hasFilters}
-          />
+          <FilterPanel selectedPrice={selectedPrice} selectedBrands={selectedBrands}
+            onPriceClick={handlePriceClick} onBrandClick={handleBrandClick}
+            onClear={clearFilters} hasFilters={hasFilters} />
         </div>
       )}
 
-      {/* Main layout: sidebar + grid */}
       <div className="flex gap-8">
-
-        {/* Desktop Sidebar */}
+        {/* Desktop sidebar */}
         <aside className="hidden md:block w-56 shrink-0">
-          <FilterPanel
-            selectedPrice={selectedPrice}
-            selectedBrands={selectedBrands}
-            onPriceClick={handlePriceClick}
-            onBrandClick={handleBrandClick}
-            onClear={clearFilters}
-            hasFilters={hasFilters}
-          />
+          <FilterPanel selectedPrice={selectedPrice} selectedBrands={selectedBrands}
+            onPriceClick={handlePriceClick} onBrandClick={handleBrandClick}
+            onClear={clearFilters} hasFilters={hasFilters} />
         </aside>
 
-        {/* Products grid */}
         <div className="flex-1">
           {/* Active filter tags */}
           {hasFilters && (
@@ -265,30 +260,26 @@ function ProductsContent() {
               {selectedPrice && (
                 <span className="flex items-center gap-1 rounded-full bg-[#fdf4e3] border border-[#c9a84c] px-3 py-1 text-sm text-[#a07a28] font-medium">
                   {selectedPrice.label}
-                  <button onClick={() => setSelectedPrice(null)} className="ml-1 hover:text-red-500">
-                    <X className="h-3 w-3" />
-                  </button>
+                  <button onClick={() => setSelectedPrice(null)} className="ml-1 hover:text-red-500"><X className="h-3 w-3" /></button>
                 </span>
               )}
               {selectedBrands.map((b) => (
                 <span key={b} className="flex items-center gap-1 rounded-full bg-[#fdf4e3] border border-[#c9a84c] px-3 py-1 text-sm text-[#a07a28] font-medium">
                   {b}
-                  <button onClick={() => handleBrandClick(b)} className="ml-1 hover:text-red-500">
-                    <X className="h-3 w-3" />
-                  </button>
+                  <button onClick={() => handleBrandClick(b)} className="ml-1 hover:text-red-500"><X className="h-3 w-3" /></button>
                 </span>
               ))}
             </div>
           )}
 
-          {/* Desktop product count */}
-          {!loading && (
+          {/* Product count + page info */}
+          {!loading && filteredProducts.length > 0 && (
             <p className="hidden md:block text-sm text-[#8a7060] mb-4">
-              {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''}
-              {totalPages > 1 && ` — page ${page} of ${totalPages}`}
+              Showing {(currentPage - 1) * PRODUCTS_PER_PAGE + 1}–{Math.min(currentPage * PRODUCTS_PER_PAGE, filteredProducts.length)} of {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''}
             </p>
           )}
 
+          {/* Grid */}
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {loading ? (
               Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)
@@ -298,11 +289,8 @@ function ProductsContent() {
                 <h3 className="mt-3 text-2xl font-bold text-[#2c1f14]">No products found</h3>
                 <p className="mt-1 text-[#8a7060]">Try another search or adjust your filters.</p>
                 {(query || activeCategory !== 'All' || hasFilters) && (
-                  <button
-                    type="button"
-                    onClick={() => { setQuery(''); setActiveCategory('All'); clearFilters(); }}
-                    className="mt-4 rounded bg-[#c9a84c] px-6 py-2 text-base font-semibold text-white hover:bg-[#a07a28]"
-                  >
+                  <button type="button" onClick={() => { setQuery(''); setActiveCategory('All'); clearFilters(); }}
+                    className="mt-4 rounded bg-[#c9a84c] px-6 py-2 text-base font-semibold text-white hover:bg-[#a07a28]">
                     Clear all filters
                   </button>
                 )}
@@ -315,37 +303,11 @@ function ProductsContent() {
           </div>
 
           {/* Pagination */}
-          {!loading && totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-10 flex-wrap">
-              <button
-                onClick={() => { setPage((p) => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                disabled={page === 1}
-                className="px-4 py-2 rounded border border-[#ede8df] bg-white text-[#6b5544] font-semibold disabled:opacity-40 hover:border-[#c9a84c] transition"
-              >
-                ← Prev
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
-                <button
-                  key={n}
-                  onClick={() => { setPage(n); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                  className={`w-10 h-10 rounded border font-semibold transition ${
-                    n === page
-                      ? 'border-[#c9a84c] bg-[#c9a84c] text-white'
-                      : 'border-[#ede8df] bg-white text-[#6b5544] hover:border-[#c9a84c]'
-                  }`}
-                >
-                  {n}
-                </button>
-              ))}
-              <button
-                onClick={() => { setPage((p) => Math.min(totalPages, p + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                disabled={page === totalPages}
-                className="px-4 py-2 rounded border border-[#ede8df] bg-white text-[#6b5544] font-semibold disabled:opacity-40 hover:border-[#c9a84c] transition"
-              >
-                Next →
-              </button>
-            </div>
-          )}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+          />
         </div>
       </div>
     </div>
