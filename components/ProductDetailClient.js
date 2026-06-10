@@ -16,7 +16,8 @@ function rupee(value) {
 function getImages(product) {
   const gallery = product.gallery_images || product.gallery || product.images || [];
   const parsed = Array.isArray(gallery) ? gallery : String(gallery || '').split(',').map((v) => v.trim()).filter(Boolean);
-  return [resolveImage(product), ...parsed].filter(Boolean);
+  const all = [resolveImage(product), ...parsed].filter(Boolean);
+  return [...new Set(all)]; // ✅ removes duplicate if main image already exists in gallery
 }
 
 function ZoomImage({ src, alt, onClickFullscreen }) {
