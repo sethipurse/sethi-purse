@@ -201,22 +201,42 @@ export default function ProductDetailClient({ product, related = [], reviews = [
   const outOfStock = product.stock === 0;
 
   const addToCart = () => {
-    const item = {
-      id: product.id,
-      name: product.name,
-      price: salePrice,
-      qty,
-      image: activeImage,
-      size: selectedSize,
-      color: selectedColor,
-    };
     const saved = window.localStorage.getItem('sethi-cart');
     const cart = saved ? JSON.parse(saved) : [];
-    window.localStorage.setItem('sethi-cart', JSON.stringify([...cart, item]));
-    // ✅ Notify Navbar to update cart count instantly
+
+    // Check if same product+size+color already in cart
+    const existingIndex = cart.findIndex(
+      (i) => i.id === product.id && (i.size || '') === selectedSize && (i.color || '') === selectedColor
+    );
+
+    let updatedCart;
+    if (existingIndex >= 0) {
+      // ✅ Already in cart — just increase qty
+      updatedCart = cart.map((item, idx) =>
+        idx === existingIndex
+          ? { ...item, qty: Math.max(1, Number(item.qty || 1)) + qty }
+          : item
+      );
+      toast.success(`Quantity updated to ${Math.max(1, Number(cart[existingIndex].qty || 1)) + qty}`);
+    } else {
+      // ✅ New item — add to cart
+      const item = {
+        id: product.id,
+        name: product.name,
+        price: salePrice,
+        qty,
+        image: activeImage,
+        size: selectedSize,
+        color: selectedColor,
+      };
+      updatedCart = [...cart, item];
+      toast.success(`${product.name} added to cart!`);
+    }
+
+    window.localStorage.setItem('sethi-cart', JSON.stringify(updatedCart));
     window.dispatchEvent(new Event('cart-updated'));
-    toast.success(`${product.name} added to cart!`);
     setAdded(true);
+    setQty(1); // ✅ Reset quantity back to 1
     setTimeout(() => setAdded(false), 2000);
   };
 
