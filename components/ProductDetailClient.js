@@ -19,7 +19,6 @@ function getImages(product) {
   return [resolveImage(product), ...parsed].filter(Boolean);
 }
 
-// ── Desktop Hover Zoom ────────────────────────────────────────────────────────
 function ZoomImage({ src, alt, onClickFullscreen }) {
   const containerRef = useRef(null);
   const [zoom, setZoom] = useState({ active: false, x: 50, y: 50 });
@@ -73,7 +72,6 @@ function ZoomImage({ src, alt, onClickFullscreen }) {
   );
 }
 
-// ── Mobile Fullscreen with Pinch + Double-Tap Zoom ───────────────────────────
 function MobileFullscreen({ src, alt, onClose }) {
   const imgRef = useRef(null);
   const containerRef = useRef(null);
@@ -184,7 +182,6 @@ function MobileFullscreen({ src, alt, onClose }) {
     </div>
   );
 }
-// ─────────────────────────────────────────────────────────────────────────────
 
 export default function ProductDetailClient({ product, related = [], reviews = [] }) {
   const images = useMemo(() => getImages(product), [product]);
@@ -193,6 +190,7 @@ export default function ProductDetailClient({ product, related = [], reviews = [
   const [qty, setQty] = useState(1);
   const [selectedSize, setSelectedSize] = useState('');
   const [selectedColor, setSelectedColor] = useState('');
+  const [added, setAdded] = useState(false);
 
   const salePrice = product.sale_price ?? product.salePrice ?? product.price ?? 0;
   const mrp = product.mrp ?? product.original_price ?? 0;
@@ -203,11 +201,23 @@ export default function ProductDetailClient({ product, related = [], reviews = [
   const outOfStock = product.stock === 0;
 
   const addToCart = () => {
-    const item = { id: product.id, name: product.name, price: salePrice, qty, image: activeImage, size: selectedSize, color: selectedColor };
+    const item = {
+      id: product.id,
+      name: product.name,
+      price: salePrice,
+      qty,
+      image: activeImage,
+      size: selectedSize,
+      color: selectedColor,
+    };
     const saved = window.localStorage.getItem('sethi-cart');
     const cart = saved ? JSON.parse(saved) : [];
     window.localStorage.setItem('sethi-cart', JSON.stringify([...cart, item]));
-    toast.success('Added to cart');
+    // ✅ Notify Navbar to update cart count instantly
+    window.dispatchEvent(new Event('cart-updated'));
+    toast.success(`${product.name} added to cart!`);
+    setAdded(true);
+    setTimeout(() => setAdded(false), 2000);
   };
 
   const productUrl = buildProductUrl(product.id);
@@ -251,13 +261,7 @@ export default function ProductDetailClient({ product, related = [], reviews = [
                     activeImage === image ? 'ring-[#c9a84c] scale-105' : 'ring-[#ede8df]'
                   }`}
                 >
-                  <Image
-                    src={image}
-                    alt=""
-                    fill
-                    sizes="10vw"
-                    className="object-cover"
-                  />
+                  <Image src={image} alt="" fill sizes="10vw" className="object-cover" />
                 </button>
               ))}
             </div>
@@ -270,7 +274,9 @@ export default function ProductDetailClient({ product, related = [], reviews = [
           </Link>
           <div className="mt-6 text-sm font-bold uppercase tracking-[0.18em] text-[#c9a84c]">{category}</div>
           <h1 className="mt-2 text-5xl font-bold leading-none text-[#2c1f14] md:text-6xl">{product.name}</h1>
-          {product.brand && <p className="mt-3 text-xl text-[#6b5544]">by <span className="font-bold text-[#2c1f14]">{product.brand}</span></p>}
+          {product.brand && (
+            <p className="mt-3 text-xl text-[#6b5544]">by <span className="font-bold text-[#2c1f14]">{product.brand}</span></p>
+          )}
           <div className="mt-6 flex flex-wrap items-end gap-4">
             <span className="text-4xl font-bold text-[#2c1f14]">{rupee(salePrice)}</span>
             {mrp > salePrice && <span className="pb-1 text-xl text-[#8a7060] line-through">{rupee(mrp)}</span>}
@@ -313,13 +319,23 @@ export default function ProductDetailClient({ product, related = [], reviews = [
           </div>
 
           <div className="mt-7 grid gap-3 sm:grid-cols-2">
-            <button type="button" onClick={addToCart} disabled={outOfStock}
-              className="flex h-14 items-center justify-center gap-2 rounded bg-[#c9a84c] text-xl font-bold text-white transition hover:bg-[#a07a28] disabled:opacity-60">
-              <ShoppingBag className="h-5 w-5" /> Add to Cart
+            <button
+              type="button"
+              onClick={addToCart}
+              disabled={outOfStock}
+              className={`flex h-14 items-center justify-center gap-2 rounded text-xl font-bold transition-all duration-300 disabled:opacity-60
+                ${added ? 'bg-green-500 text-white scale-95' : 'bg-[#c9a84c] text-white hover:bg-[#a07a28]'}`}
+            >
+              {added ? <><Check className="h-5 w-5" /> Added!</> : <><ShoppingBag className="h-5 w-5" /> Add to Cart</>}
             </button>
-            <a href={outOfStock ? undefined : buildWhatsAppLink(buyNowMessage)} target="_blank" rel="noopener noreferrer"
-              aria-disabled={outOfStock} onClick={(e) => outOfStock && e.preventDefault()}
-              className={`flex h-14 items-center justify-center gap-2 rounded border border-[#c9a84c] text-xl font-bold text-[#a07a28] transition hover:bg-[#f5f0e8] ${outOfStock ? 'pointer-events-none opacity-60' : ''}`}>
+            <a
+              href={outOfStock ? undefined : buildWhatsAppLink(buyNowMessage)}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-disabled={outOfStock}
+              onClick={(e) => outOfStock && e.preventDefault()}
+              className={`flex h-14 items-center justify-center gap-2 rounded border border-[#c9a84c] text-xl font-bold text-[#a07a28] transition hover:bg-[#f5f0e8] ${outOfStock ? 'pointer-events-none opacity-60' : ''}`}
+            >
               <MessageCircle className="h-5 w-5" /> Buy Now
             </a>
           </div>
@@ -350,11 +366,7 @@ export default function ProductDetailClient({ product, related = [], reviews = [
       )}
 
       {zoomOpen && (
-        <MobileFullscreen
-          src={activeImage}
-          alt={product.name}
-          onClose={() => setZoomOpen(false)}
-        />
+        <MobileFullscreen src={activeImage} alt={product.name} onClose={() => setZoomOpen(false)} />
       )}
     </div>
   );
