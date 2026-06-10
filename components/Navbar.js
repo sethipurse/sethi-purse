@@ -20,10 +20,11 @@ function useCartCount() {
     const read = () => {
       try {
         const cart = JSON.parse(localStorage.getItem('sethi-cart') || '[]');
-        setCount(Array.isArray(cart) ? cart.length : 0);
+        setCount(Array.isArray(cart) ? cart.reduce((s, i) => s + Math.max(1, Number(i.qty || 1)), 0) : 0);
       } catch { setCount(0); }
     };
     read();
+    // Update on storage change (other tabs) and custom event (same tab)
     window.addEventListener('storage', read);
     window.addEventListener('cart-updated', read);
     return () => {
@@ -39,7 +40,6 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   const cartCount = useCartCount();
-  const isHome = pathname === '/';
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 6);
@@ -53,16 +53,8 @@ export default function Navbar() {
     return () => { document.body.style.overflow = ''; };
   }, [open]);
 
-  // FIX: on home page, clicking cart fires open-cart event to open the drawer
-  // on other pages, it navigates to /#products
-  const handleCartClick = (e) => {
-    if (isHome) {
-      e.preventDefault();
-      window.dispatchEvent(new Event('open-cart'));
-    }
-  };
-
   const waLink = getWALinkForPath(pathname);
+  const isHome = pathname === '/';
 
   return (
     <header className={`sticky top-0 z-40 bg-white border-b border-sethi-gray200 transition-shadow ${scrolled ? 'shadow-[0_2px_12px_rgba(0,0,0,0.06)]' : ''}`}>
@@ -84,19 +76,17 @@ export default function Navbar() {
 
         {/* Desktop right side */}
         <div className="hidden lg:flex items-center gap-3">
-          {/* FIX: Cart icon now shows on ALL pages including home */}
-          <Link
-            href="/#products"
-            onClick={handleCartClick}
-            className="relative inline-flex items-center justify-center w-11 h-11 text-sethi-gold hover:text-[#a07a28] transition-colors"
-          >
-            <ShoppingBag className="w-6 h-6" />
-            {cartCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-sethi-gold text-[#2c1f14] text-[11px] font-bold flex items-center justify-center">
-                {cartCount}
-              </span>
-            )}
-          </Link>
+          {/* Cart icon — only show on non-home pages since home has its own */}
+          {!isHome && (
+            <Link href="/#products" className="relative inline-flex items-center justify-center w-11 h-11 text-sethi-gold hover:text-[#a07a28] transition-colors">
+              <ShoppingBag className="w-6 h-6" />
+              {cartCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-sethi-gold text-[#2c1f14] text-[11px] font-bold flex items-center justify-center">
+                  {cartCount}
+                </span>
+              )}
+            </Link>
+          )}
           <a href={waLink} target="_blank" rel="noopener noreferrer" className="btn-primary !min-h-[44px] !px-5 !py-2 text-sm">
             <MessageCircle className="w-4 h-4" /> WhatsApp Us
           </a>
@@ -113,20 +103,21 @@ export default function Navbar() {
           >
             <MessageCircle className="w-6 h-6" />
           </a>
-          {/* FIX: Cart icon now shows on ALL pages including home */}
-          <Link
-            href="/#products"
-            onClick={handleCartClick}
-            aria-label="Cart"
-            className="relative inline-flex items-center justify-center w-12 h-12 rounded-full text-sethi-gold active:bg-sethi-gold/10"
-          >
-            <ShoppingBag className="w-6 h-6" />
-            {cartCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-sethi-gold text-[#2c1f14] text-[11px] font-bold flex items-center justify-center">
-                {cartCount}
-              </span>
-            )}
-          </Link>
+          {/* Cart icon on mobile — only non-home pages */}
+          {!isHome && (
+            <Link
+              href="/#products"
+              aria-label="Cart"
+              className="relative inline-flex items-center justify-center w-12 h-12 rounded-full text-sethi-gold active:bg-sethi-gold/10"
+            >
+              <ShoppingBag className="w-6 h-6" />
+              {cartCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-sethi-gold text-[#2c1f14] text-[11px] font-bold flex items-center justify-center">
+                  {cartCount}
+                </span>
+              )}
+            </Link>
+          )}
           <button
             aria-label="Open menu"
             onClick={() => setOpen(true)}
