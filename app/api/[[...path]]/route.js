@@ -3,20 +3,13 @@ import { supabase, nowIST } from '@/lib/storage';
 import { clearAdminCookie, makeAdminToken, rateLimit, requireAdmin, setAdminCookie } from '@/lib/security';
 import { v4 as uuidv4 } from 'uuid';
 import categoriesJson from '@/data/categories.json';
-import productsJson from '@/data/products.json';
 
-// Normalize local JSON fallback data
+// Normalize local JSON fallback data for categories only
 const LOCAL_CATEGORIES = categoriesJson.map((c) => ({
   ...c,
   image_url: c.image_url || c.imageUrl || '',
   sort_order: c.sort_order ?? 0,
 }));
-const LOCAL_PRODUCTS = Array.isArray(productsJson) ? productsJson.map((p) => ({
-  ...p,
-  image_url: p.image_url || p.imageUrl || '',
-  sale_price: p.sale_price ?? p.salePrice ?? p.price ?? 0,
-  is_active: p.is_active !== false,
-})) : [];
 
 const VALID_STATUSES = ['new', 'contacted', 'converted', 'closed'];
 
@@ -139,8 +132,8 @@ async function handle(request, { params }) {
     if (segments.length === 1) {
       if (method === 'GET') {
         const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false });
-        if (error) return json(LOCAL_PRODUCTS);
-        return json(data && data.length > 0 ? data : LOCAL_PRODUCTS);
+        if (error) return json([]);
+        return json(data || []);
       }
       if (method === 'POST') {
         const p = body || {};
