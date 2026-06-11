@@ -16,16 +16,19 @@ function rupee(value) {
 function getImages(product) {
   const gallery = product.gallery_images || product.gallery || product.images || [];
   const parsed = Array.isArray(gallery) ? gallery : String(gallery || '').split(',').map((v) => v.trim()).filter(Boolean);
-  return [resolveImage(product), ...parsed].filter(Boolean);
+  const all = [resolveImage(product), ...parsed].filter(Boolean);
+  return [...new Set(all)]; // removes duplicate images
 }
 
 // ── Image Gallery ─────────────────────────────────────────────────────────────
 function ImageGallery({ images, alt, onOpenFullscreen }) {
   const [current, setCurrent] = useState(0);
-  const [loaded, setLoaded] = useState(false); // FIX: skeleton until first image loads
+  const [loaded, setLoaded] = useState(false);
   const touchStartX = useRef(null);
   const touchStartY = useRef(null);
+  const touchStartTime = useRef(null); // FIX: track touch duration
   const autoRef = useRef(null);
+  const hasMoved = useRef(false); // FIX: track if finger moved
 
   const startAuto = useCallback(() => {
     stopAuto();
@@ -51,7 +54,16 @@ function ImageGallery({ images, alt, onOpenFullscreen }) {
   const onTouchStart = (e) => {
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
+    touchStartTime.current = Date.now();
+    hasMoved.current = false;
     stopAuto();
+  };
+
+  const onTouchMove = (e) => {
+    if (touchStartX.current === null) return;
+    const dx = Math.abs(e.touches[0].clientX - touchStartX.current);
+    const dy = Math.abs(e.touches[0].clientY - touchStartY.current);
+    if (dx > 8 || dy > 8) hasMoved.current = true; // FIX: mark as moved if finger moved
   };
 
   const onTouchEnd = (e) => {
@@ -63,17 +75,24 @@ function ImageGallery({ images, alt, onOpenFullscreen }) {
     startAuto();
   };
 
+  // FIX: only open fullscreen on intentional tap (not scroll, not swipe)
+  const handleClick = () => {
+    if (hasMoved.current) return; // was a swipe or scroll, not a tap
+    const duration = Date.now() - (touchStartTime.current || 0);
+    if (duration > 300) return; // was a long press, not a tap
+    onOpenFullscreen(current);
+  };
+
   return (
     <div className="space-y-3">
-      {/* FIX: isolation+overflow stop home page bleeding through on mobile */}
       <div
         className="relative aspect-[4/5] w-full overflow-hidden rounded bg-white shadow-sm ring-1 ring-[#ede8df]"
         style={{ cursor: 'zoom-in', backgroundColor: '#ffffff', isolation: 'isolate', position: 'relative', zIndex: 1 }}
         onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
-        onClick={() => onOpenFullscreen(current)}
+        onClick={handleClick}
       >
-        {/* FIX: shimmer skeleton — z-2 so it shows above bg but below image (z-20) */}
         {!loaded && (
           <div className="absolute inset-0 z-[2] animate-pulse bg-[#f5f0e8]" />
         )}
@@ -93,7 +112,7 @@ function ImageGallery({ images, alt, onOpenFullscreen }) {
                 priority={idx === 0}
                 className="object-cover"
                 draggable={false}
-                onLoad={() => { if (idx === 0) setLoaded(true); }} // FIX: hide skeleton after load
+                onLoad={() => { if (idx === 0) setLoaded(true); }}
               />
             ) : (
               <div className="flex h-full items-center justify-center bg-[#f5f0e8]">
@@ -245,7 +264,6 @@ export default function ProductDetailClient({ product, related = [], reviews = [
   };
 
   return (
-    // FIX: wrap everything — stops home page bleeding through on mobile
     <div style={{ position: 'relative', zIndex: 1, backgroundColor: '#faf8f4' }}>
       <div className="space-y-14">
         <div className="grid gap-8 lg:grid-cols-[1.02fr_0.98fr]">
