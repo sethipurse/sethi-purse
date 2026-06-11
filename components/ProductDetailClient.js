@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, MessageCircle, Minus, Plus, Share2, ShoppingBag, Star, X, ZoomIn } from 'lucide-react';
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, MessageCircle, Minus, Plus, Share2, ShoppingBag, Star, ZoomIn } from 'lucide-react';
 import { toast } from 'sonner';
 import ProductCard from '@/components/ProductCard';
 import ReviewCard from '@/components/ReviewCard';
@@ -19,14 +19,14 @@ function getImages(product) {
   return [resolveImage(product), ...parsed].filter(Boolean);
 }
 
-// ── Image Gallery (works on both mobile + desktop) ────────────────────────────
+// ── Image Gallery ─────────────────────────────────────────────────────────────
 function ImageGallery({ images, alt, onOpenFullscreen }) {
   const [current, setCurrent] = useState(0);
+  const [loaded, setLoaded] = useState(false); // FIX: skeleton until first image loads
   const touchStartX = useRef(null);
   const touchStartY = useRef(null);
   const autoRef = useRef(null);
 
-  // ✅ Auto-slide every 3 seconds
   const startAuto = useCallback(() => {
     stopAuto();
     if (images.length <= 1) return;
@@ -44,11 +44,7 @@ function ImageGallery({ images, alt, onOpenFullscreen }) {
     return stopAuto;
   }, [startAuto]);
 
-  const goTo = (idx) => {
-    setCurrent(idx);
-    startAuto(); // reset timer on manual nav
-  };
-
+  const goTo = (idx) => { setCurrent(idx); startAuto(); };
   const prev = () => goTo((current - 1 + images.length) % images.length);
   const next = () => goTo((current + 1) % images.length);
 
@@ -62,24 +58,26 @@ function ImageGallery({ images, alt, onOpenFullscreen }) {
     if (touchStartX.current === null) return;
     const dx = touchStartX.current - e.changedTouches[0].clientX;
     const dy = Math.abs(e.changedTouches[0].clientY - (touchStartY.current || 0));
-    if (Math.abs(dx) > 40 && Math.abs(dx) > dy) {
-      dx > 0 ? next() : prev();
-    }
+    if (Math.abs(dx) > 40 && Math.abs(dx) > dy) { dx > 0 ? next() : prev(); }
     touchStartX.current = null;
     startAuto();
   };
 
   return (
     <div className="space-y-3">
-      {/* Main image container — fixed position, no translateX bleed */}
+      {/* FIX: isolation+overflow stop home page bleeding through on mobile */}
       <div
         className="relative aspect-[4/5] w-full overflow-hidden rounded bg-white shadow-sm ring-1 ring-[#ede8df]"
+        style={{ cursor: 'zoom-in', backgroundColor: '#ffffff', isolation: 'isolate', position: 'relative', zIndex: 1 }}
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
         onClick={() => onOpenFullscreen(current)}
-        style={{ cursor: 'zoom-in', backgroundColor: '#ffffff' }}
       >
-        {/* ✅ Use opacity switching instead of translateX — no bleed */}
+        {/* FIX: gold shimmer skeleton shown until first image loads */}
+        {!loaded && (
+          <div className="absolute inset-0 z-10 animate-pulse bg-[#f5f0e8]" />
+        )}
+
         {images.map((img, idx) => (
           <div
             key={idx}
@@ -95,6 +93,7 @@ function ImageGallery({ images, alt, onOpenFullscreen }) {
                 priority={idx === 0}
                 className="object-cover"
                 draggable={false}
+                onLoad={() => { if (idx === 0) setLoaded(true); }} // FIX: hide skeleton after load
               />
             ) : (
               <div className="flex h-full items-center justify-center bg-[#f5f0e8]">
@@ -104,39 +103,29 @@ function ImageGallery({ images, alt, onOpenFullscreen }) {
           </div>
         ))}
 
-        {/* Prev/Next arrows */}
         {images.length > 1 && (
           <>
-            <button
-              onClick={(e) => { e.stopPropagation(); prev(); }}
-              className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center shadow hover:bg-white transition-colors"
-            >
+            <button onClick={(e) => { e.stopPropagation(); prev(); }}
+              className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center shadow hover:bg-white transition-colors">
               <ChevronLeft className="w-5 h-5 text-[#2c1f14]" />
             </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); next(); }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center shadow hover:bg-white transition-colors"
-            >
+            <button onClick={(e) => { e.stopPropagation(); next(); }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center shadow hover:bg-white transition-colors">
               <ChevronRight className="w-5 h-5 text-[#2c1f14]" />
             </button>
           </>
         )}
 
-        {/* Dot indicators */}
         {images.length > 1 && (
           <div className="absolute bottom-3 left-0 right-0 z-10 flex justify-center gap-1.5">
             {images.map((_, idx) => (
-              <button
-                key={idx}
-                onClick={(e) => { e.stopPropagation(); goTo(idx); }}
+              <button key={idx} onClick={(e) => { e.stopPropagation(); goTo(idx); }}
                 className="rounded-full transition-all duration-300"
-                style={{ width: idx === current ? 20 : 8, height: 8, backgroundColor: idx === current ? '#c9a84c' : 'rgba(255,255,255,0.8)' }}
-              />
+                style={{ width: idx === current ? 20 : 8, height: 8, backgroundColor: idx === current ? '#c9a84c' : 'rgba(255,255,255,0.8)' }} />
             ))}
           </div>
         )}
 
-        {/* Counter + zoom hint — only show counter if multiple images */}
         {images.length > 1 && (
           <div className="absolute top-3 left-3 z-10 rounded bg-black/50 px-2 py-0.5 text-xs text-white font-medium">
             {current + 1}/{images.length}
@@ -147,16 +136,11 @@ function ImageGallery({ images, alt, onOpenFullscreen }) {
         </div>
       </div>
 
-      {/* Thumbnail strip */}
       {images.length > 1 && (
         <div className="grid grid-cols-5 gap-2">
           {images.map((img, idx) => (
-            <button
-              key={idx}
-              type="button"
-              onClick={() => goTo(idx)}
-              className={`relative aspect-square overflow-hidden rounded bg-white ring-2 transition-all duration-200 ${current === idx ? 'ring-[#c9a84c] scale-105' : 'ring-[#ede8df] hover:ring-[#c9a84c]'}`}
-            >
+            <button key={idx} type="button" onClick={() => goTo(idx)}
+              className={`relative aspect-square overflow-hidden rounded bg-white ring-2 transition-all duration-200 ${current === idx ? 'ring-[#c9a84c] scale-105' : 'ring-[#ede8df] hover:ring-[#c9a84c]'}`}>
               {img && <Image src={img} alt="" fill sizes="10vw" className="object-cover" />}
             </button>
           ))}
@@ -169,48 +153,25 @@ function ImageGallery({ images, alt, onOpenFullscreen }) {
 // ── Fullscreen Lightbox ───────────────────────────────────────────────────────
 function Fullscreen({ images, startIndex, alt, onClose }) {
   const [current, setCurrent] = useState(startIndex || 0);
-  const touchStartX = useRef(null);
-
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; };
-  }, []);
 
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    document.addEventListener('keydown', handler);
+    document.body.style.overflow = 'hidden';
+    return () => { document.removeEventListener('keydown', handler); document.body.style.overflow = ''; };
   }, [onClose]);
 
   const prev = () => setCurrent((c) => (c - 1 + images.length) % images.length);
   const next = () => setCurrent((c) => (c + 1) % images.length);
 
-  const onTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
-  const onTouchEnd = (e) => {
-    if (touchStartX.current === null) return;
-    const dx = touchStartX.current - e.changedTouches[0].clientX;
-    if (Math.abs(dx) > 40) dx > 0 ? next() : prev();
-    touchStartX.current = null;
-  };
-
   return (
-    <div
-      className="fixed bg-black flex items-center justify-center"
-      style={{ position: 'fixed', inset: 0, zIndex: 99999, top: 0, left: 0, right: 0, bottom: 0 }}
-      onTouchStart={onTouchStart}
-      onTouchEnd={onTouchEnd}
-    >
-      <button onClick={onClose}
-        className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/40">
-        <X className="w-6 h-6" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95" onClick={onClose}>
+      <button onClick={onClose} className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/40">
+        ✕
       </button>
-      <div className="absolute top-4 left-4 z-10 rounded bg-black/50 px-3 py-1 text-sm text-white font-medium">
-        {current + 1} / {images.length}
-      </div>
-      <div className="relative w-full h-full flex items-center justify-center px-12">
+      <div className="relative w-full max-w-2xl mx-4 aspect-square" onClick={(e) => e.stopPropagation()}>
         {images[current] && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={images[current]} alt={alt} className="max-w-full max-h-full object-contain select-none" draggable={false} />
+          <Image src={images[current]} alt={alt} fill className="object-contain" sizes="100vw" />
         )}
       </div>
       {images.length > 1 && (
@@ -227,16 +188,14 @@ function Fullscreen({ images, startIndex, alt, onClose }) {
         {images.map((_, idx) => (
           <button key={idx} onClick={() => setCurrent(idx)}
             className="rounded-full transition-all duration-300"
-            style={{ width: idx === current ? 20 : 8, height: 8, backgroundColor: idx === current ? '#c9a84c' : 'rgba(255,255,255,0.4)' }}
-          />
+            style={{ width: idx === current ? 20 : 8, height: 8, backgroundColor: idx === current ? '#c9a84c' : 'rgba(255,255,255,0.4)' }} />
         ))}
       </div>
     </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-
+// ── Main Component ────────────────────────────────────────────────────────────
 export default function ProductDetailClient({ product, related = [], reviews = [] }) {
   const images = useMemo(() => getImages(product), [product]);
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
@@ -254,22 +213,15 @@ export default function ProductDetailClient({ product, related = [], reviews = [
   const colors = Array.isArray(product.colors) ? product.colors : ['Classic'];
   const outOfStock = product.stock === 0;
 
-  const openFullscreen = (index = 0) => {
-    setFullscreenStart(index);
-    setFullscreenOpen(true);
-  };
+  const openFullscreen = (index = 0) => { setFullscreenStart(index); setFullscreenOpen(true); };
 
   const addToCart = () => {
     const saved = window.localStorage.getItem('sethi-cart');
     const cart = saved ? JSON.parse(saved) : [];
-    const existingIndex = cart.findIndex(
-      (i) => i.id === product.id && (i.size || '') === selectedSize && (i.color || '') === selectedColor
-    );
+    const existingIndex = cart.findIndex((i) => i.id === product.id && (i.size || '') === selectedSize && (i.color || '') === selectedColor);
     let updatedCart;
     if (existingIndex >= 0) {
-      updatedCart = cart.map((item, idx) =>
-        idx === existingIndex ? { ...item, qty: Math.max(1, Number(item.qty || 1)) + qty } : item
-      );
+      updatedCart = cart.map((item, idx) => idx === existingIndex ? { ...item, qty: Math.max(1, Number(item.qty || 1)) + qty } : item);
       toast.success(`Quantity updated to ${Math.max(1, Number(cart[existingIndex].qty || 1)) + qty}`);
     } else {
       updatedCart = [...cart, { id: product.id, name: product.name, price: salePrice, qty, image: images[0] || '', size: selectedSize, color: selectedColor }];
@@ -293,97 +245,103 @@ export default function ProductDetailClient({ product, related = [], reviews = [
   };
 
   return (
-    <div className="space-y-14">
-      <div className="grid gap-8 lg:grid-cols-[1.02fr_0.98fr]">
-        <ImageGallery images={images} alt={product.name} onOpenFullscreen={openFullscreen} />
+    // FIX: wrap everything — stops home page bleeding through on mobile
+    <div style={{ position: 'relative', zIndex: 1, backgroundColor: '#faf8f4' }}>
+      <div className="space-y-14">
+        <div className="grid gap-8 lg:grid-cols-[1.02fr_0.98fr]">
+          <ImageGallery images={images} alt={product.name} onOpenFullscreen={openFullscreen} />
 
-        <div className="rounded bg-white p-6 shadow-sm ring-1 ring-[#ede8df] md:p-8">
-          <Link href="/products" className="inline-flex items-center gap-2 text-base font-semibold text-[#8a7060] hover:text-[#c9a84c]">
-            <ArrowLeft className="h-4 w-4" /> Back to products
-          </Link>
-          <div className="mt-6 text-sm font-bold uppercase tracking-[0.18em] text-[#c9a84c]">{category}</div>
-          <h1 className="mt-2 text-5xl font-bold leading-none text-[#2c1f14] md:text-6xl">{product.name}</h1>
-          {product.brand && <p className="mt-3 text-xl text-[#6b5544]">by <span className="font-bold text-[#2c1f14]">{product.brand}</span></p>}
-          <div className="mt-6 flex flex-wrap items-end gap-4">
-            <span className="text-4xl font-bold text-[#2c1f14]">{rupee(salePrice)}</span>
-            {mrp > salePrice && <span className="pb-1 text-xl text-[#8a7060] line-through">{rupee(mrp)}</span>}
-          </div>
-          <p className="mt-6 text-xl leading-8 text-[#6b5544]">
-            {product.description || 'Premium quality product from SETHI PURSE, Jalandhar. Message us for availability, latest images, and best store price.'}
-          </p>
+          <div className="rounded bg-white p-6 shadow-sm ring-1 ring-[#ede8df] md:p-8">
+            <Link href="/products" className="inline-flex items-center gap-2 text-base font-semibold text-[#8a7060] hover:text-[#c9a84c]">
+              <ArrowLeft className="h-4 w-4" /> Back to products
+            </Link>
+            <div className="mt-6 text-sm font-bold uppercase tracking-[0.18em] text-[#c9a84c]">{category}</div>
+            <h1 className="mt-2 text-5xl font-bold leading-none text-[#2c1f14] md:text-6xl">{product.name}</h1>
+            {product.brand && <p className="mt-3 text-xl text-[#6b5544]">by <span className="font-bold text-[#2c1f14]">{product.brand}</span></p>}
+            <div className="mt-6 flex flex-wrap items-end gap-4">
+              <span className="text-4xl font-bold text-[#2c1f14]">{rupee(salePrice)}</span>
+              {mrp > salePrice && <span className="pb-1 text-xl text-[#8a7060] line-through">{rupee(mrp)}</span>}
+            </div>
+            {discount > 0 && (
+              <span className="mt-2 inline-block rounded bg-[#c9a84c] px-3 py-1 text-sm font-bold text-white">{discount}% OFF</span>
+            )}
+            <p className="mt-6 text-xl leading-8 text-[#6b5544]">
+              {product.description || 'Premium quality product from SETHI PURSE, Jalandhar. Message us for availability, latest images, and best store price.'}
+            </p>
 
-          <div className="mt-7 grid gap-5 border-y border-[#ede8df] py-6">
-            <div>
-              <div className="mb-3 text-lg font-bold text-[#2c1f14]">Size</div>
-              <div className="flex flex-wrap gap-2">
-                {sizes.map((size) => (
-                  <button key={size} type="button" onClick={() => setSelectedSize(size)}
-                    className={`rounded border px-4 py-2 text-base font-semibold transition ${selectedSize === size ? 'border-[#c9a84c] bg-[#c9a84c] text-white' : 'border-[#ede8df] text-[#6b5544] hover:border-[#c9a84c]'}`}>
-                    {size}
-                  </button>
-                ))}
+            <div className="mt-7 grid gap-5 border-y border-[#ede8df] py-6">
+              <div>
+                <div className="mb-3 text-lg font-bold text-[#2c1f14]">Size</div>
+                <div className="flex flex-wrap gap-2">
+                  {sizes.map((size) => (
+                    <button key={size} type="button" onClick={() => setSelectedSize(size)}
+                      className={`rounded border px-4 py-2 text-base font-semibold transition ${selectedSize === size ? 'border-[#c9a84c] bg-[#c9a84c] text-white' : 'border-[#ede8df] text-[#6b5544] hover:border-[#c9a84c]'}`}>
+                      {size}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div className="mb-3 text-lg font-bold text-[#2c1f14]">Color</div>
+                <div className="flex flex-wrap gap-2">
+                  {colors.map((color) => (
+                    <button key={color} type="button" onClick={() => setSelectedColor(color)}
+                      className={`rounded border px-4 py-2 text-base font-semibold transition ${selectedColor === color ? 'border-[#c9a84c] bg-[#c9a84c] text-white' : 'border-[#ede8df] text-[#6b5544] hover:border-[#c9a84c]'}`}>
+                      {color}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <span className="text-lg font-bold">Quantity</span>
+                <div className="flex h-11 items-center overflow-hidden rounded border border-[#ede8df]">
+                  <button type="button" onClick={() => setQty(Math.max(1, qty - 1))} className="flex h-11 w-11 items-center justify-center hover:bg-[#f5f0e8]"><Minus className="h-4 w-4" /></button>
+                  <span className="w-12 text-center text-lg font-bold">{qty}</span>
+                  <button type="button" onClick={() => setQty(qty + 1)} className="flex h-11 w-11 items-center justify-center hover:bg-[#f5f0e8]"><Plus className="h-4 w-4" /></button>
+                </div>
               </div>
             </div>
-            <div>
-              <div className="mb-3 text-lg font-bold text-[#2c1f14]">Color</div>
-              <div className="flex flex-wrap gap-2">
-                {colors.map((color) => (
-                  <button key={color} type="button" onClick={() => setSelectedColor(color)}
-                    className={`rounded border px-4 py-2 text-base font-semibold transition ${selectedColor === color ? 'border-[#c9a84c] bg-[#c9a84c] text-white' : 'border-[#ede8df] text-[#6b5544] hover:border-[#c9a84c]'}`}>
-                    {color}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <span className="text-lg font-bold">Quantity</span>
-              <div className="flex h-11 items-center overflow-hidden rounded border border-[#ede8df]">
-                <button type="button" onClick={() => setQty(Math.max(1, qty - 1))} className="flex h-11 w-11 items-center justify-center hover:bg-[#f5f0e8]"><Minus className="h-4 w-4" /></button>
-                <span className="w-12 text-center text-lg font-bold">{qty}</span>
-                <button type="button" onClick={() => setQty(qty + 1)} className="flex h-11 w-11 items-center justify-center hover:bg-[#f5f0e8]"><Plus className="h-4 w-4" /></button>
-              </div>
-            </div>
-          </div>
 
-          <div className="mt-7 grid gap-3 sm:grid-cols-2">
-            <button type="button" onClick={addToCart} disabled={outOfStock}
-              className={`flex h-14 items-center justify-center gap-2 rounded text-xl font-bold transition-all duration-300 disabled:opacity-60 ${added ? 'bg-green-500 text-white scale-95' : 'bg-[#c9a84c] text-white hover:bg-[#a07a28]'}`}>
-              {added ? <><Check className="h-5 w-5" /> Added!</> : <><ShoppingBag className="h-5 w-5" /> Add to Cart</>}
+            <div className="mt-7 grid gap-3 sm:grid-cols-2">
+              <button type="button" onClick={addToCart} disabled={outOfStock}
+                className={`flex h-14 items-center justify-center gap-2 rounded text-xl font-bold transition-all duration-300 disabled:opacity-60 ${added ? 'bg-green-500 text-white scale-95' : 'bg-[#c9a84c] text-white hover:bg-[#a07a28]'}`}>
+                {added ? <><Check className="h-5 w-5" /> Added!</> : <><ShoppingBag className="h-5 w-5" /> Add to Cart</>}
+              </button>
+              <a href={outOfStock ? undefined : buildWhatsAppLink(buyNowMessage)} target="_blank" rel="noopener noreferrer"
+                aria-disabled={outOfStock} onClick={(e) => outOfStock && e.preventDefault()}
+                className={`flex h-14 items-center justify-center gap-2 rounded border border-[#c9a84c] text-xl font-bold text-[#a07a28] transition hover:bg-[#f5f0e8] ${outOfStock ? 'pointer-events-none opacity-60' : ''}`}>
+                <MessageCircle className="h-5 w-5" /> Buy Now
+              </a>
+            </div>
+            <button type="button" onClick={onShare} className="mt-3 flex h-12 items-center gap-2 text-lg font-semibold text-[#6b5544] hover:text-[#c9a84c]">
+              <Share2 className="h-4 w-4" /> Share product
             </button>
-            <a href={outOfStock ? undefined : buildWhatsAppLink(buyNowMessage)} target="_blank" rel="noopener noreferrer"
-              aria-disabled={outOfStock} onClick={(e) => outOfStock && e.preventDefault()}
-              className={`flex h-14 items-center justify-center gap-2 rounded border border-[#c9a84c] text-xl font-bold text-[#a07a28] transition hover:bg-[#f5f0e8] ${outOfStock ? 'pointer-events-none opacity-60' : ''}`}>
-              <MessageCircle className="h-5 w-5" /> Buy Now
-            </a>
-          </div>
-          <button type="button" onClick={onShare} className="mt-3 flex h-12 items-center gap-2 text-lg font-semibold text-[#6b5544] hover:text-[#c9a84c]">
-            <Share2 className="h-4 w-4" /> Share product
-          </button>
-          <div className="mt-6 grid gap-2 text-lg text-[#6b5544]">
-            {['Original branded collection', 'Store pickup and WhatsApp support', 'Best available SETHI PURSE pricing'].map((text) => (
-              <div key={text} className="flex items-center gap-2"><Check className="h-5 w-5 text-[#c9a84c]" /> {text}</div>
-            ))}
+            <div className="mt-6 grid gap-2 text-lg text-[#6b5544]">
+              {['Original branded collection', 'Store pickup and WhatsApp support', 'Best available SETHI PURSE pricing'].map((text) => (
+                <div key={text} className="flex items-center gap-2"><Check className="h-5 w-5 text-[#c9a84c]" /> {text}</div>
+              ))}
+            </div>
           </div>
         </div>
+
+        {reviews.length > 0 && (
+          <section>
+            <h2 className="flex items-center gap-2 text-4xl font-bold text-[#c9a84c]"><Star className="h-7 w-7 fill-[#c9a84c]" /> Reviews</h2>
+            <div className="mt-5 grid gap-5 md:grid-cols-3">{reviews.slice(0, 3).map((review) => <ReviewCard key={review.id} review={review} />)}</div>
+          </section>
+        )}
+
+        {related.length > 0 && (
+          <section>
+            <h2 className="text-4xl font-bold text-[#c9a84c]">Related Products</h2>
+            <div className="mt-5 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">{related.map((item) => <ProductCard key={item.id} product={item} />)}</div>
+          </section>
+        )}
+
+        {fullscreenOpen && (
+          <Fullscreen images={images} startIndex={fullscreenStart} alt={product.name} onClose={() => setFullscreenOpen(false)} />
+        )}
       </div>
-
-      {reviews.length > 0 && (
-        <section>
-          <h2 className="flex items-center gap-2 text-4xl font-bold text-[#c9a84c]"><Star className="h-7 w-7 fill-[#c9a84c]" /> Reviews</h2>
-          <div className="mt-5 grid gap-5 md:grid-cols-3">{reviews.slice(0, 3).map((review) => <ReviewCard key={review.id} review={review} />)}</div>
-        </section>
-      )}
-
-      {related.length > 0 && (
-        <section>
-          <h2 className="text-4xl font-bold text-[#c9a84c]">Related Products</h2>
-          <div className="mt-5 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">{related.map((item) => <ProductCard key={item.id} product={item} />)}</div>
-        </section>
-      )}
-
-      {fullscreenOpen && (
-        <Fullscreen images={images} startIndex={fullscreenStart} alt={product.name} onClose={() => setFullscreenOpen(false)} />
-      )}
     </div>
   );
 }
