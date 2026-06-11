@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, MessageCircle, Minus, Plus, Share2, ShoppingBag, Star, X } from 'lucide-react';
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, MessageCircle, Minus, Plus, Share2, ShoppingBag, Star } from 'lucide-react';
 import { toast } from 'sonner';
 import ProductCard from '@/components/ProductCard';
 import ReviewCard from '@/components/ReviewCard';
@@ -49,7 +49,7 @@ function ZoomImage({ src, alt }) {
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       className="relative aspect-[4/5] w-full overflow-hidden rounded bg-white shadow-sm ring-1 ring-[#ede8df]"
-      style={{ cursor: zoom.active ? 'zoom-in' : 'zoom-in' }}
+      style={{ cursor: 'zoom-in' }}
     >
       <Image
         src={src}
@@ -85,64 +85,61 @@ function MobileFullscreen({ src, alt, onClose }) {
     <div
       style={{
         position: 'fixed',
-        inset: 0,
+        top: 0, left: 0, right: 0, bottom: 0,
         zIndex: 99999,
-        backgroundColor: 'rgba(0,0,0,0.95)',
+        backgroundColor: '#000',
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
       }}
-      onClick={onClose}
     >
-      {/* Close button */}
+      {/* Close button — no onClick conflict */}
       <button
-        onClick={onClose}
+        onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
         style={{
           position: 'absolute',
-          top: 16,
-          right: 16,
+          top: 20,
+          right: 20,
           zIndex: 100000,
-          width: 44,
-          height: 44,
+          width: 52,
+          height: 52,
           borderRadius: '50%',
-          backgroundColor: 'rgba(255,255,255,0.2)',
+          backgroundColor: '#c9a84c',
           border: 'none',
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          fontSize: 24,
           color: '#fff',
-          fontSize: 20,
+          fontWeight: 'bold',
+          WebkitTapHighlightColor: 'transparent',
         }}
       >
         ✕
       </button>
 
-      {/* Image */}
-      <div
-        onClick={(e) => e.stopPropagation()}
+      {/* Image — plain img tag, no Next.js Image */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt={alt}
         style={{
-          width: '100%',
+          display: 'block',
           maxWidth: '100vw',
-          maxHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 16,
+          maxHeight: '85vh',
+          width: 'auto',
+          height: 'auto',
+          objectFit: 'contain',
         }}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={src}
-          alt={alt}
-          style={{
-            maxWidth: '100%',
-            maxHeight: '90vh',
-            objectFit: 'contain',
-            borderRadius: 8,
-          }}
-        />
-      </div>
+      />
+
+      {/* Close hint */}
+      <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: 16 }}>
+        Tap ✕ to close
+      </p>
     </div>
   );
 }
@@ -152,39 +149,65 @@ function ImageGallery({ images, alt }) {
   const [current, setCurrent] = useState(0);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const touchStartRef = useRef(null);
 
   useEffect(() => {
-    setIsMobile(window.innerWidth < 1024 || 'ontouchstart' in window);
+    // detect mobile/touch device
+    setIsMobile('ontouchstart' in window || navigator.maxTouchPoints > 0);
   }, []);
 
   const prev = () => setCurrent((c) => (c - 1 + images.length) % images.length);
   const next = () => setCurrent((c) => (c + 1) % images.length);
 
-  const handleImageClick = () => {
-    if (isMobile) setMobileOpen(true);
+  // Use onTouchEnd for mobile tap — more reliable than onClick on Android
+  const handleTouchEnd = (e) => {
+    if (!isMobile) return;
+    if (touchStartRef.current) {
+      const dx = Math.abs(e.changedTouches[0].clientX - touchStartRef.current.x);
+      const dy = Math.abs(e.changedTouches[0].clientY - touchStartRef.current.y);
+      if (dx < 10 && dy < 10) {
+        // it was a tap, not a swipe
+        setMobileOpen(true);
+      }
+    }
+    touchStartRef.current = null;
+  };
+
+  const handleTouchStart = (e) => {
+    touchStartRef.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY,
+    };
   };
 
   return (
     <div className="space-y-3">
       <div className="relative">
-        {/* Desktop: zoom on hover. Mobile: tap to open fullscreen */}
-        <div onClick={handleImageClick} style={{ cursor: isMobile ? 'zoom-in' : 'default' }}>
+        <div
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          style={{ cursor: isMobile ? 'zoom-in' : 'default' }}
+        >
           <ZoomImage src={images[current] || ''} alt={alt} />
         </div>
 
-        {isMobile && images[current] && (
+        {isMobile && (
           <span className="absolute bottom-3 left-3 rounded bg-black/50 px-2 py-1 text-xs text-white pointer-events-none">
-            👆 Tap to view full image
+            👆 Tap for full image
           </span>
         )}
 
         {images.length > 1 && (
           <>
-            <button onClick={prev}
+            <button
+              onTouchEnd={(e) => { e.stopPropagation(); prev(); }}
+              onClick={prev}
               className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-white/90 flex items-center justify-center shadow hover:bg-white transition-colors">
               <ChevronLeft className="w-5 h-5 text-[#2c1f14]" />
             </button>
-            <button onClick={next}
+            <button
+              onTouchEnd={(e) => { e.stopPropagation(); next(); }}
+              onClick={next}
               className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-white/90 flex items-center justify-center shadow hover:bg-white transition-colors">
               <ChevronRight className="w-5 h-5 text-[#2c1f14]" />
             </button>
@@ -204,7 +227,7 @@ function ImageGallery({ images, alt }) {
         </div>
       )}
 
-      {/* Mobile fullscreen */}
+      {/* Mobile fullscreen portal */}
       {mobileOpen && (
         <MobileFullscreen
           src={images[current]}
