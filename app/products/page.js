@@ -16,7 +16,6 @@ const PRICE_RANGES = [
 ];
 
 const BRANDS = ['American Tourister', 'Safari', 'Genie', 'Arctic Fox'];
-
 const PRODUCTS_PER_PAGE = 12;
 
 function SkeletonCard() {
@@ -63,52 +62,32 @@ function FilterPanel({ selectedPrice, selectedBrands, onPriceClick, onBrandClick
 
 function Pagination({ currentPage, totalPages, onPageChange }) {
   if (totalPages <= 1) return null;
-
   const pages = [];
-  const delta = 1; // pages around current
+  const delta = 1;
   const left = Math.max(1, currentPage - delta);
   const right = Math.min(totalPages, currentPage + delta);
-
   if (left > 1) { pages.push(1); if (left > 2) pages.push('...'); }
   for (let i = left; i <= right; i++) pages.push(i);
   if (right < totalPages) { if (right < totalPages - 1) pages.push('...'); pages.push(totalPages); }
 
   return (
     <div className="flex items-center justify-center gap-2 mt-10 flex-wrap">
-      {/* Prev */}
-      <button
-        onClick={() => onPageChange(currentPage - 1)}
-        disabled={currentPage === 1}
-        className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-[#ede8df] bg-white text-sm font-medium text-[#6b5544] hover:border-[#c9a84c] disabled:opacity-40 disabled:pointer-events-none transition-colors"
-      >
+      <button onClick={() => onPageChange(currentPage - 1)} disabled={currentPage === 1}
+        className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-[#ede8df] bg-white text-sm font-medium text-[#6b5544] hover:border-[#c9a84c] disabled:opacity-40 disabled:pointer-events-none transition-colors">
         <ChevronLeft className="w-4 h-4" /> Prev
       </button>
-
-      {/* Page numbers */}
       {pages.map((page, idx) =>
         page === '...' ? (
           <span key={`dots-${idx}`} className="px-2 text-[#8a7060]">…</span>
         ) : (
-          <button
-            key={page}
-            onClick={() => onPageChange(page)}
-            className={`w-10 h-10 rounded-lg border text-sm font-semibold transition-all ${
-              page === currentPage
-                ? 'bg-[#c9a84c] border-[#c9a84c] text-white shadow-sm'
-                : 'bg-white border-[#ede8df] text-[#6b5544] hover:border-[#c9a84c] hover:bg-[#fdf4e3]'
-            }`}
-          >
+          <button key={page} onClick={() => onPageChange(page)}
+            className={`w-10 h-10 rounded-lg border text-sm font-semibold transition-all ${page === currentPage ? 'bg-[#c9a84c] border-[#c9a84c] text-white shadow-sm' : 'bg-white border-[#ede8df] text-[#6b5544] hover:border-[#c9a84c] hover:bg-[#fdf4e3]'}`}>
             {page}
           </button>
         )
       )}
-
-      {/* Next */}
-      <button
-        onClick={() => onPageChange(currentPage + 1)}
-        disabled={currentPage === totalPages}
-        className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-[#ede8df] bg-white text-sm font-medium text-[#6b5544] hover:border-[#c9a84c] disabled:opacity-40 disabled:pointer-events-none transition-colors"
-      >
+      <button onClick={() => onPageChange(currentPage + 1)} disabled={currentPage === totalPages}
+        className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-[#ede8df] bg-white text-sm font-medium text-[#6b5544] hover:border-[#c9a84c] disabled:opacity-40 disabled:pointer-events-none transition-colors">
         Next <ChevronRight className="w-4 h-4" />
       </button>
     </div>
@@ -136,9 +115,10 @@ function ProductsContent() {
     let live = true;
     async function load() {
       setLoading(true);
+      // FIX: use revalidate cache instead of no-store — much faster
       const [cats, prods] = await Promise.all([
-        fetch('/api/categories', { cache: 'no-store' }).then((r) => r.json()).catch(() => []),
-        fetch('/api/products', { cache: 'no-store' }).then((r) => r.json()).catch(() => []),
+        fetch('/api/categories', { next: { revalidate: 300 } }).then((r) => r.json()).catch(() => []),
+        fetch('/api/products', { next: { revalidate: 60 } }).then((r) => r.json()).catch(() => []),
       ]);
       if (!live) return;
       setCategories(Array.isArray(cats) ? cats : []);
@@ -149,7 +129,6 @@ function ProductsContent() {
     return () => { live = false; };
   }, []);
 
-  // Reset to page 1 whenever filters/search change
   useEffect(() => { setCurrentPage(1); }, [query, activeCategory, selectedPrice, selectedBrands]);
 
   const handlePriceClick = (range) => setSelectedPrice((prev) => prev?.label === range.label ? null : range);
@@ -171,7 +150,6 @@ function ProductsContent() {
     });
   }, [activeCategory, products, query, selectedPrice, selectedBrands]);
 
-  // Pagination
   const totalPages = Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE);
   const paginatedProducts = filteredProducts.slice(
     (currentPage - 1) * PRODUCTS_PER_PAGE,
@@ -187,7 +165,6 @@ function ProductsContent() {
     <div className="mx-auto w-full max-w-6xl px-4 py-10">
       <h1 className="text-4xl font-bold text-[#c9a84c] mb-6">Our Collection</h1>
 
-      {/* Search */}
       <div className="relative mb-4">
         <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#8a7060]" />
         <input
@@ -208,7 +185,6 @@ function ProductsContent() {
         </p>
       )}
 
-      {/* Category pills */}
       <div className="flex gap-3 overflow-x-auto pb-4 mb-6">
         {['All', ...categories.map((c) => c.name)].map((name) => (
           name === 'All' ? (
@@ -225,7 +201,6 @@ function ProductsContent() {
         ))}
       </div>
 
-      {/* Mobile filter toggle */}
       <div className="flex items-center justify-between mb-4 md:hidden">
         <p className="text-sm text-[#8a7060]">
           {loading ? '' : `${filteredProducts.length} product${filteredProducts.length !== 1 ? 's' : ''}`}
@@ -246,7 +221,6 @@ function ProductsContent() {
       )}
 
       <div className="flex gap-8">
-        {/* Desktop sidebar */}
         <aside className="hidden md:block w-56 shrink-0">
           <FilterPanel selectedPrice={selectedPrice} selectedBrands={selectedBrands}
             onPriceClick={handlePriceClick} onBrandClick={handleBrandClick}
@@ -254,7 +228,6 @@ function ProductsContent() {
         </aside>
 
         <div className="flex-1">
-          {/* Active filter tags */}
           {hasFilters && (
             <div className="flex flex-wrap gap-2 mb-4">
               {selectedPrice && (
@@ -272,14 +245,12 @@ function ProductsContent() {
             </div>
           )}
 
-          {/* Product count + page info */}
           {!loading && filteredProducts.length > 0 && (
             <p className="hidden md:block text-sm text-[#8a7060] mb-4">
               Showing {(currentPage - 1) * PRODUCTS_PER_PAGE + 1}–{Math.min(currentPage * PRODUCTS_PER_PAGE, filteredProducts.length)} of {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''}
             </p>
           )}
 
-          {/* Grid */}
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {loading ? (
               Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)
@@ -302,12 +273,7 @@ function ProductsContent() {
             )}
           </div>
 
-          {/* Pagination */}
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={handlePageChange}
-          />
+          <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={handlePageChange} />
         </div>
       </div>
     </div>
