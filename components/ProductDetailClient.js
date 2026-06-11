@@ -20,7 +20,7 @@ function getImages(product) {
   return [...new Set(all)];
 }
 
-// ── Desktop Zoom Image ────────────────────────────────────────────────────────
+// ── Desktop Zoom ──────────────────────────────────────────────────────────────
 function ZoomImage({ src, alt }) {
   const containerRef = useRef(null);
   const [zoom, setZoom] = useState({ active: false, x: 50, y: 50 });
@@ -76,6 +76,9 @@ function ZoomImage({ src, alt }) {
 
 // ── Mobile Fullscreen ─────────────────────────────────────────────────────────
 function MobileFullscreen({ src, alt, onClose }) {
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgError, setImgError] = useState(false);
+
   useEffect(() => {
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = ''; };
@@ -94,17 +97,15 @@ function MobileFullscreen({ src, alt, onClose }) {
         justifyContent: 'center',
       }}
     >
-      {/* Close button — no onClick conflict */}
+      {/* Close button */}
       <button
         onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
         style={{
           position: 'absolute',
-          top: 20,
-          right: 20,
+          top: 20, right: 20,
           zIndex: 100000,
-          width: 52,
-          height: 52,
+          width: 52, height: 52,
           borderRadius: '50%',
           backgroundColor: '#c9a84c',
           border: 'none',
@@ -112,7 +113,7 @@ function MobileFullscreen({ src, alt, onClose }) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontSize: 24,
+          fontSize: 22,
           color: '#fff',
           fontWeight: 'bold',
           WebkitTapHighlightColor: 'transparent',
@@ -121,13 +122,29 @@ function MobileFullscreen({ src, alt, onClose }) {
         ✕
       </button>
 
-      {/* Image — plain img tag, no Next.js Image */}
+      {/* Loading */}
+      {!imgLoaded && !imgError && (
+        <div style={{ color: '#c9a84c', fontSize: 15, marginBottom: 16 }}>
+          Loading image...
+        </div>
+      )}
+
+      {/* Error */}
+      {imgError && (
+        <div style={{ color: '#fff', fontSize: 14, textAlign: 'center', padding: 20 }}>
+          Could not load image. Tap ✕ to go back.
+        </div>
+      )}
+
+      {/* Plain img — works on all Android browsers */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src}
         alt={alt}
+        onLoad={() => setImgLoaded(true)}
+        onError={() => setImgError(true)}
         style={{
-          display: 'block',
+          display: imgLoaded ? 'block' : 'none',
           maxWidth: '100vw',
           maxHeight: '85vh',
           width: 'auto',
@@ -136,10 +153,11 @@ function MobileFullscreen({ src, alt, onClose }) {
         }}
       />
 
-      {/* Close hint */}
-      <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: 16 }}>
-        Tap ✕ to close
-      </p>
+      {imgLoaded && (
+        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, marginTop: 12 }}>
+          Tap ✕ to close
+        </p>
+      )}
     </div>
   );
 }
@@ -152,26 +170,11 @@ function ImageGallery({ images, alt }) {
   const touchStartRef = useRef(null);
 
   useEffect(() => {
-    // detect mobile/touch device
     setIsMobile('ontouchstart' in window || navigator.maxTouchPoints > 0);
   }, []);
 
   const prev = () => setCurrent((c) => (c - 1 + images.length) % images.length);
   const next = () => setCurrent((c) => (c + 1) % images.length);
-
-  // Use onTouchEnd for mobile tap — more reliable than onClick on Android
-  const handleTouchEnd = (e) => {
-    if (!isMobile) return;
-    if (touchStartRef.current) {
-      const dx = Math.abs(e.changedTouches[0].clientX - touchStartRef.current.x);
-      const dy = Math.abs(e.changedTouches[0].clientY - touchStartRef.current.y);
-      if (dx < 10 && dy < 10) {
-        // it was a tap, not a swipe
-        setMobileOpen(true);
-      }
-    }
-    touchStartRef.current = null;
-  };
 
   const handleTouchStart = (e) => {
     touchStartRef.current = {
@@ -180,12 +183,23 @@ function ImageGallery({ images, alt }) {
     };
   };
 
+  const handleTouchEnd = (e) => {
+    if (!touchStartRef.current) return;
+    const dx = Math.abs(e.changedTouches[0].clientX - touchStartRef.current.x);
+    const dy = Math.abs(e.changedTouches[0].clientY - touchStartRef.current.y);
+    if (dx < 10 && dy < 10) {
+      // clean tap — open fullscreen
+      setMobileOpen(true);
+    }
+    touchStartRef.current = null;
+  };
+
   return (
     <div className="space-y-3">
       <div className="relative">
         <div
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
+          onTouchStart={isMobile ? handleTouchStart : undefined}
+          onTouchEnd={isMobile ? handleTouchEnd : undefined}
           style={{ cursor: isMobile ? 'zoom-in' : 'default' }}
         >
           <ZoomImage src={images[current] || ''} alt={alt} />
@@ -202,20 +216,19 @@ function ImageGallery({ images, alt }) {
             <button
               onTouchEnd={(e) => { e.stopPropagation(); prev(); }}
               onClick={prev}
-              className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-white/90 flex items-center justify-center shadow hover:bg-white transition-colors">
+              className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-white/90 flex items-center justify-center shadow hover:bg-white">
               <ChevronLeft className="w-5 h-5 text-[#2c1f14]" />
             </button>
             <button
               onTouchEnd={(e) => { e.stopPropagation(); next(); }}
               onClick={next}
-              className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-white/90 flex items-center justify-center shadow hover:bg-white transition-colors">
+              className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-white/90 flex items-center justify-center shadow hover:bg-white">
               <ChevronRight className="w-5 h-5 text-[#2c1f14]" />
             </button>
           </>
         )}
       </div>
 
-      {/* Thumbnails */}
       {images.length > 1 && (
         <div className="grid grid-cols-5 gap-2">
           {images.map((img, idx) => (
@@ -227,7 +240,6 @@ function ImageGallery({ images, alt }) {
         </div>
       )}
 
-      {/* Mobile fullscreen portal */}
       {mobileOpen && (
         <MobileFullscreen
           src={images[current]}
