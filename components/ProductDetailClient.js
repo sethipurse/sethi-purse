@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
+import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { ArrowLeft, Check, ChevronLeft, ChevronRight, MessageCircle, Minus, Plus, Share2, ShoppingBag, Star, X, ZoomIn } from 'lucide-react';
 import { toast } from 'sonner';
 import ProductCard from '@/components/ProductCard';
@@ -19,98 +19,83 @@ function getImages(product) {
   return [resolveImage(product), ...parsed].filter(Boolean);
 }
 
-// ── Desktop Hover Zoom (desktop only) ────────────────────────────────────────
-function ZoomImage({ src, alt, onClickFullscreen }) {
-  const containerRef = useRef(null);
-  const [zoom, setZoom] = useState({ active: false, x: 50, y: 50 });
-
-  const handleMouseMove = useCallback((e) => {
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    setZoom({ active: true, x, y });
-  }, []);
-
-  const handleMouseLeave = useCallback(() => {
-    setZoom({ active: false, x: 50, y: 50 });
-  }, []);
-
-  return (
-    <div
-      ref={containerRef}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      onClick={onClickFullscreen}
-      className="relative aspect-[4/5] w-full overflow-hidden rounded bg-white shadow-sm ring-1 ring-[#ede8df] cursor-zoom-in"
-    >
-      {src ? (
-        <Image
-          src={src}
-          alt={alt}
-          fill
-          sizes="(max-width: 1024px) 100vw, 50vw"
-          priority
-          className="object-cover"
-          style={
-            zoom.active
-              ? { transformOrigin: `${zoom.x}% ${zoom.y}%`, transform: 'scale(2)', transition: 'transform 0.1s ease' }
-              : { transform: 'scale(1)', transition: 'transform 0.3s ease' }
-          }
-          draggable={false}
-        />
-      ) : (
-        <div className="flex h-full items-center justify-center bg-[#f5f0e8]">
-          <ShoppingBag className="h-24 w-24 text-[#c9a84c]" />
-        </div>
-      )}
-      {!zoom.active && src && (
-        <span className="absolute bottom-4 left-4 flex items-center gap-1 rounded bg-white/95 px-3 py-1 text-sm font-bold text-[#6b5544] shadow pointer-events-none">
-          <ZoomIn className="h-4 w-4" /> Hover to zoom
-        </span>
-      )}
-    </div>
-  );
-}
-
-// ── Mobile Swipe Carousel (mobile only) ──────────────────────────────────────
-function MobileCarousel({ images, alt, onClickFullscreen }) {
+// ── Image Gallery (works on both mobile + desktop) ────────────────────────────
+function ImageGallery({ images, alt, onOpenFullscreen }) {
   const [current, setCurrent] = useState(0);
   const touchStartX = useRef(null);
   const touchStartY = useRef(null);
+  const autoRef = useRef(null);
 
-  const prev = () => setCurrent((c) => (c - 1 + images.length) % images.length);
-  const next = () => setCurrent((c) => (c + 1) % images.length);
+  // ✅ Auto-slide every 3 seconds
+  const startAuto = useCallback(() => {
+    stopAuto();
+    if (images.length <= 1) return;
+    autoRef.current = setInterval(() => {
+      setCurrent((c) => (c + 1) % images.length);
+    }, 3000);
+  }, [images.length]);
+
+  const stopAuto = () => {
+    if (autoRef.current) { clearInterval(autoRef.current); autoRef.current = null; }
+  };
+
+  useEffect(() => {
+    startAuto();
+    return stopAuto;
+  }, [startAuto]);
+
+  const goTo = (idx) => {
+    setCurrent(idx);
+    startAuto(); // reset timer on manual nav
+  };
+
+  const prev = () => goTo((current - 1 + images.length) % images.length);
+  const next = () => goTo((current + 1) % images.length);
 
   const onTouchStart = (e) => {
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
+    stopAuto();
   };
 
   const onTouchEnd = (e) => {
     if (touchStartX.current === null) return;
     const dx = touchStartX.current - e.changedTouches[0].clientX;
-    const dy = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
+    const dy = Math.abs(e.changedTouches[0].clientY - (touchStartY.current || 0));
     if (Math.abs(dx) > 40 && Math.abs(dx) > dy) {
       dx > 0 ? next() : prev();
     }
     touchStartX.current = null;
+    startAuto();
   };
 
   return (
-    <div className="relative aspect-[4/5] w-full overflow-hidden rounded bg-white shadow-sm ring-1 ring-[#ede8df]" style={{ isolation: 'isolate' }}>
-      {/* Images */}
+    <div className="space-y-3">
+      {/* Main image container — fixed position, no translateX bleed */}
       <div
-        className="flex h-full transition-transform duration-300 ease-out"
-        style={{ transform: `translateX(-${current * 100}%)`, width: `${images.length * 100}%`, backgroundColor: '#fff' }}
+        className="relative aspect-[4/5] w-full overflow-hidden rounded bg-white shadow-sm ring-1 ring-[#ede8df]"
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
+        onClick={() => onOpenFullscreen(current)}
+        style={{ cursor: 'zoom-in', backgroundColor: '#ffffff' }}
       >
+        {/* ✅ Use opacity switching instead of translateX — no bleed */}
         {images.map((img, idx) => (
-          <div key={idx} className="relative h-full shrink-0 bg-white" style={{ width: `${100 / images.length}%` }}
-            onClick={() => onClickFullscreen(current)}>
+          <div
+            key={idx}
+            className="absolute inset-0 bg-white transition-opacity duration-500"
+            style={{ opacity: idx === current ? 1 : 0, zIndex: idx === current ? 1 : 0 }}
+          >
             {img ? (
-              <Image src={img} alt={alt} fill sizes="100vw" priority={idx === 0} className="object-cover" draggable={false} />
+              <Image
+                src={img}
+                alt={alt}
+                fill
+                sizes="(max-width: 1024px) 100vw, 50vw"
+                priority={idx === 0}
+                className="object-cover"
+                draggable={false}
+              />
             ) : (
               <div className="flex h-full items-center justify-center bg-[#f5f0e8]">
                 <ShoppingBag className="h-24 w-24 text-[#c9a84c]" />
@@ -118,57 +103,84 @@ function MobileCarousel({ images, alt, onClickFullscreen }) {
             )}
           </div>
         ))}
+
+        {/* Prev/Next arrows */}
+        {images.length > 1 && (
+          <>
+            <button
+              onClick={(e) => { e.stopPropagation(); prev(); }}
+              className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center shadow hover:bg-white transition-colors"
+            >
+              <ChevronLeft className="w-5 h-5 text-[#2c1f14]" />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); next(); }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center shadow hover:bg-white transition-colors"
+            >
+              <ChevronRight className="w-5 h-5 text-[#2c1f14]" />
+            </button>
+          </>
+        )}
+
+        {/* Dot indicators */}
+        {images.length > 1 && (
+          <div className="absolute bottom-3 left-0 right-0 z-10 flex justify-center gap-1.5">
+            {images.map((_, idx) => (
+              <button
+                key={idx}
+                onClick={(e) => { e.stopPropagation(); goTo(idx); }}
+                className="rounded-full transition-all duration-300"
+                style={{ width: idx === current ? 20 : 8, height: 8, backgroundColor: idx === current ? '#c9a84c' : 'rgba(255,255,255,0.8)' }}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Counter + zoom hint — only show counter if multiple images */}
+        {images.length > 1 && (
+          <div className="absolute top-3 left-3 z-10 rounded bg-black/50 px-2 py-0.5 text-xs text-white font-medium">
+            {current + 1}/{images.length}
+          </div>
+        )}
+        <div className="absolute top-3 right-3 z-10 flex items-center gap-1 rounded bg-white/90 px-2 py-1 text-xs font-semibold text-[#6b5544] shadow">
+          <ZoomIn className="h-3 w-3" /> Tap to zoom
+        </div>
       </div>
 
-      {/* Prev/Next arrows — only show if multiple images */}
+      {/* Thumbnail strip */}
       {images.length > 1 && (
-        <>
-          <button onClick={prev} className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center shadow">
-            <ChevronLeft className="w-5 h-5 text-[#2c1f14]" />
-          </button>
-          <button onClick={next} className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center shadow">
-            <ChevronRight className="w-5 h-5 text-[#2c1f14]" />
-          </button>
-        </>
-      )}
-
-      {/* Dot indicators */}
-      {images.length > 1 && (
-        <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
-          {images.map((_, idx) => (
-            <button key={idx} onClick={() => setCurrent(idx)}
-              className="rounded-full transition-all duration-300"
-              style={{ width: idx === current ? 20 : 8, height: 8, backgroundColor: idx === current ? '#c9a84c' : '#d8d6d2' }}
-            />
+        <div className="grid grid-cols-5 gap-2">
+          {images.map((img, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => goTo(idx)}
+              className={`relative aspect-square overflow-hidden rounded bg-white ring-2 transition-all duration-200 ${current === idx ? 'ring-[#c9a84c] scale-105' : 'ring-[#ede8df] hover:ring-[#c9a84c]'}`}
+            >
+              {img && <Image src={img} alt="" fill sizes="10vw" className="object-cover" />}
+            </button>
           ))}
         </div>
-      )}
-
-      {/* Tap to fullscreen hint */}
-      <span className="absolute top-3 right-3 flex items-center gap-1 rounded bg-white/90 px-2 py-1 text-xs font-semibold text-[#6b5544] shadow pointer-events-none">
-        <ZoomIn className="h-3 w-3" /> Tap to zoom
-      </span>
-
-      {/* Image counter */}
-      {images.length > 1 && (
-        <span className="absolute top-3 left-3 rounded bg-black/50 px-2 py-0.5 text-xs text-white font-medium">
-          {current + 1}/{images.length}
-        </span>
       )}
     </div>
   );
 }
 
-// ── Fullscreen Lightbox (both mobile + desktop) ───────────────────────────────
+// ── Fullscreen Lightbox ───────────────────────────────────────────────────────
 function Fullscreen({ images, startIndex, alt, onClose }) {
   const [current, setCurrent] = useState(startIndex || 0);
   const touchStartX = useRef(null);
 
-  // Lock body scroll
   useEffect(() => {
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = ''; };
   }, []);
+
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
 
   const prev = () => setCurrent((c) => (c - 1 + images.length) % images.length);
   const next = () => setCurrent((c) => (c + 1) % images.length);
@@ -181,45 +193,26 @@ function Fullscreen({ images, startIndex, alt, onClose }) {
     touchStartX.current = null;
   };
 
-  // Close on Escape key
-  useEffect(() => {
-    const handler = (e) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onClose]);
-
   return (
     <div
-      className="fixed inset-0 bg-black flex items-center justify-center"
-      style={{ zIndex: 99999, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+      className="fixed bg-black flex items-center justify-center"
+      style={{ position: 'fixed', inset: 0, zIndex: 99999, top: 0, left: 0, right: 0, bottom: 0 }}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
-      {/* Close button */}
       <button onClick={onClose}
-        className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/40 active:bg-white/40">
+        className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/40">
         <X className="w-6 h-6" />
       </button>
-
-      {/* Counter */}
       <div className="absolute top-4 left-4 z-10 rounded bg-black/50 px-3 py-1 text-sm text-white font-medium">
         {current + 1} / {images.length}
       </div>
-
-      {/* Image */}
       <div className="relative w-full h-full flex items-center justify-center px-12">
         {images[current] && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={images[current]}
-            alt={alt}
-            className="max-w-full max-h-full object-contain select-none"
-            draggable={false}
-          />
+          <img src={images[current]} alt={alt} className="max-w-full max-h-full object-contain select-none" draggable={false} />
         )}
       </div>
-
-      {/* Prev/Next */}
       {images.length > 1 && (
         <>
           <button onClick={prev} className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/40">
@@ -230,10 +223,13 @@ function Fullscreen({ images, startIndex, alt, onClose }) {
           </button>
         </>
       )}
-
-      {/* Swipe hint on mobile */}
-      <div className="absolute bottom-6 left-0 right-0 text-center text-xs text-white/50 pointer-events-none">
-        Swipe left/right to browse
+      <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-1.5">
+        {images.map((_, idx) => (
+          <button key={idx} onClick={() => setCurrent(idx)}
+            className="rounded-full transition-all duration-300"
+            style={{ width: idx === current ? 20 : 8, height: 8, backgroundColor: idx === current ? '#c9a84c' : 'rgba(255,255,255,0.4)' }}
+          />
+        ))}
       </div>
     </div>
   );
@@ -243,21 +239,12 @@ function Fullscreen({ images, startIndex, alt, onClose }) {
 
 export default function ProductDetailClient({ product, related = [], reviews = [] }) {
   const images = useMemo(() => getImages(product), [product]);
-  const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
   const [fullscreenStart, setFullscreenStart] = useState(0);
   const [qty, setQty] = useState(1);
   const [selectedSize, setSelectedSize] = useState('');
   const [selectedColor, setSelectedColor] = useState('');
   const [added, setAdded] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 1024);
-    check();
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
-  }, []);
 
   const salePrice = product.sale_price ?? product.salePrice ?? product.price ?? 0;
   const mrp = product.mrp ?? product.original_price ?? 0;
@@ -268,7 +255,7 @@ export default function ProductDetailClient({ product, related = [], reviews = [
   const outOfStock = product.stock === 0;
 
   const openFullscreen = (index = 0) => {
-    setFullscreenStart(typeof index === 'number' ? index : activeImageIndex);
+    setFullscreenStart(index);
     setFullscreenOpen(true);
   };
 
@@ -281,22 +268,11 @@ export default function ProductDetailClient({ product, related = [], reviews = [
     let updatedCart;
     if (existingIndex >= 0) {
       updatedCart = cart.map((item, idx) =>
-        idx === existingIndex
-          ? { ...item, qty: Math.max(1, Number(item.qty || 1)) + qty }
-          : item
+        idx === existingIndex ? { ...item, qty: Math.max(1, Number(item.qty || 1)) + qty } : item
       );
       toast.success(`Quantity updated to ${Math.max(1, Number(cart[existingIndex].qty || 1)) + qty}`);
     } else {
-      const item = {
-        id: product.id,
-        name: product.name,
-        price: salePrice,
-        qty,
-        image: images[0] || '',
-        size: selectedSize,
-        color: selectedColor,
-      };
-      updatedCart = [...cart, item];
+      updatedCart = [...cart, { id: product.id, name: product.name, price: salePrice, qty, image: images[0] || '', size: selectedSize, color: selectedColor }];
       toast.success(`${product.name} added to cart!`);
     }
     window.localStorage.setItem('sethi-cart', JSON.stringify(updatedCart));
@@ -311,56 +287,15 @@ export default function ProductDetailClient({ product, related = [], reviews = [
 
   const onShare = async () => {
     const url = window.location.href;
-    if (navigator.share) {
-      try { await navigator.share({ url }); } catch (e) {}
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(url);
-      toast.success('Product link copied!');
-    } catch (e) {
-      toast.error('Could not copy link');
-    }
+    if (navigator.share) { try { await navigator.share({ url }); } catch (e) {} return; }
+    try { await navigator.clipboard.writeText(url); toast.success('Product link copied!'); }
+    catch (e) { toast.error('Could not copy link'); }
   };
 
   return (
     <div className="space-y-14">
       <div className="grid gap-8 lg:grid-cols-[1.02fr_0.98fr]">
-        <div className="space-y-4">
-          <div className="relative">
-            {discount > 0 && (
-              <span className="absolute right-4 top-4 z-10 rounded bg-[#c9a84c] px-3 py-1 text-sm font-bold text-white shadow">
-                {discount}% OFF
-              </span>
-            )}
-            {/* Mobile: swipe carousel / Desktop: hover zoom */}
-            {isMobile ? (
-              <MobileCarousel
-                images={images}
-                alt={product.name}
-                onClickFullscreen={openFullscreen}
-              />
-            ) : (
-              <ZoomImage
-                src={images[activeImageIndex] || ''}
-                alt={product.name}
-                onClickFullscreen={() => openFullscreen(activeImageIndex)}
-              />
-            )}
-          </div>
-
-          {/* Thumbnail strip — desktop only */}
-          {!isMobile && images.length > 1 && (
-            <div className="grid grid-cols-5 gap-3">
-              {images.map((image, idx) => (
-                <button key={image} type="button" onClick={() => setActiveImageIndex(idx)}
-                  className={`aspect-square overflow-hidden rounded bg-white ring-2 transition-all duration-200 hover:ring-[#c9a84c] relative ${activeImageIndex === idx ? 'ring-[#c9a84c] scale-105' : 'ring-[#ede8df]'}`}>
-                  <Image src={image} alt="" fill sizes="10vw" className="object-cover" />
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        <ImageGallery images={images} alt={product.name} onOpenFullscreen={openFullscreen} />
 
         <div className="rounded bg-white p-6 shadow-sm ring-1 ring-[#ede8df] md:p-8">
           <Link href="/products" className="inline-flex items-center gap-2 text-base font-semibold text-[#8a7060] hover:text-[#c9a84c]">
@@ -446,14 +381,8 @@ export default function ProductDetailClient({ product, related = [], reviews = [
         </section>
       )}
 
-      {/* Fullscreen lightbox */}
       {fullscreenOpen && (
-        <Fullscreen
-          images={images}
-          startIndex={fullscreenStart}
-          alt={product.name}
-          onClose={() => setFullscreenOpen(false)}
-        />
+        <Fullscreen images={images} startIndex={fullscreenStart} alt={product.name} onClose={() => setFullscreenOpen(false)} />
       )}
     </div>
   );
