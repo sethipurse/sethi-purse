@@ -24,7 +24,6 @@ function useCartCount() {
       } catch { setCount(0); }
     };
     read();
-    // Update on storage change (other tabs) and custom event (same tab)
     window.addEventListener('storage', read);
     window.addEventListener('cart-updated', read);
     return () => {
@@ -53,6 +52,11 @@ export default function Navbar() {
     return () => { document.body.style.overflow = ''; };
   }, [open]);
 
+  // ✅ FIX: close drawer whenever route changes
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
   const waLink = getWALinkForPath(pathname);
   const isHome = pathname === '/';
 
@@ -76,7 +80,6 @@ export default function Navbar() {
 
         {/* Desktop right side */}
         <div className="hidden lg:flex items-center gap-3">
-          {/* Cart icon — only show on non-home pages since home has its own */}
           {!isHome && (
             <Link href="/#products" className="relative inline-flex items-center justify-center w-11 h-11 text-sethi-gold hover:text-[#a07a28] transition-colors">
               <ShoppingBag className="w-6 h-6" />
@@ -94,22 +97,13 @@ export default function Navbar() {
 
         {/* Mobile right side */}
         <div className="flex items-center gap-1 lg:hidden">
-          <a
-            href={waLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="WhatsApp"
-            className="inline-flex items-center justify-center w-12 h-12 rounded-full text-sethi-gold active:bg-sethi-gold/10"
-          >
+          <a href={waLink} target="_blank" rel="noopener noreferrer" aria-label="WhatsApp"
+            className="inline-flex items-center justify-center w-12 h-12 rounded-full text-sethi-gold active:bg-sethi-gold/10">
             <MessageCircle className="w-6 h-6" />
           </a>
-          {/* Cart icon on mobile — only non-home pages */}
           {!isHome && (
-            <Link
-              href="/#products"
-              aria-label="Cart"
-              className="relative inline-flex items-center justify-center w-12 h-12 rounded-full text-sethi-gold active:bg-sethi-gold/10"
-            >
+            <Link href="/#products" aria-label="Cart"
+              className="relative inline-flex items-center justify-center w-12 h-12 rounded-full text-sethi-gold active:bg-sethi-gold/10">
               <ShoppingBag className="w-6 h-6" />
               {cartCount > 0 && (
                 <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-sethi-gold text-[#2c1f14] text-[11px] font-bold flex items-center justify-center">
@@ -118,11 +112,8 @@ export default function Navbar() {
               )}
             </Link>
           )}
-          <button
-            aria-label="Open menu"
-            onClick={() => setOpen(true)}
-            className="inline-flex items-center justify-center w-12 h-12 rounded-full text-sethi-gold active:bg-sethi-gold/10"
-          >
+          <button aria-label="Open menu" onClick={() => setOpen(true)}
+            className="inline-flex items-center justify-center w-12 h-12 rounded-full text-sethi-gold active:bg-sethi-gold/10">
             <Menu className="w-7 h-7" />
           </button>
         </div>
@@ -133,11 +124,8 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16 px-4 border-b border-white/10">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={LOGO_URL} alt={BUSINESS.name} className="h-9 object-contain bg-white p-0.5 rounded-sm" />
-          <button
-            aria-label="Close menu"
-            onClick={() => setOpen(false)}
-            className="w-12 h-12 inline-flex items-center justify-center text-sethi-gold active:bg-white/10 rounded-full"
-          >
+          <button aria-label="Close menu" onClick={() => setOpen(false)}
+            className="w-12 h-12 inline-flex items-center justify-center text-sethi-gold active:bg-white/10 rounded-full">
             <X className="w-7 h-7" />
           </button>
         </div>
@@ -147,13 +135,9 @@ export default function Navbar() {
             {LINKS.map((l) => {
               const active = pathname === l.href || (l.href !== '/' && pathname.startsWith(l.href)) || (l.href === '/categories' && pathname.startsWith('/category'));
               return (
-                <Link
-                  key={l.href}
-                  href={l.href}
-                  onClick={() => setOpen(false)}
+                <Link key={l.href} href={l.href} onClick={() => setOpen(false)}
                   className={`font-serif text-[28px] leading-tight py-4 border-b border-white/10 flex items-center justify-between
-                    ${active ? 'text-sethi-gold' : 'text-white active:text-sethi-gold'}`}
-                >
+                    ${active ? 'text-sethi-gold' : 'text-white active:text-sethi-gold'}`}>
                   {l.label}
                   {active && <span className="w-2 h-2 rounded-full bg-sethi-gold" />}
                 </Link>
@@ -162,13 +146,8 @@ export default function Navbar() {
           </nav>
 
           <div className="mt-auto pt-8">
-            <a
-              href={waLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => setOpen(false)}
-              className="btn-primary w-full !min-h-[56px] text-base"
-            >
+            <a href={waLink} target="_blank" rel="noopener noreferrer" onClick={() => setOpen(false)}
+              className="btn-primary w-full !min-h-[56px] text-base">
               <MessageCircle className="w-5 h-5" /> WhatsApp Us Now
             </a>
             <p className="mt-4 text-center text-white/40 text-sm">{BUSINESS.phone}</p>
