@@ -82,6 +82,8 @@ function ZoomImage({ src, alt, onClickFullscreen }) {
 function MobileFullscreen({ src, alt, onClose }) {
   const imgRef = useRef(null);
   const containerRef = useRef(null);
+  // ✅ FIX: track load state — keep image invisible until onLoad fires
+  const [imgLoaded, setImgLoaded] = useState(false);
 
   const scaleRef = useRef(1);
   const lastScaleRef = useRef(1);
@@ -93,6 +95,10 @@ function MobileFullscreen({ src, alt, onClose }) {
   const applyTransform = () => {
     if (!imgRef.current) return;
     imgRef.current.style.transform = `translate(${translateRef.current.x}px, ${translateRef.current.y}px) scale(${scaleRef.current})`;
+    // ✅ FIX: only set willChange during active transform — NOT on initial render
+    // Setting willChange at mount promotes to GPU layer before pixels exist → black screen on Android
+    const isTransformed = scaleRef.current !== 1 || translateRef.current.x !== 0 || translateRef.current.y !== 0;
+    imgRef.current.style.willChange = isTransformed ? 'transform' : 'auto';
   };
 
   const resetTransform = () => {
@@ -174,26 +180,35 @@ function MobileFullscreen({ src, alt, onClose }) {
       <div className="absolute bottom-6 left-0 right-0 text-center text-sm text-white/70 pointer-events-none">
         Double tap to zoom · Pinch to zoom · Drag to pan
       </div>
+      {/* ✅ Spinner shown while image is loading on Android */}
+      {!imgLoaded && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="w-10 h-10 border-4 border-white border-t-transparent rounded-full animate-spin" />
+        </div>
+      )}
+
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         ref={imgRef}
         src={src}
         alt={alt}
         loading="eager"
-        decoding="sync"
+        decoding="async"
+        onLoad={() => setImgLoaded(true)}
+        onError={() => setImgLoaded(true)}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
         className="max-h-screen max-w-full object-contain"
         style={{
+          // ✅ FIX: invisible until loaded — prevents black flash on Android
+          opacity: imgLoaded ? 1 : 0,
+          transition: 'opacity 0.2s ease',
           transform: 'scale(1)',
           transformOrigin: 'center center',
-          willChange: 'transform',
-          // ✅ FIX: explicit dimensions prevent Android from skipping render
-          // inside position:fixed containers
           display: 'block',
-          minWidth: '1px',
-          minHeight: '1px',
+          // ✅ FIX: NO willChange here — added dynamically in applyTransform only
+          // willChange at mount = GPU layer promoted before pixels exist = black screen
         }}
         draggable={false}
       />
