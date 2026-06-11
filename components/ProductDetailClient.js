@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, MessageCircle, Minus, Plus, Share2, ShoppingBag, Star, ZoomIn } from 'lucide-react';
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, MessageCircle, Minus, Plus, Share2, ShoppingBag, Star, X } from 'lucide-react';
 import { toast } from 'sonner';
 import ProductCard from '@/components/ProductCard';
 import ReviewCard from '@/components/ReviewCard';
@@ -17,199 +17,201 @@ function getImages(product) {
   const gallery = product.gallery_images || product.gallery || product.images || [];
   const parsed = Array.isArray(gallery) ? gallery : String(gallery || '').split(',').map((v) => v.trim()).filter(Boolean);
   const all = [resolveImage(product), ...parsed].filter(Boolean);
-  return [...new Set(all)]; // removes duplicate images
+  return [...new Set(all)];
+}
+
+// ── Desktop Zoom Image ────────────────────────────────────────────────────────
+function ZoomImage({ src, alt }) {
+  const containerRef = useRef(null);
+  const [zoom, setZoom] = useState({ active: false, x: 50, y: 50 });
+
+  const handleMouseMove = useCallback((e) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    setZoom({ active: true, x, y });
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    setZoom({ active: false, x: 50, y: 50 });
+  }, []);
+
+  if (!src) return (
+    <div className="flex aspect-[4/5] w-full items-center justify-center rounded bg-[#f5f0e8]">
+      <ShoppingBag className="h-24 w-24 text-[#c9a84c]" />
+    </div>
+  );
+
+  return (
+    <div
+      ref={containerRef}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      className="relative aspect-[4/5] w-full overflow-hidden rounded bg-white shadow-sm ring-1 ring-[#ede8df]"
+      style={{ cursor: zoom.active ? 'zoom-in' : 'zoom-in' }}
+    >
+      <Image
+        src={src}
+        alt={alt}
+        fill
+        sizes="(max-width: 1024px) 100vw, 50vw"
+        priority
+        className="object-cover"
+        style={{
+          transformOrigin: `${zoom.x}% ${zoom.y}%`,
+          transform: zoom.active ? 'scale(2.2)' : 'scale(1)',
+          transition: zoom.active ? 'transform 0.1s ease' : 'transform 0.3s ease',
+        }}
+        draggable={false}
+      />
+      {!zoom.active && (
+        <span className="absolute bottom-3 left-3 rounded bg-black/50 px-2 py-1 text-xs text-white pointer-events-none">
+          🔍 Hover to zoom
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ── Mobile Fullscreen ─────────────────────────────────────────────────────────
+function MobileFullscreen({ src, alt, onClose }) {
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, []);
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 99999,
+        backgroundColor: 'rgba(0,0,0,0.95)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+      onClick={onClose}
+    >
+      {/* Close button */}
+      <button
+        onClick={onClose}
+        style={{
+          position: 'absolute',
+          top: 16,
+          right: 16,
+          zIndex: 100000,
+          width: 44,
+          height: 44,
+          borderRadius: '50%',
+          backgroundColor: 'rgba(255,255,255,0.2)',
+          border: 'none',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#fff',
+          fontSize: 20,
+        }}
+      >
+        ✕
+      </button>
+
+      {/* Image */}
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '100%',
+          maxWidth: '100vw',
+          maxHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 16,
+        }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt={alt}
+          style={{
+            maxWidth: '100%',
+            maxHeight: '90vh',
+            objectFit: 'contain',
+            borderRadius: 8,
+          }}
+        />
+      </div>
+    </div>
+  );
 }
 
 // ── Image Gallery ─────────────────────────────────────────────────────────────
-function ImageGallery({ images, alt, onOpenFullscreen }) {
+function ImageGallery({ images, alt }) {
   const [current, setCurrent] = useState(0);
-  const [loaded, setLoaded] = useState(false);
-  const touchStartX = useRef(null);
-  const touchStartY = useRef(null);
-  const touchStartTime = useRef(null); // FIX: track touch duration
-  const autoRef = useRef(null);
-  const hasMoved = useRef(false); // FIX: track if finger moved
-
-  const startAuto = useCallback(() => {
-    stopAuto();
-    if (images.length <= 1) return;
-    autoRef.current = setInterval(() => {
-      setCurrent((c) => (c + 1) % images.length);
-    }, 3000);
-  }, [images.length]);
-
-  const stopAuto = () => {
-    if (autoRef.current) { clearInterval(autoRef.current); autoRef.current = null; }
-  };
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    startAuto();
-    return stopAuto;
-  }, [startAuto]);
+    setIsMobile(window.innerWidth < 1024 || 'ontouchstart' in window);
+  }, []);
 
-  const goTo = (idx) => { setCurrent(idx); startAuto(); };
-  const prev = () => goTo((current - 1 + images.length) % images.length);
-  const next = () => goTo((current + 1) % images.length);
+  const prev = () => setCurrent((c) => (c - 1 + images.length) % images.length);
+  const next = () => setCurrent((c) => (c + 1) % images.length);
 
-  const onTouchStart = (e) => {
-    touchStartX.current = e.touches[0].clientX;
-    touchStartY.current = e.touches[0].clientY;
-    touchStartTime.current = Date.now();
-    hasMoved.current = false;
-    stopAuto();
-  };
-
-  const onTouchMove = (e) => {
-    if (touchStartX.current === null) return;
-    const dx = Math.abs(e.touches[0].clientX - touchStartX.current);
-    const dy = Math.abs(e.touches[0].clientY - touchStartY.current);
-    if (dx > 8 || dy > 8) hasMoved.current = true; // FIX: mark as moved if finger moved
-  };
-
-  const onTouchEnd = (e) => {
-    if (touchStartX.current === null) return;
-    const dx = touchStartX.current - e.changedTouches[0].clientX;
-    const dy = Math.abs(e.changedTouches[0].clientY - (touchStartY.current || 0));
-    if (Math.abs(dx) > 40 && Math.abs(dx) > dy) { dx > 0 ? next() : prev(); }
-    touchStartX.current = null;
-    startAuto();
-  };
-
-  // FIX: only open fullscreen on intentional tap (not scroll, not swipe)
-  const handleClick = () => {
-    if (hasMoved.current) return; // was a swipe or scroll, not a tap
-    const duration = Date.now() - (touchStartTime.current || 0);
-    if (duration > 300) return; // was a long press, not a tap
-    onOpenFullscreen(current);
+  const handleImageClick = () => {
+    if (isMobile) setMobileOpen(true);
   };
 
   return (
     <div className="space-y-3">
-      <div
-        className="relative aspect-[4/5] w-full overflow-hidden rounded bg-white shadow-sm ring-1 ring-[#ede8df]"
-        style={{ cursor: 'zoom-in', backgroundColor: '#ffffff', isolation: 'isolate', position: 'relative', zIndex: 1 }}
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-        onClick={handleClick}
-      >
-        {!loaded && (
-          <div className="absolute inset-0 z-[2] animate-pulse bg-[#f5f0e8]" />
-        )}
+      <div className="relative">
+        {/* Desktop: zoom on hover. Mobile: tap to open fullscreen */}
+        <div onClick={handleImageClick} style={{ cursor: isMobile ? 'zoom-in' : 'default' }}>
+          <ZoomImage src={images[current] || ''} alt={alt} />
+        </div>
 
-        {images.map((img, idx) => (
-          <div
-            key={idx}
-            className="absolute inset-0 bg-white transition-opacity duration-500"
-            style={{ opacity: idx === current ? 1 : 0, zIndex: idx === current ? 20 : 0 }}
-          >
-            {img ? (
-              <Image
-                src={img}
-                alt={alt}
-                fill
-                sizes="(max-width: 1024px) 100vw, 50vw"
-                priority={idx === 0}
-                className="object-cover"
-                draggable={false}
-                onLoad={() => { if (idx === 0) setLoaded(true); }}
-              />
-            ) : (
-              <div className="flex h-full items-center justify-center bg-[#f5f0e8]">
-                <ShoppingBag className="h-24 w-24 text-[#c9a84c]" />
-              </div>
-            )}
-          </div>
-        ))}
+        {isMobile && images[current] && (
+          <span className="absolute bottom-3 left-3 rounded bg-black/50 px-2 py-1 text-xs text-white pointer-events-none">
+            👆 Tap to view full image
+          </span>
+        )}
 
         {images.length > 1 && (
           <>
-            <button onClick={(e) => { e.stopPropagation(); prev(); }}
-              className="absolute left-2 top-1/2 -translate-y-1/2 z-30 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center shadow hover:bg-white transition-colors">
+            <button onClick={prev}
+              className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-white/90 flex items-center justify-center shadow hover:bg-white transition-colors">
               <ChevronLeft className="w-5 h-5 text-[#2c1f14]" />
             </button>
-            <button onClick={(e) => { e.stopPropagation(); next(); }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 z-30 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center shadow hover:bg-white transition-colors">
+            <button onClick={next}
+              className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-white/90 flex items-center justify-center shadow hover:bg-white transition-colors">
               <ChevronRight className="w-5 h-5 text-[#2c1f14]" />
             </button>
           </>
         )}
-
-        {images.length > 1 && (
-          <div className="absolute bottom-3 left-0 right-0 z-30 flex justify-center gap-1.5">
-            {images.map((_, idx) => (
-              <button key={idx} onClick={(e) => { e.stopPropagation(); goTo(idx); }}
-                className="rounded-full transition-all duration-300"
-                style={{ width: idx === current ? 20 : 8, height: 8, backgroundColor: idx === current ? '#c9a84c' : 'rgba(255,255,255,0.8)' }} />
-            ))}
-          </div>
-        )}
-
-        {images.length > 1 && (
-          <div className="absolute top-3 left-3 z-30 rounded bg-black/50 px-2 py-0.5 text-xs text-white font-medium">
-            {current + 1}/{images.length}
-          </div>
-        )}
-        <div className="absolute top-3 right-3 z-30 flex items-center gap-1 rounded bg-white/90 px-2 py-1 text-xs font-semibold text-[#6b5544] shadow">
-          <ZoomIn className="h-3 w-3" /> Tap to zoom
-        </div>
       </div>
 
+      {/* Thumbnails */}
       {images.length > 1 && (
         <div className="grid grid-cols-5 gap-2">
           {images.map((img, idx) => (
-            <button key={idx} type="button" onClick={() => goTo(idx)}
+            <button key={idx} type="button" onClick={() => setCurrent(idx)}
               className={`relative aspect-square overflow-hidden rounded bg-white ring-2 transition-all duration-200 ${current === idx ? 'ring-[#c9a84c] scale-105' : 'ring-[#ede8df] hover:ring-[#c9a84c]'}`}>
               {img && <Image src={img} alt="" fill sizes="10vw" className="object-cover" />}
             </button>
           ))}
         </div>
       )}
-    </div>
-  );
-}
 
-// ── Fullscreen Lightbox ───────────────────────────────────────────────────────
-function Fullscreen({ images, startIndex, alt, onClose }) {
-  const [current, setCurrent] = useState(startIndex || 0);
-
-  useEffect(() => {
-    const handler = (e) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', handler);
-    document.body.style.overflow = 'hidden';
-    return () => { document.removeEventListener('keydown', handler); document.body.style.overflow = ''; };
-  }, [onClose]);
-
-  const prev = () => setCurrent((c) => (c - 1 + images.length) % images.length);
-  const next = () => setCurrent((c) => (c + 1) % images.length);
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95" onClick={onClose}>
-      <button onClick={onClose} className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/40">
-        ✕
-      </button>
-      <div className="relative w-full max-w-2xl mx-4 aspect-square" onClick={(e) => e.stopPropagation()}>
-        {images[current] && (
-          <Image src={images[current]} alt={alt} fill className="object-contain" sizes="100vw" />
-        )}
-      </div>
-      {images.length > 1 && (
-        <>
-          <button onClick={prev} className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/40">
-            <ChevronLeft className="w-6 h-6" />
-          </button>
-          <button onClick={next} className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/40">
-            <ChevronRight className="w-6 h-6" />
-          </button>
-        </>
+      {/* Mobile fullscreen */}
+      {mobileOpen && (
+        <MobileFullscreen
+          src={images[current]}
+          alt={alt}
+          onClose={() => setMobileOpen(false)}
+        />
       )}
-      <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-1.5">
-        {images.map((_, idx) => (
-          <button key={idx} onClick={() => setCurrent(idx)}
-            className="rounded-full transition-all duration-300"
-            style={{ width: idx === current ? 20 : 8, height: 8, backgroundColor: idx === current ? '#c9a84c' : 'rgba(255,255,255,0.4)' }} />
-        ))}
-      </div>
     </div>
   );
 }
@@ -217,8 +219,6 @@ function Fullscreen({ images, startIndex, alt, onClose }) {
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function ProductDetailClient({ product, related = [], reviews = [] }) {
   const images = useMemo(() => getImages(product), [product]);
-  const [fullscreenOpen, setFullscreenOpen] = useState(false);
-  const [fullscreenStart, setFullscreenStart] = useState(0);
   const [qty, setQty] = useState(1);
   const [selectedSize, setSelectedSize] = useState('');
   const [selectedColor, setSelectedColor] = useState('');
@@ -231,8 +231,6 @@ export default function ProductDetailClient({ product, related = [], reviews = [
   const sizes = Array.isArray(product.sizes) ? product.sizes : ['Standard'];
   const colors = Array.isArray(product.colors) ? product.colors : ['Classic'];
   const outOfStock = product.stock === 0;
-
-  const openFullscreen = (index = 0) => { setFullscreenStart(index); setFullscreenOpen(true); };
 
   const addToCart = () => {
     const saved = window.localStorage.getItem('sethi-cart');
@@ -267,7 +265,7 @@ export default function ProductDetailClient({ product, related = [], reviews = [
     <div style={{ position: 'relative', zIndex: 1, backgroundColor: '#faf8f4' }}>
       <div className="space-y-14">
         <div className="grid gap-8 lg:grid-cols-[1.02fr_0.98fr]">
-          <ImageGallery images={images} alt={product.name} onOpenFullscreen={openFullscreen} />
+          <ImageGallery images={images} alt={product.name} />
 
           <div className="rounded bg-white p-6 shadow-sm ring-1 ring-[#ede8df] md:p-8">
             <Link href="/products" className="inline-flex items-center gap-2 text-base font-semibold text-[#8a7060] hover:text-[#c9a84c]">
@@ -354,10 +352,6 @@ export default function ProductDetailClient({ product, related = [], reviews = [
             <h2 className="text-4xl font-bold text-[#c9a84c]">Related Products</h2>
             <div className="mt-5 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">{related.map((item) => <ProductCard key={item.id} product={item} />)}</div>
           </section>
-        )}
-
-        {fullscreenOpen && (
-          <Fullscreen images={images} startIndex={fullscreenStart} alt={product.name} onClose={() => setFullscreenOpen(false)} />
         )}
       </div>
     </div>
