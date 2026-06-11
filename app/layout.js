@@ -7,7 +7,6 @@ import PWAInstall from '@/components/PWAInstall';
 
 const OG_IMAGE =
   'https://bbdatviaaiqpfvwumkkd.supabase.co/storage/v1/object/public/products/og-default.jpg';
-
 const GA_ID = 'G-Z3JBN45975';
 
 export const metadata = {
@@ -39,6 +38,9 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <head>
+        {/* ✅ Disable pinch-to-zoom on mobile */}
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+
         {/* Hard-coded fallback — guarantees og:image always appears in HTML */}
         <meta property="og:image" content={OG_IMAGE} />
         <meta property="og:image:width" content="1200" />
