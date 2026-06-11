@@ -73,16 +73,16 @@ function ImageGallery({ images, alt, onOpenFullscreen }) {
         onTouchEnd={onTouchEnd}
         onClick={() => onOpenFullscreen(current)}
       >
-        {/* FIX: gold shimmer skeleton shown until first image loads */}
+        {/* FIX: shimmer skeleton — z-2 so it shows above bg but below image (z-20) */}
         {!loaded && (
-          <div className="absolute inset-0 z-10 animate-pulse bg-[#f5f0e8]" />
+          <div className="absolute inset-0 z-[2] animate-pulse bg-[#f5f0e8]" />
         )}
 
         {images.map((img, idx) => (
           <div
             key={idx}
             className="absolute inset-0 bg-white transition-opacity duration-500"
-            style={{ opacity: idx === current ? 1 : 0, zIndex: idx === current ? 1 : 0 }}
+            style={{ opacity: idx === current ? 1 : 0, zIndex: idx === current ? 20 : 0 }}
           >
             {img ? (
               <Image
@@ -106,18 +106,18 @@ function ImageGallery({ images, alt, onOpenFullscreen }) {
         {images.length > 1 && (
           <>
             <button onClick={(e) => { e.stopPropagation(); prev(); }}
-              className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center shadow hover:bg-white transition-colors">
+              className="absolute left-2 top-1/2 -translate-y-1/2 z-30 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center shadow hover:bg-white transition-colors">
               <ChevronLeft className="w-5 h-5 text-[#2c1f14]" />
             </button>
             <button onClick={(e) => { e.stopPropagation(); next(); }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center shadow hover:bg-white transition-colors">
+              className="absolute right-2 top-1/2 -translate-y-1/2 z-30 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center shadow hover:bg-white transition-colors">
               <ChevronRight className="w-5 h-5 text-[#2c1f14]" />
             </button>
           </>
         )}
 
         {images.length > 1 && (
-          <div className="absolute bottom-3 left-0 right-0 z-10 flex justify-center gap-1.5">
+          <div className="absolute bottom-3 left-0 right-0 z-30 flex justify-center gap-1.5">
             {images.map((_, idx) => (
               <button key={idx} onClick={(e) => { e.stopPropagation(); goTo(idx); }}
                 className="rounded-full transition-all duration-300"
@@ -127,11 +127,11 @@ function ImageGallery({ images, alt, onOpenFullscreen }) {
         )}
 
         {images.length > 1 && (
-          <div className="absolute top-3 left-3 z-10 rounded bg-black/50 px-2 py-0.5 text-xs text-white font-medium">
+          <div className="absolute top-3 left-3 z-30 rounded bg-black/50 px-2 py-0.5 text-xs text-white font-medium">
             {current + 1}/{images.length}
           </div>
         )}
-        <div className="absolute top-3 right-3 z-10 flex items-center gap-1 rounded bg-white/90 px-2 py-1 text-xs font-semibold text-[#6b5544] shadow">
+        <div className="absolute top-3 right-3 z-30 flex items-center gap-1 rounded bg-white/90 px-2 py-1 text-xs font-semibold text-[#6b5544] shadow">
           <ZoomIn className="h-3 w-3" /> Tap to zoom
         </div>
       </div>
