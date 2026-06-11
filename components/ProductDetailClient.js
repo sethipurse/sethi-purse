@@ -98,16 +98,16 @@ function MobileCarousel({ images, alt, onClickFullscreen }) {
   };
 
   return (
-    <div className="relative aspect-[4/5] w-full overflow-hidden rounded bg-white shadow-sm ring-1 ring-[#ede8df]">
+    <div className="relative aspect-[4/5] w-full overflow-hidden rounded bg-white shadow-sm ring-1 ring-[#ede8df]" style={{ isolation: 'isolate' }}>
       {/* Images */}
       <div
         className="flex h-full transition-transform duration-300 ease-out"
-        style={{ transform: `translateX(-${current * 100}%)`, width: `${images.length * 100}%` }}
+        style={{ transform: `translateX(-${current * 100}%)`, width: `${images.length * 100}%`, backgroundColor: '#fff' }}
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
       >
         {images.map((img, idx) => (
-          <div key={idx} className="relative h-full shrink-0" style={{ width: `${100 / images.length}%` }}
+          <div key={idx} className="relative h-full shrink-0 bg-white" style={{ width: `${100 / images.length}%` }}
             onClick={() => onClickFullscreen(current)}>
             {img ? (
               <Image src={img} alt={alt} fill sizes="100vw" priority={idx === 0} className="object-cover" draggable={false} />
