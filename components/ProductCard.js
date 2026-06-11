@@ -40,6 +40,7 @@ export default function ProductCard({ product, onAddToCart }) {
           <img
             src={img}
             alt={product.name}
+            loading="lazy"
             onError={() => setImgErr(true)}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
