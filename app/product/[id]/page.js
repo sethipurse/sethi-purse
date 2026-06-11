@@ -5,7 +5,8 @@ import Footer from '@/components/Footer';
 import ProductDetailClient from '@/components/ProductDetailClient';
 import { getProduct, getProducts, getReviews } from '@/lib/data';
 
-export const revalidate = 0;
+// FIX: was 0 (no cache = slow blank screen). Now caches for 60s
+export const revalidate = 60;
 
 const OG_IMAGE =
   'https://bbdatviaaiqpfvwumkkd.supabase.co/storage/v1/object/public/products/og-default.jpg';
@@ -36,7 +37,6 @@ export async function generateMetadata({ params }) {
   try {
     const bundle = await getProductBundle(params.id);
     const product = bundle?.product;
-
     if (!product) {
       return {
         title: 'Product | SETHI PURSE',
@@ -47,11 +47,9 @@ export async function generateMetadata({ params }) {
         },
       };
     }
-
     const price = product.sale_price ?? product.salePrice ?? product.price;
     const rawImage = product.image_url || product.imageUrl || '';
     const image = rawImage.startsWith('http') ? rawImage : OG_IMAGE;
-
     return {
       title: `${product.name} | SETHI PURSE`,
       description: `${product.name}${product.brand ? ` by ${product.brand}` : ''} at SETHI PURSE, Jalandhar.${price ? ` Price Rs.${price}.` : ''}`,
@@ -77,9 +75,7 @@ export async function generateMetadata({ params }) {
     console.error('generateMetadata failed:', err);
     return {
       title: 'SETHI PURSE',
-      openGraph: {
-        images: [{ url: OG_IMAGE, width: 1200, height: 630 }],
-      },
+      openGraph: { images: [{ url: OG_IMAGE, width: 1200, height: 630 }] },
     };
   }
 }
@@ -88,10 +84,15 @@ export default async function ProductPage({ params }) {
   const bundle = await getProductBundle(params.id);
   if (!bundle) notFound();
   const { product, related, reviews } = bundle;
+
   return (
     <>
       <Navbar />
-      <main className="bg-[#faf8f4] py-8 md:py-12">
+      {/* FIX: isolation stops home page bleeding through on mobile */}
+      <main
+        className="bg-[#faf8f4] py-8 md:py-12"
+        style={{ isolation: 'isolate', position: 'relative', zIndex: 1 }}
+      >
         <div className="container-sethi">
           <nav className="mb-7 text-lg text-[#8a7060]">
             <Link href="/" className="hover:text-[#c9a84c]">Home</Link>
