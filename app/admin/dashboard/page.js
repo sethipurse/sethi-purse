@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import AdminShell from '@/components/AdminShell';
 import { toast } from 'sonner';
-import { ShoppingBag, Grid, Tag, MessageSquare, AlertCircle, CheckCircle2, Edit, Phone, MessageCircle } from 'lucide-react';
+import { ShoppingBag, Grid, Tag, MessageSquare, AlertCircle, CheckCircle2, Edit, Phone, MessageCircle, Images, ImageIcon } from 'lucide-react';
 import { resolveImage, formatIST } from '@/lib/constants';
 
 export default function DashboardPage() {
@@ -11,23 +11,26 @@ export default function DashboardPage() {
   const [categories, setCategories] = useState([]);
   const [offers, setOffers] = useState([]);
   const [inquiries, setInquiries] = useState([]);
+  const [slides, setSlides] = useState([]);       // ✅ NEW
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [p, c, o, i] = await Promise.all([
+        const [p, c, o, i, s] = await Promise.all([
           fetch('/api/products').then((r) => r.ok ? r.json() : []),
           fetch('/api/categories').then((r) => r.ok ? r.json() : []),
           fetch('/api/offers').then((r) => r.ok ? r.json() : []),
           fetch('/api/inquiries').then((r) => r.ok ? r.json() : []),
+          fetch('/api/slider-images').then((r) => r.ok ? r.json() : []),  // ✅ NEW
         ]);
         if (cancelled) return;
         setProducts(Array.isArray(p) ? p : []);
         setCategories(Array.isArray(c) ? c : []);
         setOffers(Array.isArray(o) ? o : []);
         setInquiries(Array.isArray(i) ? i : []);
+        setSlides(Array.isArray(s) ? s : []);      // ✅ NEW
       } catch (err) {
         console.error('Dashboard load failed:', err);
         if (!cancelled) toast.error('Could not load dashboard data. Please refresh.');
@@ -38,40 +41,51 @@ export default function DashboardPage() {
     return () => { cancelled = true; };
   }, []);
 
-  // ✅ FIXED: handle both snake_case (Supabase) and camelCase (local JSON)
   const activeOffers = offers.filter((o) => o.is_active ?? o.isActive).length;
   const newInquiries = inquiries.filter((i) => i.status === 'new').length;
+  const activeSlides = slides.filter((s) => s.is_active !== false).length; // ✅ NEW
   const recent = [...products].slice(0, 5);
   const recentInquiries = [...inquiries].slice(0, 5);
   const lowStock = products.filter((p) => typeof p.stock === 'number' && p.stock <= 5);
 
   const stats = [
-    { label: 'Total Products', value: products.length, icon: ShoppingBag, href: '/admin/products' },
-    { label: 'Total Categories', value: categories.length, icon: Grid, href: '/admin/categories' },
-    { label: 'Active Offers', value: activeOffers, icon: Tag, href: '/admin/offers' },
-    { label: 'New Inquiries', value: newInquiries, icon: MessageSquare, href: '/admin/inquiries', badge: newInquiries > 0 },
+    { label: 'Total Products',  value: products.length,   icon: ShoppingBag, href: '/admin/products' },
+    { label: 'Total Categories',value: categories.length, icon: Grid,        href: '/admin/categories' },
+    { label: 'Active Offers',   value: activeOffers,      icon: Tag,         href: '/admin/offers' },
+    { label: 'New Inquiries',   value: newInquiries,      icon: MessageSquare, href: '/admin/inquiries', badge: newInquiries > 0 },
+    { label: 'Hero Slides',     value: activeSlides,      icon: Images,      href: '/admin/slider' },  // ✅ NEW
   ];
 
   return (
     <AdminShell>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      {/* ── Stat Cards ── */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
         {stats.map((s) => (
-          <Link key={s.label} href={s.href} className="bg-white border border-sethi-gray200 rounded-sm p-5 flex items-start justify-between hover:border-sethi-gold transition-colors">
+          <Link
+            key={s.label}
+            href={s.href}
+            className="bg-white border border-sethi-gray200 rounded-sm p-5 flex items-start justify-between hover:border-sethi-gold transition-colors"
+          >
             <div>
               <div className="text-xs text-sethi-gray500 uppercase tracking-wider">{s.label}</div>
-              <div className={`font-serif text-3xl md:text-4xl mt-2 ${s.badge ? 'text-red-600' : ''}`}>{loading ? '—' : s.value}</div>
+              <div className={`font-serif text-3xl md:text-4xl mt-2 ${s.badge ? 'text-red-600' : ''}`}>
+                {loading ? '—' : s.value}
+              </div>
             </div>
             <s.icon className={`w-7 h-7 ${s.badge ? 'text-red-600' : 'text-sethi-gold'}`} />
           </Link>
         ))}
       </div>
 
+      {/* ── Quick Actions ── */}
       <div className="flex flex-wrap gap-3 mb-8">
         <Link href="/admin/products/add" className="btn-primary">Add New Product</Link>
-        <Link href="/admin/categories" className="btn-secondary">Add New Category</Link>
+        <Link href="/admin/categories"   className="btn-secondary">Add New Category</Link>
+        <Link href="/admin/slider"       className="btn-secondary">Manage Hero Slider</Link>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
+        {/* ── Recent Products ── */}
         <div className="bg-white border border-sethi-gray200 rounded-sm">
           <div className="p-5 border-b border-sethi-gray200 flex items-center justify-between">
             <h2 className="font-serif text-xl">Recent Products</h2>
@@ -100,7 +114,9 @@ export default function DashboardPage() {
                     <td className="px-4 py-2 font-medium">{p.name}</td>
                     <td className="px-4 py-2 text-sethi-gray500">{p.category}</td>
                     <td className="px-4 py-2 font-semibold">Rs.{p.salePrice ?? p.sale_price}</td>
-                    <td className="px-4 py-2"><Link href={`/admin/products/edit/${p.id}`} className="text-sethi-gold hover:underline">Edit</Link></td>
+                    <td className="px-4 py-2">
+                      <Link href={`/admin/products/edit/${p.id}`} className="text-sethi-gold hover:underline">Edit</Link>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -108,6 +124,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* ── Low Stock Alert ── */}
         <div className="bg-white border border-sethi-gray200 rounded-sm">
           <div className="p-5 border-b border-sethi-gray200 flex items-center gap-2">
             <AlertCircle className="w-5 h-5 text-red-600" />
@@ -141,7 +158,81 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="bg-white border border-sethi-gray200 rounded-sm lg:col-span-2">
+        {/* ── Hero Slider Preview ── ✅ NEW SECTION */}
+        <div className="bg-white border border-sethi-gray200 rounded-sm">
+          <div className="p-5 border-b border-sethi-gray200 flex items-center justify-between">
+            <h2 className="font-serif text-xl flex items-center gap-2">
+              <Images className="w-5 h-5 text-sethi-gold" /> Hero Slider
+            </h2>
+            <Link href="/admin/slider" className="text-sm text-sethi-gold hover:underline">Manage slides</Link>
+          </div>
+          <div className="p-5">
+            {loading ? (
+              <p className="text-sethi-gray500 text-sm">Loading...</p>
+            ) : slides.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center text-sethi-gray500 gap-3">
+                <ImageIcon className="w-10 h-10 text-sethi-gold opacity-40" />
+                <p className="text-sm font-medium">No slides added yet</p>
+                <Link
+                  href="/admin/slider"
+                  className="text-xs text-sethi-gold underline hover:text-[#a07a28]"
+                >
+                  Add your first slide →
+                </Link>
+              </div>
+            ) : (
+              <ul className="space-y-3">
+                {slides.slice(0, 4).map((slide) => (
+                  <li key={slide.id} className="flex items-center gap-3">
+                    {/* Thumbnail */}
+                    <div className="w-16 h-12 rounded overflow-hidden bg-sethi-gray100 flex-shrink-0">
+                      {slide.image_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={slide.image_url}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center">
+                          <ImageIcon className="w-5 h-5 text-sethi-gold opacity-40" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate text-[#2c1f14]">
+                        {slide.headline || <span className="italic text-sethi-gray500 font-normal">No headline</span>}
+                      </p>
+                      <p className="text-xs text-sethi-gray500 truncate">
+                        {slide.category ? `Category: ${slide.category}` : 'All products'}
+                      </p>
+                    </div>
+
+                    {/* Status badge */}
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${
+                      slide.is_active !== false
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-gray-100 text-gray-500'
+                    }`}>
+                      {slide.is_active !== false ? 'Active' : 'Hidden'}
+                    </span>
+                  </li>
+                ))}
+                {slides.length > 4 && (
+                  <p className="text-xs text-sethi-gray500 text-center pt-1">
+                    +{slides.length - 4} more —{' '}
+                    <Link href="/admin/slider" className="text-sethi-gold underline">view all</Link>
+                  </p>
+                )}
+              </ul>
+            )}
+          </div>
+        </div>
+
+        {/* ── Recent Inquiries ── */}
+        <div className="bg-white border border-sethi-gray200 rounded-sm">
           <div className="p-5 border-b border-sethi-gray200 flex items-center justify-between">
             <h2 className="font-serif text-xl flex items-center gap-2">
               <MessageSquare className="w-5 h-5 text-sethi-gold" /> Recent Inquiries
@@ -157,7 +248,9 @@ export default function DashboardPage() {
             {loading ? (
               <p className="p-5 text-sethi-gray500 text-sm">Loading...</p>
             ) : recentInquiries.length === 0 ? (
-              <p className="p-6 text-sethi-gray500 text-sm text-center">No inquiries yet. When customers fill the contact form, they'll show up here.</p>
+              <p className="p-6 text-sethi-gray500 text-sm text-center">
+                No inquiries yet. When customers fill the contact form, they'll show up here.
+              </p>
             ) : (
               <ul className="divide-y divide-sethi-gray200">
                 {recentInquiries.map((i) => (
@@ -166,16 +259,27 @@ export default function DashboardPage() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold">{i.name}</span>
                         <span className="text-xs text-sethi-gray500">• {i.city}</span>
-                        <span className={`inline-block px-2 py-0.5 rounded-sm text-[10px] font-bold ${i.status === 'new' ? 'bg-red-100 text-red-700' : i.status === 'contacted' ? 'bg-blue-100 text-blue-700' : i.status === 'converted' ? 'bg-green-100 text-green-700' : 'bg-sethi-gray200 text-sethi-gray800'}`}>
+                        <span className={`inline-block px-2 py-0.5 rounded-sm text-[10px] font-bold ${
+                          i.status === 'new'       ? 'bg-red-100 text-red-700' :
+                          i.status === 'contacted' ? 'bg-blue-100 text-blue-700' :
+                          i.status === 'converted' ? 'bg-green-100 text-green-700' :
+                                                     'bg-sethi-gray200 text-sethi-gray800'
+                        }`}>
                           {(i.status || 'new').toUpperCase()}
                         </span>
                       </div>
-                      <div className="text-xs text-sethi-gray500 mt-0.5">{formatIST(i.createdAt)} • {i.productInterest}</div>
+                      <div className="text-xs text-sethi-gray500 mt-0.5">
+                        {formatIST(i.createdAt)} • {i.productInterest}
+                      </div>
                       <p className="text-sm mt-1 line-clamp-2 text-sethi-gray800">{i.message}</p>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2 shrink-0">
-                      <a href={`tel:+91${i.phone}`} className="inline-flex items-center gap-1 text-sethi-gold text-xs hover:underline"><Phone className="w-3 h-3" /> Call</a>
-                      <a href={`https://wa.me/91${i.phone}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sethi-gold text-xs hover:underline"><MessageCircle className="w-3 h-3" /> WhatsApp</a>
+                      <a href={`tel:+91${i.phone}`} className="inline-flex items-center gap-1 text-sethi-gold text-xs hover:underline">
+                        <Phone className="w-3 h-3" /> Call
+                      </a>
+                      <a href={`https://wa.me/91${i.phone}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sethi-gold text-xs hover:underline">
+                        <MessageCircle className="w-3 h-3" /> WhatsApp
+                      </a>
                     </div>
                   </li>
                 ))}
@@ -183,6 +287,7 @@ export default function DashboardPage() {
             )}
           </div>
         </div>
+
       </div>
     </AdminShell>
   );
