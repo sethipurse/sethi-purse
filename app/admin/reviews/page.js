@@ -33,15 +33,22 @@ export default function AdminReviewsPage() {
   };
   useEffect(() => { load(); }, []);
 
+  // FIX: read snake_case fields from Supabase, fallback to camelCase if present
+  const getName = (r) => r.customer_name ?? r.customerName ?? '';
+  const getPhoto = (r) => r.customer_photo ?? r.customerPhoto ?? '';
+  const getRating = (r) => r.rating ?? 5;
+  const getText = (r) => r.review_text ?? r.reviewText ?? '';
+  const getFeatured = (r) => !!(r.is_featured ?? r.isFeatured);
+
   const openNew = () => { setEditing('new'); setForm(EMPTY); };
   const openEdit = (r) => {
     setEditing(r);
     setForm({
-      customerName: r.customerName || '',
-      customerPhoto: r.customerPhoto || '',
-      rating: r.rating || 5,
-      reviewText: r.reviewText || '',
-      isFeatured: !!r.isFeatured,
+      customerName: getName(r),
+      customerPhoto: getPhoto(r),
+      rating: getRating(r),
+      reviewText: getText(r),
+      isFeatured: getFeatured(r),
     });
   };
   const close = () => { setEditing(null); setForm(EMPTY); };
@@ -79,10 +86,10 @@ export default function AdminReviewsPage() {
       const res = await fetch(`/api/reviews/${encodeURIComponent(r.id)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isFeatured: !r.isFeatured }),
+        body: JSON.stringify({ isFeatured: !getFeatured(r) }),
       });
       if (!res.ok) { toast.error('Failed to toggle'); return; }
-      toast.success(r.isFeatured ? 'Removed from featured' : 'Marked as featured');
+      toast.success(getFeatured(r) ? 'Removed from featured' : 'Marked as featured');
       load();
     } catch (err) {
       console.error(err);
@@ -122,23 +129,23 @@ export default function AdminReviewsPage() {
           {reviews.map((r) => (
             <div key={r.id} className="bg-white border border-sethi-gray200 rounded-sm p-5 flex items-start gap-4">
               <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-sethi-gold bg-sethi-gold flex items-center justify-center shrink-0">
-                {r.customerPhoto ? (
+                {getPhoto(r) ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={r.customerPhoto} alt={r.customerName} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                  <img src={getPhoto(r)} alt={getName(r)} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                 ) : (
-                  <span className="font-serif text-base text-sethi-black font-bold">{getInitials(r.customerName)}</span>
+                  <span className="font-serif text-base text-sethi-black font-bold">{getInitials(getName(r))}</span>
                 )}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-semibold">{r.customerName}</h3>
-                  <StarRating value={r.rating} size={14} />
-                  {r.isFeatured && <span className="inline-block bg-sethi-gold text-sethi-black text-[10px] font-bold px-2 py-0.5 rounded-sm tracking-wide">FEATURED</span>}
+                  <h3 className="font-semibold">{getName(r)}</h3>
+                  <StarRating value={getRating(r)} size={14} />
+                  {getFeatured(r) && <span className="inline-block bg-sethi-gold text-sethi-black text-[10px] font-bold px-2 py-0.5 rounded-sm tracking-wide">FEATURED</span>}
                 </div>
-                <p className="text-sm text-sethi-gray800 mt-1 italic line-clamp-2">&ldquo;{r.reviewText}&rdquo;</p>
+                <p className="text-sm text-sethi-gray800 mt-1 italic line-clamp-2">&ldquo;{getText(r)}&rdquo;</p>
               </div>
               <div className="flex flex-col gap-2 shrink-0">
-                <button onClick={() => toggleFeatured(r)} className={`inline-flex items-center gap-1 px-3 py-1 rounded-sm text-xs font-medium ${r.isFeatured ? 'bg-sethi-gold text-sethi-black' : 'border border-sethi-gold text-sethi-gold hover:bg-sethi-gold hover:text-sethi-black'}`}><StarIcon className="w-3 h-3" /> {r.isFeatured ? 'Featured' : 'Feature'}</button>
+                <button onClick={() => toggleFeatured(r)} className={`inline-flex items-center gap-1 px-3 py-1 rounded-sm text-xs font-medium ${getFeatured(r) ? 'bg-sethi-gold text-sethi-black' : 'border border-sethi-gold text-sethi-gold hover:bg-sethi-gold hover:text-sethi-black'}`}><StarIcon className="w-3 h-3" /> {getFeatured(r) ? 'Featured' : 'Feature'}</button>
                 <button onClick={() => openEdit(r)} className="inline-flex items-center gap-1 border border-sethi-gold text-sethi-gold px-3 py-1 rounded-sm hover:bg-sethi-gold hover:text-sethi-black text-xs"><Edit className="w-3 h-3" /> Edit</button>
                 <button onClick={() => setConfirm(r)} className="inline-flex items-center gap-1 border border-red-500 text-red-600 px-3 py-1 rounded-sm hover:bg-red-500 hover:text-white text-xs"><Trash2 className="w-3 h-3" /> Delete</button>
               </div>
@@ -201,7 +208,7 @@ export default function AdminReviewsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="bg-white rounded-sm p-6 max-w-md w-full">
             <h3 className="font-serif text-xl mb-2">Delete review?</h3>
-            <p className="text-sethi-gray500 text-sm mb-5">Are you sure you want to delete review from “{confirm.customerName}”?</p>
+            <p className="text-sethi-gray500 text-sm mb-5">Are you sure you want to delete review from "{confirm ? getName(confirm) : ''}"?</p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setConfirm(null)} className="btn-ghost">Cancel</button>
               <button onClick={() => doDelete(confirm.id)} className="inline-flex items-center gap-2 min-h-[48px] px-6 bg-red-600 text-white font-semibold rounded-sm hover:bg-red-700">Delete</button>
