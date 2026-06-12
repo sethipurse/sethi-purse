@@ -82,9 +82,9 @@ function FullscreenViewer({ src, alt, onClose }) {
       onClick={onClose}
       style={{
         position: 'fixed',
-        top: 0, left: 0,
+        top: 0, left: 0, right: 0, bottom: 0,
         width: '100vw', height: '100vh',
-        zIndex: 99999,
+        zIndex: 999999,
         backgroundColor: 'rgba(0,0,0,0.95)',
         display: 'flex',
         flexDirection: 'column',
@@ -100,7 +100,7 @@ function FullscreenViewer({ src, alt, onClose }) {
         style={{
           position: 'absolute',
           top: 20, right: 20,
-          zIndex: 100000,
+          zIndex: 1000000,
           width: 52, height: 52,
           borderRadius: '50%',
           backgroundColor: '#c9a84c',
@@ -294,7 +294,7 @@ export default function ProductDetailClient({ product, related = [], reviews = [
   };
 
   return (
-    <div style={{ position: 'relative', zIndex: 1, backgroundColor: '#faf8f4' }}>
+    <div style={{ backgroundColor: '#faf8f4' }}>
       <div className="space-y-14">
         <div className="grid gap-8 lg:grid-cols-[1.02fr_0.98fr]">
           <ImageGallery images={images} alt={product.name} />
