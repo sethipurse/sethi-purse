@@ -1,457 +1,478 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import AdminShell from '@/components/AdminShell';
-import { toast } from 'sonner';
-import { Plus, Trash2, Edit, ImageOff, Loader2, Upload, X, GripVertical, Eye, EyeOff } from 'lucide-react';
+import { Plus, Trash2, Pencil, GripVertical, Eye, EyeOff, ImageIcon, X, Check, ChevronUp, ChevronDown } from 'lucide-react';
 
-// ── Image compression (same as categories & products) ──────────────────────
-const compressImage = (file) =>
-  new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const maxW = 1920; // wider for hero slider
-      let { width, height } = img;
-      const ratio = Math.min(maxW / width, maxW / height, 1);
-      width = Math.round(width * ratio);
-      height = Math.round(height * ratio);
-      const canvas = document.createElement('canvas');
-      canvas.width = width; canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, width, height);
-      ctx.drawImage(img, 0, 0, width, height);
-      canvas.toBlob((blob) => {
-        if (!blob) return reject(new Error('Compression failed'));
-        resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' }));
-      }, 'image/jpeg', 0.85);
-    };
-    img.onerror = () => reject(new Error('Could not read image'));
-    img.src = url;
-  });
+// ─── small helpers ────────────────────────────────────────────────────────────
+const empty = () => ({
+  category: '',
+  headline: '',
+  imageUrl: '',
+  sortOrder: 0,
+  isActive: true,
+  badgeLabels: ['Free Delivery', 'Premium Quality', 'Easy Returns'],
+});
 
-// ── Image uploader component (same pattern as categories) ──────────────────
-function ImageUploader({ value, onChange, label = 'Slider Image' }) {
+function Field({ label, children, hint }) {
+  return (
+    <div className="space-y-1">
+      <label className="block text-sm font-semibold text-[#2c1f14]">{label}</label>
+      {children}
+      {hint && <p className="text-xs text-[#8a7060]">{hint}</p>}
+    </div>
+  );
+}
+
+function Input({ ...props }) {
+  return (
+    <input
+      {...props}
+      className="w-full rounded border border-[#ede8df] bg-white px-3 py-2 text-sm text-[#2c1f14] focus:outline-none focus:ring-2 focus:ring-[#c9a84c]"
+    />
+  );
+}
+
+// ─── Image uploader ────────────────────────────────────────────────────────────
+function ImageUploader({ value, onChange }) {
+  const fileRef = useRef();
   const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleFile = async (e) => {
-    const file = e.target.files?.[0];
+  const handleFile = async (file) => {
     if (!file) return;
     setUploading(true);
+    setError('');
     try {
-      const compressed = await compressImage(file);
-      const sizeKB = Math.round(compressed.size / 1024);
       const form = new FormData();
-      form.append('file', compressed);
+      form.append('file', file);
       form.append('bucket', 'products');
       const res = await fetch('/api/upload', { method: 'POST', body: form });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) { toast.error(data.error || 'Upload failed'); return; }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload failed');
       onChange(data.url);
-      toast.success(`Image uploaded ✓ (${sizeKB}KB)`);
-    } catch (err) {
-      toast.error(err.message || 'Upload failed');
+    } catch (e) {
+      setError(e.message);
     } finally {
       setUploading(false);
-      e.target.value = '';
     }
   };
 
   return (
-    <div>
-      <label className="block text-sm font-medium mb-1.5">{label}</label>
-      <input
+    <div className="space-y-2">
+      {value ? (
+        <div className="relative w-full aspect-[16/7] rounded overflow-hidden border border-[#ede8df] bg-[#faf8f4]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={value} alt="Slide preview" className="w-full h-full object-cover" />
+          <button
+            type="button"
+            onClick={() => onChange('')}
+            className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-7 h-7 flex items-center justify-center hover:bg-red-600"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading}
+          className="w-full aspect-[16/7] rounded border-2 border-dashed border-[#c9a84c] bg-[#faf8f4] flex flex-col items-center justify-center gap-2 text-[#8a7060] hover:bg-[#f5f0e8] transition disabled:opacity-60"
+        >
+          {uploading ? (
+            <div className="w-6 h-6 border-2 border-[#c9a84c] border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <>
+              <ImageIcon size={28} className="text-[#c9a84c]" />
+              <span className="text-sm font-medium">Click to upload slide image</span>
+              <span className="text-xs">JPG, PNG, WebP · Max 4MB</span>
+            </>
+          )}
+        </button>
+      )}
+      <Input
+        placeholder="Or paste image URL directly"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="input-sethi"
-        placeholder="Paste image URL or upload below"
       />
-      <div className="mt-2 flex items-center gap-3">
-        <label className={`inline-flex items-center gap-2 px-4 py-2 border border-sethi-gold text-sethi-gold rounded-sm text-sm font-medium cursor-pointer hover:bg-sethi-gold hover:text-sethi-black transition-colors ${uploading ? 'opacity-60 pointer-events-none' : ''}`}>
-          {uploading
-            ? <><Loader2 className="w-4 h-4 animate-spin" /> Uploading...</>
-            : <><Upload className="w-4 h-4" /> Upload Image</>}
-          <input type="file" accept="image/*" className="hidden" onChange={handleFile} disabled={uploading} />
-        </label>
-        {value && (
-          <button type="button" onClick={() => onChange('')} className="text-sm text-red-500 hover:text-red-700 flex items-center gap-1">
-            <X className="w-3 h-3" /> Remove
-          </button>
-        )}
-      </div>
-      {/* Preview */}
-      <div className="mt-3 w-full max-w-[360px] h-[140px] bg-sethi-gray100 border border-sethi-gray200 rounded-sm overflow-hidden flex items-center justify-center">
-        {value ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={value} alt="" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-        ) : (
-          <div className="flex flex-col items-center text-sethi-gray500 text-xs gap-1">
-            <ImageOff className="w-6 h-6" /> No preview
+      {!value && (
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading}
+          className="text-xs text-[#c9a84c] underline hover:text-[#a07a28] disabled:opacity-60"
+        >
+          {uploading ? 'Uploading...' : 'Upload from device'}
+        </button>
+      )}
+      {error && <p className="text-xs text-red-500">{error}</p>}
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
+    </div>
+  );
+}
+
+// ─── Slide Form (add / edit) ───────────────────────────────────────────────────
+function SlideForm({ initial, categories, onSave, onCancel, saving }) {
+  const [form, setForm] = useState(initial);
+
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const setBadge = (i, v) => {
+    const arr = [...(form.badgeLabels || ['', '', ''])];
+    arr[i] = v;
+    set('badgeLabels', arr);
+  };
+
+  return (
+    <div className="rounded-xl border border-[#ede8df] bg-white p-6 shadow-sm space-y-5">
+      {/* Image */}
+      <Field label="Slide Image" hint="Recommended: 1200×500px, landscape">
+        <ImageUploader value={form.imageUrl} onChange={(v) => set('imageUrl', v)} />
+      </Field>
+
+      {/* Category dropdown — exact match from your categories list */}
+      <Field label="Category" hint="Clicking the slide opens this category's products">
+        <select
+          value={form.category}
+          onChange={(e) => set('category', e.target.value)}
+          className="w-full rounded border border-[#ede8df] bg-white px-3 py-2 text-sm text-[#2c1f14] focus:outline-none focus:ring-2 focus:ring-[#c9a84c]"
+        >
+          <option value="">— No category (opens all products) —</option>
+          {categories.map((c) => (
+            <option key={c.id || c.name} value={c.name}>{c.name}</option>
+          ))}
+        </select>
+      </Field>
+
+      {/* Headline */}
+      <Field label="Headline" hint="Use \n for a line break (e.g. Travel\nBeyond)">
+        <textarea
+          rows={2}
+          value={form.headline}
+          onChange={(e) => set('headline', e.target.value)}
+          placeholder="Travel Beyond"
+          className="w-full rounded border border-[#ede8df] bg-white px-3 py-2 text-sm text-[#2c1f14] focus:outline-none focus:ring-2 focus:ring-[#c9a84c] resize-none"
+        />
+      </Field>
+
+      {/* Badge labels */}
+      <Field label="Badge Labels (3 shown below slide)">
+        <div className="grid grid-cols-3 gap-2">
+          {[0, 1, 2].map((i) => (
+            <Input
+              key={i}
+              value={(form.badgeLabels || [])[i] || ''}
+              onChange={(e) => setBadge(i, e.target.value)}
+              placeholder={['Free Delivery', 'Premium Quality', 'Easy Returns'][i]}
+            />
+          ))}
+        </div>
+      </Field>
+
+      {/* Sort order + active toggle */}
+      <div className="flex items-center gap-6">
+        <Field label="Sort Order">
+          <Input
+            type="number"
+            value={form.sortOrder}
+            onChange={(e) => set('sortOrder', Number(e.target.value))}
+            className="w-24"
+          />
+        </Field>
+        <label className="flex items-center gap-2 cursor-pointer mt-5">
+          <div
+            onClick={() => set('isActive', !form.isActive)}
+            className={`relative w-11 h-6 rounded-full transition-colors ${form.isActive ? 'bg-[#c9a84c]' : 'bg-gray-200'}`}
+          >
+            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${form.isActive ? 'left-6' : 'left-1'}`} />
           </div>
-        )}
+          <span className="text-sm font-semibold text-[#2c1f14]">{form.isActive ? 'Active' : 'Hidden'}</span>
+        </label>
+      </div>
+
+      {/* Actions */}
+      <div className="flex gap-3 pt-2">
+        <button
+          type="button"
+          onClick={() => onSave(form)}
+          disabled={saving || !form.imageUrl}
+          className="flex-1 h-11 bg-[#c9a84c] text-white rounded font-bold text-sm hover:bg-[#a07a28] transition disabled:opacity-60 flex items-center justify-center gap-2"
+        >
+          {saving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Check size={16} />}
+          {saving ? 'Saving…' : 'Save Slide'}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-5 h-11 border border-[#ede8df] rounded text-sm font-semibold text-[#6b5544] hover:bg-[#faf8f4] transition"
+        >
+          Cancel
+        </button>
       </div>
     </div>
   );
 }
 
-// ── Empty form state ────────────────────────────────────────────────────────
-const EMPTY = {
-  headline: '',
-  category: '',
-  image_url: '',
-  sort_order: 0,
-  is_active: true,
-};
-
-// ── Main page ───────────────────────────────────────────────────────────────
+// ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function AdminSliderPage() {
   const [slides, setSlides] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState(EMPTY);
+  const [categories, setCategories] = useState([]);
+  const [loadingSlides, setLoadingSlides] = useState(true);
   const [adding, setAdding] = useState(false);
-  const [editing, setEditing] = useState(null);
-  const [editForm, setEditForm] = useState(EMPTY);
-  const [confirm, setConfirm] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+  const [toast, setToast] = useState('');
 
-  // ── Load slides ────────────────────────────────────────────────────────
-  const load = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/slider-images');
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setSlides(Array.isArray(data) ? data : []);
-    } catch {
-      toast.error('Could not load slider images. Please refresh.');
-      setSlides([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-  useEffect(() => { load(); }, []);
+  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
 
-  // ── Add new slide ──────────────────────────────────────────────────────
-  const add = async (e) => {
-    e.preventDefault();
-    if (!form.image_url.trim()) { toast.error('Image is required'); return; }
-    setAdding(true);
+  // Load slides + categories on mount
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/slider-images').then((r) => r.json()).catch(() => []),
+      fetch('/api/categories').then((r) => r.json()).catch(() => []),
+    ]).then(([s, c]) => {
+      setSlides(Array.isArray(s) ? s : []);
+      setCategories(Array.isArray(c) ? c : []);
+      setLoadingSlides(false);
+    });
+  }, []);
+
+  // ── Add ──
+  const handleAdd = async (form) => {
+    setSaving(true);
     try {
       const res = await fetch('/api/slider-images', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          headline: form.headline,
           category: form.category,
-          image_url: form.image_url,
-          sort_order: Number(form.sort_order) || 0,
-          is_active: form.is_active,
-          badge_icons: [],
-          badge_labels: [],
+          headline: form.headline,
+          imageUrl: form.imageUrl,
+          badgeLabels: form.badgeLabels,
+          sortOrder: form.sortOrder,
+          isActive: form.isActive,
         }),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) { toast.error(data.error || 'Failed to add slide'); return; }
-      toast.success('Slide added!');
-      setForm(EMPTY);
-      load();
-    } catch {
-      toast.error('Network error. Please try again.');
-    } finally {
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      setSlides((prev) => [...prev, data].sort((a, b) => a.sort_order - b.sort_order));
       setAdding(false);
+      showToast('✅ Slide added');
+    } catch (e) {
+      showToast('❌ ' + e.message);
+    } finally {
+      setSaving(false);
     }
   };
 
-  // ── Save edit ──────────────────────────────────────────────────────────
-  const saveEdit = async () => {
-    if (!editForm.image_url.trim()) { toast.error('Image is required'); return; }
+  // ── Edit ──
+  const handleEdit = async (form) => {
+    setSaving(true);
     try {
-      const res = await fetch(`/api/slider-images/${encodeURIComponent(editing.id)}`, {
+      const res = await fetch(`/api/slider-images/${editingId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          headline: editForm.headline,
-          category: editForm.category,
-          image_url: editForm.image_url,
-          sort_order: Number(editForm.sort_order) || 0,
-          is_active: editForm.is_active,
+          category: form.category,
+          headline: form.headline,
+          imageUrl: form.imageUrl,
+          badgeLabels: form.badgeLabels,
+          sortOrder: form.sortOrder,
+          isActive: form.isActive,
         }),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) { toast.error(data.error || 'Failed to update slide'); return; }
-      toast.success('Slide updated!');
-      setEditing(null);
-      load();
-    } catch {
-      toast.error('Network error while updating.');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      setSlides((prev) => prev.map((s) => s.id === editingId ? data : s).sort((a, b) => a.sort_order - b.sort_order));
+      setEditingId(null);
+      showToast('✅ Slide updated');
+    } catch (e) {
+      showToast('❌ ' + e.message);
+    } finally {
+      setSaving(false);
     }
   };
 
-  // ── Toggle active ──────────────────────────────────────────────────────
+  // ── Toggle active ──
   const toggleActive = async (slide) => {
-    try {
-      const res = await fetch(`/api/slider-images/${encodeURIComponent(slide.id)}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_active: !slide.is_active }),
-      });
-      if (!res.ok) { toast.error('Failed to update'); return; }
-      toast.success(slide.is_active ? 'Slide hidden' : 'Slide visible');
-      load();
-    } catch {
-      toast.error('Network error');
+    const updated = { ...slide, isActive: !slide.is_active };
+    const res = await fetch(`/api/slider-images/${slide.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isActive: !slide.is_active }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setSlides((prev) => prev.map((s) => s.id === slide.id ? data : s));
     }
   };
 
-  // ── Delete ─────────────────────────────────────────────────────────────
-  const doDelete = async (id) => {
-    if (!id) { setConfirm(null); return; }
+  // ── Delete ──
+  const handleDelete = async (id) => {
+    if (!confirm('Delete this slide?')) return;
+    setDeletingId(id);
     try {
-      const res = await fetch(`/api/slider-images/${encodeURIComponent(id)}`, { method: 'DELETE' });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) { toast.error(data.error || 'Failed to delete'); return; }
-      toast.success('Slide deleted');
-      setConfirm(null);
-      load();
-    } catch {
-      toast.error('Network error while deleting.');
-      setConfirm(null);
+      const res = await fetch(`/api/slider-images/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed');
+      setSlides((prev) => prev.filter((s) => s.id !== id));
+      showToast('✅ Slide deleted');
+    } catch (e) {
+      showToast('❌ ' + e.message);
+    } finally {
+      setDeletingId(null);
     }
   };
 
-  // ── UI ─────────────────────────────────────────────────────────────────
   return (
     <AdminShell>
-      <div className="grid lg:grid-cols-2 gap-6">
-
-        {/* ── Add Form ── */}
-        <form onSubmit={add} className="bg-white border border-sethi-gray200 rounded-sm p-5 md:p-6 space-y-4">
-          <h2 className="font-serif text-xl">Add New Slide</h2>
-
-          <ImageUploader
-            value={form.image_url}
-            onChange={(url) => setForm((f) => ({ ...f, image_url: url }))}
-            label="Slide Image *"
-          />
-
+      <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
           <div>
-            <label className="block text-sm font-medium mb-1.5">Headline</label>
-            <input
-              value={form.headline}
-              onChange={(e) => setForm((f) => ({ ...f, headline: e.target.value }))}
-              className="input-sethi"
-              placeholder="e.g. Premium Bags Collection"
-            />
+            <h1 className="text-3xl font-bold text-[#2c1f14]">Hero Slider</h1>
+            <p className="text-sm text-[#8a7060] mt-1">
+              Manage the slides shown on the home page. Each slide links to a product category.
+            </p>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1.5">Category (optional)</label>
-            <input
-              value={form.category}
-              onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-              className="input-sethi"
-              placeholder="e.g. Luggage"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1.5">Sort Order</label>
-            <input
-              type="number"
-              value={form.sort_order}
-              onChange={(e) => setForm((f) => ({ ...f, sort_order: e.target.value }))}
-              className="input-sethi"
-              placeholder="0"
-              min="0"
-            />
-            <p className="text-xs text-sethi-gray500 mt-1">Lower number = shows first</p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <label className="text-sm font-medium">Active (visible on site)</label>
+          {!adding && (
             <button
-              type="button"
-              onClick={() => setForm((f) => ({ ...f, is_active: !f.is_active }))}
-              className={`relative w-14 h-7 rounded-full transition-colors ${form.is_active ? 'bg-sethi-gold' : 'bg-sethi-gray200'}`}
+              onClick={() => { setAdding(true); setEditingId(null); }}
+              className="flex items-center gap-2 bg-[#c9a84c] text-white px-4 py-2 rounded font-semibold text-sm hover:bg-[#a07a28] transition"
             >
-              <span className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow transition-transform ${form.is_active ? 'translate-x-7' : ''}`} />
+              <Plus size={16} /> Add Slide
             </button>
-            <span className="text-sm text-sethi-gray500">{form.is_active ? 'Yes' : 'No'}</span>
-          </div>
-
-          <button type="submit" disabled={adding} className="btn-primary">
-            {adding
-              ? <><Loader2 className="w-4 h-4 animate-spin" /> Adding...</>
-              : <><Plus className="w-4 h-4" /> Add Slide</>}
-          </button>
-        </form>
-
-        {/* ── Slides List ── */}
-        <div className="bg-white border border-sethi-gray200 rounded-sm">
-          <div className="p-5 border-b border-sethi-gray200">
-            <h2 className="font-serif text-xl">All Slides ({slides.length})</h2>
-            <p className="text-xs text-sethi-gray500 mt-1">These images show in your home page hero slider</p>
-          </div>
-
-          {loading ? (
-            <div className="p-6 text-sethi-gray500 text-center">Loading...</div>
-          ) : slides.length === 0 ? (
-            <div className="p-6 text-sethi-gray500 text-center">No slides yet. Add your first slide!</div>
-          ) : (
-            <ul className="divide-y divide-sethi-gray200">
-              {slides.map((slide) => (
-                <li key={slide.id} className="p-4 flex items-center gap-3">
-                  {/* Drag handle icon (visual only) */}
-                  <GripVertical className="w-4 h-4 text-sethi-gray500 shrink-0" />
-
-                  {/* Thumbnail */}
-                  {slide.image_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={slide.image_url}
-                      alt=""
-                      className="w-20 h-14 object-cover rounded-sm bg-sethi-gray100 shrink-0"
-                    />
-                  ) : (
-                    <div className="w-20 h-14 bg-sethi-gray100 rounded-sm flex items-center justify-center shrink-0">
-                      <ImageOff className="w-5 h-5 text-sethi-gray500" />
-                    </div>
-                  )}
-
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm truncate">{slide.headline || '(No headline)'}</div>
-                    <div className="text-xs text-sethi-gray500 mt-0.5">
-                      {slide.category && <span>Category: {slide.category} · </span>}
-                      Order: {slide.sort_order ?? 0}
-                    </div>
-                    <span className={`inline-block mt-1 px-2 py-0.5 rounded-sm text-[10px] font-bold ${slide.is_active ? 'bg-green-100 text-green-700' : 'bg-sethi-gray200 text-sethi-gray500'}`}>
-                      {slide.is_active ? 'VISIBLE' : 'HIDDEN'}
-                    </span>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex flex-col gap-1.5 shrink-0">
-                    <button
-                      onClick={() => toggleActive(slide)}
-                      className="inline-flex items-center gap-1 border border-sethi-gray200 text-sethi-gray500 px-2.5 py-1 rounded-sm hover:border-sethi-gold hover:text-sethi-gold text-xs"
-                    >
-                      {slide.is_active ? <><EyeOff className="w-3 h-3" /> Hide</> : <><Eye className="w-3 h-3" /> Show</>}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setEditing(slide);
-                        setEditForm({
-                          headline: slide.headline || '',
-                          category: slide.category || '',
-                          image_url: slide.image_url || '',
-                          sort_order: slide.sort_order ?? 0,
-                          is_active: slide.is_active !== false,
-                        });
-                      }}
-                      className="inline-flex items-center gap-1 border border-sethi-gold text-sethi-gold px-2.5 py-1 rounded-sm hover:bg-sethi-gold hover:text-sethi-black text-xs"
-                    >
-                      <Edit className="w-3 h-3" /> Edit
-                    </button>
-                    <button
-                      onClick={() => setConfirm(slide)}
-                      className="inline-flex items-center gap-1 border border-red-500 text-red-600 px-2.5 py-1 rounded-sm hover:bg-red-500 hover:text-white text-xs"
-                    >
-                      <Trash2 className="w-3 h-3" /> Delete
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
           )}
         </div>
+
+        {/* Toast */}
+        {toast && (
+          <div className="fixed top-4 right-4 z-50 bg-[#2c1f14] text-white px-5 py-3 rounded-xl shadow-lg text-sm font-semibold animate-fade-in">
+            {toast}
+          </div>
+        )}
+
+        {/* Add form */}
+        {adding && (
+          <SlideForm
+            initial={empty()}
+            categories={categories}
+            onSave={handleAdd}
+            onCancel={() => setAdding(false)}
+            saving={saving}
+          />
+        )}
+
+        {/* Slides list */}
+        {loadingSlides ? (
+          <div className="flex justify-center py-16">
+            <div className="w-8 h-8 border-4 border-[#c9a84c] border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : slides.length === 0 ? (
+          <div className="text-center py-16 text-[#8a7060]">
+            <ImageIcon size={40} className="mx-auto mb-3 text-[#c9a84c] opacity-40" />
+            <p className="font-semibold">No slides yet</p>
+            <p className="text-sm mt-1">Click "Add Slide" to create your first hero slide.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {slides.map((slide) => (
+              <div key={slide.id}>
+                {editingId === slide.id ? (
+                  <SlideForm
+                    initial={{
+                      category: slide.category || '',
+                      headline: slide.headline || '',
+                      imageUrl: slide.image_url || '',
+                      sortOrder: slide.sort_order ?? 0,
+                      isActive: slide.is_active !== false,
+                      badgeLabels: slide.badge_labels?.length ? slide.badge_labels : ['Free Delivery', 'Premium Quality', 'Easy Returns'],
+                    }}
+                    categories={categories}
+                    onSave={handleEdit}
+                    onCancel={() => setEditingId(null)}
+                    saving={saving}
+                  />
+                ) : (
+                  <div className={`flex gap-4 rounded-xl border bg-white p-4 shadow-sm transition ${slide.is_active ? 'border-[#ede8df]' : 'border-dashed border-gray-200 opacity-60'}`}>
+                    {/* Thumbnail */}
+                    <div className="relative w-28 h-20 flex-shrink-0 rounded overflow-hidden bg-[#faf8f4]">
+                      {slide.image_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={slide.image_url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-[#c9a84c]">
+                          <ImageIcon size={24} />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {slide.category && (
+                          <span className="text-xs font-bold uppercase tracking-widest text-[#c9a84c]">
+                            {slide.category}
+                          </span>
+                        )}
+                        {!slide.is_active && (
+                          <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">Hidden</span>
+                        )}
+                      </div>
+                      <p className="text-sm font-bold text-[#2c1f14] mt-1 truncate">
+                        {slide.headline || <span className="text-gray-400 font-normal italic">No headline</span>}
+                      </p>
+                      <p className="text-xs text-[#8a7060] mt-0.5">
+                        Sort: {slide.sort_order} ·{' '}
+                        {slide.category
+                          ? `Links → /products?category=${slide.category}`
+                          : 'Links → /products (all)'}
+                      </p>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex flex-col gap-1 flex-shrink-0">
+                      <button
+                        onClick={() => { setEditingId(slide.id); setAdding(false); }}
+                        className="flex items-center gap-1 text-xs font-semibold text-[#6b5544] hover:text-[#c9a84c] transition px-2 py-1 rounded hover:bg-[#faf8f4]"
+                      >
+                        <Pencil size={13} /> Edit
+                      </button>
+                      <button
+                        onClick={() => toggleActive(slide)}
+                        className="flex items-center gap-1 text-xs font-semibold text-[#6b5544] hover:text-[#c9a84c] transition px-2 py-1 rounded hover:bg-[#faf8f4]"
+                      >
+                        {slide.is_active ? <EyeOff size={13} /> : <Eye size={13} />}
+                        {slide.is_active ? 'Hide' : 'Show'}
+                      </button>
+                      <button
+                        onClick={() => handleDelete(slide.id)}
+                        disabled={deletingId === slide.id}
+                        className="flex items-center gap-1 text-xs font-semibold text-red-400 hover:text-red-600 transition px-2 py-1 rounded hover:bg-red-50 disabled:opacity-50"
+                      >
+                        <Trash2 size={13} />
+                        {deletingId === slide.id ? '…' : 'Delete'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Help box */}
+        <div className="rounded-xl bg-[#faf8f4] border border-[#ede8df] p-5 text-sm text-[#6b5544] space-y-2">
+          <p className="font-bold text-[#2c1f14]">How it works</p>
+          <ul className="space-y-1 list-disc list-inside">
+            <li>Add a slide with an image + category → it appears on the home page hero slider</li>
+            <li>Select a category from the dropdown — this ensures exact match with your products</li>
+            <li>Clicking the slide takes customers to that category's products page</li>
+            <li>Leave category blank → slide links to all products</li>
+            <li>Use Sort Order to control the order slides appear (lower = first)</li>
+            <li>Hide/Show toggles a slide without deleting it</li>
+          </ul>
+        </div>
       </div>
-
-      {/* ── Edit Modal ── */}
-      {editing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-white rounded-sm w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-sethi-gray200">
-              <h3 className="font-serif text-xl">Edit Slide</h3>
-              <button onClick={() => setEditing(null)} className="w-9 h-9 inline-flex items-center justify-center">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-5 space-y-4">
-              <ImageUploader
-                value={editForm.image_url}
-                onChange={(url) => setEditForm((f) => ({ ...f, image_url: url }))}
-                label="Slide Image *"
-              />
-              <div>
-                <label className="block text-sm font-medium mb-1.5">Headline</label>
-                <input
-                  value={editForm.headline}
-                  onChange={(e) => setEditForm((f) => ({ ...f, headline: e.target.value }))}
-                  className="input-sethi"
-                  placeholder="e.g. Premium Bags Collection"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1.5">Category</label>
-                <input
-                  value={editForm.category}
-                  onChange={(e) => setEditForm((f) => ({ ...f, category: e.target.value }))}
-                  className="input-sethi"
-                  placeholder="e.g. Luggage"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1.5">Sort Order</label>
-                <input
-                  type="number"
-                  value={editForm.sort_order}
-                  onChange={(e) => setEditForm((f) => ({ ...f, sort_order: e.target.value }))}
-                  className="input-sethi"
-                  min="0"
-                />
-                <p className="text-xs text-sethi-gray500 mt-1">Lower number = shows first</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <label className="text-sm font-medium">Active</label>
-                <button
-                  type="button"
-                  onClick={() => setEditForm((f) => ({ ...f, is_active: !f.is_active }))}
-                  className={`relative w-14 h-7 rounded-full transition-colors ${editForm.is_active ? 'bg-sethi-gold' : 'bg-sethi-gray200'}`}
-                >
-                  <span className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow transition-transform ${editForm.is_active ? 'translate-x-7' : ''}`} />
-                </button>
-                <span className="text-sm text-sethi-gray500">{editForm.is_active ? 'Yes' : 'No'}</span>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3 p-5 border-t border-sethi-gray200">
-              <button onClick={() => setEditing(null)} className="btn-ghost">Cancel</button>
-              <button onClick={saveEdit} className="btn-primary">Save Changes</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Delete Confirm Modal ── */}
-      {confirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-white rounded-sm p-6 max-w-md w-full">
-            <h3 className="font-serif text-xl mb-2">Delete slide?</h3>
-            <p className="text-sethi-gray500 text-sm mb-5">
-              Are you sure you want to delete "{confirm.headline || 'this slide'}"? This cannot be undone.
-            </p>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setConfirm(null)} className="btn-ghost">Cancel</button>
-              <button
-                onClick={() => doDelete(confirm.id)}
-                className="inline-flex items-center gap-2 min-h-[48px] px-6 bg-red-600 text-white font-semibold rounded-sm hover:bg-red-700"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </AdminShell>
   );
 }
