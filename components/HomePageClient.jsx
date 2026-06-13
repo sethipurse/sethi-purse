@@ -36,7 +36,7 @@ function SkeletonCard() {
 }
 
 export default function HomePageClient({ initialSlides = [] }) {
-  const [slides] = useState(initialSlides); // pre-loaded from server, no fetch needed
+  const [slides] = useState(initialSlides);
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
   const [offers, setOffers] = useState([]);
@@ -53,7 +53,6 @@ export default function HomePageClient({ initialSlides = [] }) {
     if (saved) setCart(JSON.parse(saved));
   }, []);
 
-  // Only fetch categories, products, offers, reviews — NOT slider anymore
   useEffect(() => {
     let live = true;
     async function load() {
@@ -97,9 +96,11 @@ export default function HomePageClient({ initialSlides = [] }) {
     window.localStorage.setItem('sethi-cart', JSON.stringify(next));
   };
 
+  // True when user has typed something in the search bar
+  const isSearching = query.trim().length > 0;
+
   return (
     <main style={{ background: C.bg, color: C.brown }}>
-      {/* HeroSlider gets slides instantly from server — no loading shimmer */}
       <HeroSlider
         slides={slides}
         cartCount={cart.reduce((s, i) => s + Math.max(1, Number(i.qty || 1)), 0)}
@@ -107,6 +108,7 @@ export default function HomePageClient({ initialSlides = [] }) {
         onCartClick={() => setCartOpen(true)}
       />
 
+      {/* Trust badges */}
       <section className="mx-auto grid w-full max-w-6xl gap-3 px-4 py-6 sm:grid-cols-2 lg:grid-cols-4">
         {[
           { icon: ShieldCheck, title: 'Original Brands', text: 'Trusted bags and luggage' },
@@ -122,6 +124,7 @@ export default function HomePageClient({ initialSlides = [] }) {
         ))}
       </section>
 
+      {/* ── SEARCH BAR ── */}
       <section className="mx-auto w-full max-w-6xl px-4 py-8">
         <div className="relative">
           <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#8a7060]" />
@@ -131,7 +134,7 @@ export default function HomePageClient({ initialSlides = [] }) {
             placeholder="Search bags, luggage, brands..."
             className="h-14 w-full rounded border border-[#ede8df] bg-white pl-12 pr-4 text-lg text-[#2c1f14] shadow-sm outline-none transition focus:border-[#c9a84c] focus:ring-2 focus:ring-[#e8d5a3]"
           />
-          {query.length > 0 && (
+          {isSearching && (
             <button
               type="button"
               onClick={() => setQuery('')}
@@ -141,106 +144,160 @@ export default function HomePageClient({ initialSlides = [] }) {
             </button>
           )}
         </div>
-        {query.length > 0 && (
-          <p className="mt-2 text-base text-[#8a7060]">
-            {filteredProducts.length === 0
-              ? 'No products found'
-              : `${filteredProducts.length} product${filteredProducts.length > 1 ? 's' : ''} found`}
-          </p>
+
+        {/* ── SEARCH RESULTS — shown immediately below the search bar ── */}
+        {isSearching && (
+          <div className="mt-6">
+            <div className="flex items-center justify-between gap-4 mb-4">
+              <div>
+                <h2 className="text-3xl font-bold text-[#c9a84c]">
+                  Results for &ldquo;{query}&rdquo;
+                </h2>
+                <p className="mt-1 text-base text-[#8a7060]">
+                  {loading
+                    ? 'Searching…'
+                    : filteredProducts.length === 0
+                    ? 'No products found'
+                    : `${filteredProducts.length} product${filteredProducts.length > 1 ? 's' : ''} found`}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setQuery('')}
+                className="shrink-0 rounded border border-[#ede8df] bg-white px-4 py-2 text-sm font-semibold text-[#6b5544] hover:border-[#c9a84c] hover:text-[#a07a28] transition"
+              >
+                Clear search
+              </button>
+            </div>
+
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {loading ? (
+                Array.from({ length: 6 }).map((_, index) => <SkeletonCard key={index} />)
+              ) : filteredProducts.length === 0 ? (
+                <div className="col-span-full rounded bg-white p-10 text-center ring-1 ring-[#ede8df]">
+                  <Sparkles className="mx-auto h-10 w-10 text-[#c9a84c]" />
+                  <h3 className="mt-3 text-2xl font-bold">No products found</h3>
+                  <p className="mt-1 text-[#8a7060]">Try a different search term.</p>
+                  <button
+                    type="button"
+                    onClick={() => setQuery('')}
+                    className="mt-4 rounded bg-[#c9a84c] px-6 py-2 text-base font-semibold text-white hover:bg-[#a07a28]"
+                  >
+                    Clear search
+                  </button>
+                </div>
+              ) : (
+                filteredProducts.slice(0, 9).map((product) => (
+                  <ProductCard key={product.id} product={product} onAddToCart={addToCart} />
+                ))
+              )}
+            </div>
+          </div>
         )}
       </section>
 
-      {offers.length > 0 && (
-        <section className="mx-auto grid w-full max-w-6xl gap-4 px-4 pb-8 md:grid-cols-3">
-          {offers.slice(0, 3).map((offer) => <OfferCard key={offer.id} offer={offer} compact />)}
-        </section>
-      )}
+      {/* ── Everything below is HIDDEN while searching ── */}
+      {!isSearching && (
+        <>
+          {/* Offers */}
+          {offers.length > 0 && (
+            <section className="mx-auto grid w-full max-w-6xl gap-4 px-4 pb-8 md:grid-cols-3">
+              {offers.slice(0, 3).map((offer) => <OfferCard key={offer.id} offer={offer} compact />)}
+            </section>
+          )}
 
-      <section className="mx-auto w-full max-w-6xl px-4 pb-8">
-        <div className="flex gap-3 overflow-x-auto pb-3">
-          {['All', ...categories.map((c) => c.name)].map((name) => (
-            name === 'All' ? (
-              <button
-                key={name}
-                type="button"
-                onClick={() => setActiveCategory(name)}
-                className={`shrink-0 rounded-full border px-5 py-2 text-base font-semibold transition ${activeCategory === name ? 'border-[#c9a84c] bg-[#c9a84c] text-white' : 'border-[#ede8df] bg-white text-[#6b5544]'}`}
-              >
-                {name}
-              </button>
-            ) : (
-              <Link
-                key={name}
-                href={categoryPath(name)}
-                className="shrink-0 rounded-full border border-[#ede8df] bg-white px-5 py-2 text-base font-semibold text-[#6b5544] transition hover:border-[#c9a84c] hover:text-[#a07a28]"
-              >
-                {name}
-              </Link>
-            )
-          ))}
-        </div>
-      </section>
+          {/* Category pill filters */}
+          <section className="mx-auto w-full max-w-6xl px-4 pb-8">
+            <div className="flex gap-3 overflow-x-auto pb-3">
+              {['All', ...categories.map((c) => c.name)].map((name) => (
+                name === 'All' ? (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => setActiveCategory(name)}
+                    className={`shrink-0 rounded-full border px-5 py-2 text-base font-semibold transition ${activeCategory === name ? 'border-[#c9a84c] bg-[#c9a84c] text-white' : 'border-[#ede8df] bg-white text-[#6b5544]'}`}
+                  >
+                    {name}
+                  </button>
+                ) : (
+                  <Link
+                    key={name}
+                    href={categoryPath(name)}
+                    className="shrink-0 rounded-full border border-[#ede8df] bg-white px-5 py-2 text-base font-semibold text-[#6b5544] transition hover:border-[#c9a84c] hover:text-[#a07a28]"
+                  >
+                    {name}
+                  </Link>
+                )
+              ))}
+            </div>
+          </section>
 
-      <section className="mx-auto w-full max-w-6xl px-4 pb-12">
-        <h2 className="text-4xl font-bold text-[#c9a84c]">Shop by Category</h2>
-        <div className="mt-5 grid grid-cols-2 gap-4 md:grid-cols-4">
-          {categories.map((category) => (
-            <Link key={category.id || category.name} href={categoryPath(category.name)} className="group relative aspect-[4/5] overflow-hidden rounded bg-white text-left shadow-sm ring-1 ring-[#ede8df]">
-              {imageOf(category) ? <img src={imageOf(category)} alt={category.name} className="h-full w-full object-cover transition group-hover:scale-105" /> : <div className="h-full w-full bg-[#f5f0e8]" />}
-              <div className="absolute inset-0 bg-gradient-to-t from-[#2c1f14]/80 to-transparent" />
-              <span className="absolute bottom-4 left-4 right-4 text-2xl font-bold text-white">{category.name}</span>
-            </Link>
-          ))}
-        </div>
-      </section>
+          {/* Shop by Category grid */}
+          <section className="mx-auto w-full max-w-6xl px-4 pb-12">
+            <h2 className="text-4xl font-bold text-[#c9a84c]">Shop by Category</h2>
+            <div className="mt-5 grid grid-cols-2 gap-4 md:grid-cols-4">
+              {categories.map((category) => (
+                <Link key={category.id || category.name} href={categoryPath(category.name)} className="group relative aspect-[4/5] overflow-hidden rounded bg-white text-left shadow-sm ring-1 ring-[#ede8df]">
+                  {imageOf(category) ? <img src={imageOf(category)} alt={category.name} className="h-full w-full object-cover transition group-hover:scale-105" /> : <div className="h-full w-full bg-[#f5f0e8]" />}
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#2c1f14]/80 to-transparent" />
+                  <span className="absolute bottom-4 left-4 right-4 text-2xl font-bold text-white">{category.name}</span>
+                </Link>
+              ))}
+            </div>
+          </section>
 
-      <section className="mx-auto w-full max-w-6xl px-4 pb-12">
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <h2 className="text-4xl font-bold text-[#c9a84c]">
-              {query ? `Search: "${query}"` : activeCategory === 'All' ? 'Featured Products' : activeCategory}
-            </h2>
-            <p className="mt-1 text-lg text-[#8a7060]">Premium picks from SETHI PURSE Jalandhar.</p>
-          </div>
-          <Link href="/products" className="hidden text-lg font-semibold text-[#a07a28] hover:underline md:inline">View all</Link>
-        </div>
-        <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {loading ? (
-            Array.from({ length: 6 }).map((_, index) => <SkeletonCard key={index} />)
-          ) : filteredProducts.length === 0 ? (
-            <div className="col-span-full rounded bg-white p-10 text-center ring-1 ring-[#ede8df]">
-              <Sparkles className="mx-auto h-10 w-10 text-[#c9a84c]" />
-              <h3 className="mt-3 text-2xl font-bold">No products found</h3>
-              <p className="mt-1 text-[#8a7060]">Try another search or category.</p>
-              {(query || activeCategory !== 'All') && (
-                <button
-                  type="button"
-                  onClick={() => { setQuery(''); setActiveCategory('All'); }}
-                  className="mt-4 rounded bg-[#c9a84c] px-6 py-2 text-base font-semibold text-white hover:bg-[#a07a28]"
-                >
-                  Clear filters
-                </button>
+          {/* Featured Products */}
+          <section className="mx-auto w-full max-w-6xl px-4 pb-12">
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <h2 className="text-4xl font-bold text-[#c9a84c]">
+                  {activeCategory === 'All' ? 'Featured Products' : activeCategory}
+                </h2>
+                <p className="mt-1 text-lg text-[#8a7060]">Premium picks from SETHI PURSE Jalandhar.</p>
+              </div>
+              <Link href="/products" className="hidden text-lg font-semibold text-[#a07a28] hover:underline md:inline">View all</Link>
+            </div>
+            <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {loading ? (
+                Array.from({ length: 6 }).map((_, index) => <SkeletonCard key={index} />)
+              ) : filteredProducts.length === 0 ? (
+                <div className="col-span-full rounded bg-white p-10 text-center ring-1 ring-[#ede8df]">
+                  <Sparkles className="mx-auto h-10 w-10 text-[#c9a84c]" />
+                  <h3 className="mt-3 text-2xl font-bold">No products found</h3>
+                  <p className="mt-1 text-[#8a7060]">Try another category.</p>
+                  {activeCategory !== 'All' && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveCategory('All')}
+                      className="mt-4 rounded bg-[#c9a84c] px-6 py-2 text-base font-semibold text-white hover:bg-[#a07a28]"
+                    >
+                      Show all products
+                    </button>
+                  )}
+                </div>
+              ) : (
+                filteredProducts.slice(0, 9).map((product) => (
+                  <ProductCard key={product.id} product={product} onAddToCart={addToCart} />
+                ))
               )}
             </div>
-          ) : (
-            filteredProducts.slice(0, 9).map((product) => (
-              <ProductCard key={product.id} product={product} onAddToCart={addToCart} />
-            ))
-          )}
-        </div>
-      </section>
+          </section>
 
-      {reviews.length > 0 && (
-        <section className="bg-[#f5f0e8] py-12">
-          <div className="mx-auto w-full max-w-6xl px-4">
-            <h2 className="text-4xl font-bold text-[#c9a84c]">Customer Reviews</h2>
-            <div className="mt-6 grid gap-5 md:grid-cols-3">
-              {reviews.slice(0, 3).map((review) => <ReviewCard key={review.id} review={review} />)}
-            </div>
-          </div>
-        </section>
+          {/* Reviews */}
+          {reviews.length > 0 && (
+            <section className="bg-[#f5f0e8] py-12">
+              <div className="mx-auto w-full max-w-6xl px-4">
+                <h2 className="text-4xl font-bold text-[#c9a84c]">Customer Reviews</h2>
+                <div className="mt-6 grid gap-5 md:grid-cols-3">
+                  {reviews.slice(0, 3).map((review) => <ReviewCard key={review.id} review={review} />)}
+                </div>
+              </div>
+            </section>
+          )}
+        </>
       )}
 
+      {/* Mobile menu */}
       {menuOpen && (
         <div className="fixed inset-0 z-50 bg-[#2c1f14]/35" onClick={() => setMenuOpen(false)}>
           <aside className="h-full w-[310px] bg-white p-6 shadow-xl" onClick={(event) => event.stopPropagation()}>
@@ -262,6 +319,7 @@ export default function HomePageClient({ initialSlides = [] }) {
         </div>
       )}
 
+      {/* Cart drawer */}
       {cartOpen && (
         <div className="fixed inset-0 bg-[#2c1f14]/50" onClick={() => setCartOpen(false)} style={{ zIndex: 9998 }}>
           <aside
