@@ -9,7 +9,7 @@ function getDaysLeft(expiryDate) {
   return diff;
 }
 
-function UrgencyBadge({ daysLeft }) {
+function UrgencyBadge({ daysLeft, expiryDate }) {
   if (daysLeft === null) return null;
   if (daysLeft < 0) return (
     <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-500">
@@ -33,7 +33,7 @@ function UrgencyBadge({ daysLeft }) {
   );
   return (
     <span className="inline-flex items-center gap-1 text-xs text-[#8a7060]">
-      <Clock className="w-3 h-3" /> Valid till {formatDateShort(expiryDate)}
+      <Clock className="w-3 h-3" /> Valid till {expiryDate ? formatDateShort(expiryDate) : ''}
     </span>
   );
 }
@@ -47,7 +47,6 @@ export default function OfferCard({ offer, compact = false }) {
   const daysLeft = getDaysLeft(expiryDate);
   const isExpired = daysLeft !== null && daysLeft < 0;
 
-  // Rich WhatsApp message with offer details
   const waMsg = `Hi SETHI PURSE! 👋
 
 I want to claim this offer:
@@ -58,18 +57,18 @@ Please confirm availability and help me avail this deal. Thank you!`;
   return (
     <article className={`card-sethi overflow-hidden flex flex-col h-full ${isExpired ? 'opacity-60' : ''}`}>
 
-      {/* ── Banner Image ── */}
+      {/* Banner Image */}
       <div className="relative aspect-[16/9] bg-[#f5f0e8] overflow-hidden">
         <span className="absolute top-3 left-3 z-10 inline-flex items-center gap-1 bg-[#c9a84c] text-white text-[11px] font-bold px-2.5 py-1 rounded-sm tracking-wider">
           <Tag className="w-3 h-3" /> OFFER
         </span>
 
-        {/* Urgency ribbon — top right */}
         {daysLeft !== null && daysLeft <= 3 && daysLeft >= 0 && (
           <span className="absolute top-3 right-3 z-10 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-sm">
             {daysLeft === 0 ? 'LAST DAY' : `${daysLeft}D LEFT`}
           </span>
         )}
+
         {isExpired && (
           <div className="absolute inset-0 z-10 bg-black/40 flex items-center justify-center">
             <span className="bg-red-500 text-white text-sm font-bold px-4 py-2 rounded">EXPIRED</span>
@@ -91,22 +90,19 @@ Please confirm availability and help me avail this deal. Thank you!`;
         )}
       </div>
 
-      {/* ── Content ── */}
+      {/* Content */}
       <div className="p-5 md:p-6 flex flex-col flex-1">
 
-        {/* Title */}
         <h3 className="font-serif text-xl md:text-2xl leading-snug text-[#2c1f14]">
           {offer.title}
         </h3>
 
-        {/* Description — always show, not just when !compact */}
         {offer.description && (
           <p className="mt-2 text-[#6b5544] text-sm md:text-base leading-relaxed line-clamp-3">
             {offer.description}
           </p>
         )}
 
-        {/* What you get — highlight box */}
         {offer.discount_label && (
           <div className="mt-3 bg-[#faf8f4] border border-[#e8d5a3] rounded px-3 py-2 flex items-center gap-2">
             <Tag className="w-4 h-4 text-[#c9a84c] shrink-0" />
@@ -114,17 +110,15 @@ Please confirm availability and help me avail this deal. Thank you!`;
           </div>
         )}
 
-        {/* Validity + urgency */}
         <div className="mt-3 flex items-center justify-between gap-2 flex-wrap">
           <UrgencyBadge daysLeft={daysLeft} expiryDate={expiryDate} />
-          {expiryDate && daysLeft > 7 && (
+          {expiryDate && daysLeft !== null && daysLeft > 7 && (
             <span className="text-xs text-[#8a7060]">
               Valid till {formatDateShort(expiryDate)}
             </span>
           )}
         </div>
 
-        {/* Terms & Conditions toggle — only if terms exist */}
         {offer.terms && (
           <div className="mt-3 border-t border-[#ede8df] pt-3">
             <button
@@ -141,10 +135,8 @@ Please confirm availability and help me avail this deal. Thank you!`;
           </div>
         )}
 
-        {/* Spacer */}
         <div className="flex-1" />
 
-        {/* CTA Button */}
         <a
           href={isExpired ? undefined : buildWhatsAppLink(waMsg)}
           target="_blank"
@@ -161,7 +153,6 @@ Please confirm availability and help me avail this deal. Thank you!`;
           {isExpired ? 'Offer Expired' : 'Chat on WhatsApp to Claim →'}
         </a>
 
-        {/* Trust line below button */}
         {!isExpired && (
           <p className="mt-2 text-center text-[11px] text-[#8a7060]">
             🔒 No payment needed • Just chat with us
