@@ -147,13 +147,34 @@ function ImageGallery({ images, alt }) {
   const [isMobile, setIsMobile] = useState(false);
   const [preloadedSrc, setPreloadedSrc] = useState(null);
   const touchStartRef = useRef(null);
+  const autoSlideRef = useRef(null); // track auto-slide timer
 
   useEffect(() => {
     setIsMobile('ontouchstart' in window || navigator.maxTouchPoints > 0);
   }, []);
 
-  const prev = () => setCurrent((c) => (c - 1 + images.length) % images.length);
-  const next = () => setCurrent((c) => (c + 1) % images.length);
+  // ── AUTO-SLIDE: every 3s, only when 2+ images ──
+  useEffect(() => {
+    if (images.length <= 1) return;
+    autoSlideRef.current = setInterval(() => {
+      setCurrent((c) => (c + 1) % images.length);
+    }, 3000);
+    return () => clearInterval(autoSlideRef.current);
+  }, [images.length]);
+
+  // Reset auto-slide timer when user manually changes image
+  const goTo = (index) => {
+    clearInterval(autoSlideRef.current);
+    setCurrent(index);
+    if (images.length > 1) {
+      autoSlideRef.current = setInterval(() => {
+        setCurrent((c) => (c + 1) % images.length);
+      }, 3000);
+    }
+  };
+
+  const prev = () => goTo((current - 1 + images.length) % images.length);
+  const next = () => goTo((current + 1) % images.length);
 
   const openFullscreen = (src) => {
     const preloader = new window.Image();
@@ -181,7 +202,7 @@ function ImageGallery({ images, alt }) {
   };
 
   const handleDesktopClick = () => {
-    if (isMobile) return; // mobile uses touch handler instead
+    if (isMobile) return;
     openFullscreen(images[current]);
   };
 
@@ -208,6 +229,13 @@ function ImageGallery({ images, alt }) {
           </span>
         )}
 
+        {/* Image counter badge */}
+        {images.length > 1 && (
+          <span className="absolute top-3 right-3 rounded-full bg-black/50 px-2.5 py-1 text-xs text-white pointer-events-none font-semibold">
+            {current + 1} / {images.length}
+          </span>
+        )}
+
         {images.length > 1 && (
           <>
             <button
@@ -226,13 +254,28 @@ function ImageGallery({ images, alt }) {
         )}
       </div>
 
+      {/* Thumbnail strip */}
       {images.length > 1 && (
         <div className="grid grid-cols-5 gap-2">
           {images.map((img, idx) => (
-            <button key={idx} type="button" onClick={() => setCurrent(idx)}
+            <button key={idx} type="button" onClick={() => goTo(idx)}
               className={`relative aspect-square overflow-hidden rounded bg-white ring-2 transition-all duration-200 ${current === idx ? 'ring-[#c9a84c] scale-105' : 'ring-[#ede8df] hover:ring-[#c9a84c]'}`}>
               {img && <Image src={img} alt="" fill sizes="10vw" className="object-cover" />}
             </button>
+          ))}
+        </div>
+      )}
+
+      {/* Dots */}
+      {images.length > 1 && (
+        <div className="flex justify-center gap-1.5 pt-1">
+          {images.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => goTo(i)}
+              className={`h-1.5 rounded-full transition-all duration-300 ${i === current ? 'w-5 bg-[#c9a84c]' : 'w-2 bg-[#ddd0be]'}`}
+              aria-label={`Image ${i + 1}`}
+            />
           ))}
         </div>
       )}
