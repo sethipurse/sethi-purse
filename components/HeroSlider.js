@@ -11,7 +11,15 @@ export default function HeroSlider({ cartCount = 0, onMenuClick, onCartClick }) 
   const [current, setCurrent] = useState(0);
   const [animating, setAnimating] = useState(false);
   const [direction, setDirection] = useState('right');
+  const [scrolled, setScrolled] = useState(false);
   const animRef = useRef(false);
+
+  // Detect scroll to add shadow to sticky header
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 10);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   // 4s timeout so loading never hangs forever
   useEffect(() => {
@@ -56,9 +64,27 @@ export default function HeroSlider({ cartCount = 0, onMenuClick, onCartClick }) 
     return () => clearInterval(t);
   }, [slides.length]);
 
-  const Header = () => (
-    <div style={S.header}>
-      <button onClick={onMenuClick} style={S.iconBtn} aria-label="Menu"><Menu size={22} color="#4a3728" /></button>
+  // ── Sticky Header — fixed to top of screen, full width ──
+  const StickyHeader = () => (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 1000,
+      background: '#faf8f4',
+      borderBottom: scrolled ? '1px solid #ede8df' : '1px solid transparent',
+      boxShadow: scrolled ? '0 2px 12px rgba(44,31,20,0.10)' : 'none',
+      transition: 'box-shadow 0.3s ease, border-color 0.3s ease',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: '14px 20px',
+      maxWidth: '100%',
+    }}>
+      <button onClick={onMenuClick} style={S.iconBtn} aria-label="Menu">
+        <Menu size={22} color="#4a3728" />
+      </button>
       <div style={S.brand}>
         <span style={S.brandName}>SETHI PURSE</span>
         <span style={S.brandSub}>JALANDHAR</span>
@@ -70,19 +96,26 @@ export default function HeroSlider({ cartCount = 0, onMenuClick, onCartClick }) 
     </div>
   );
 
-  // Shimmer skeleton — no "Loading..." text
+  // Shimmer skeleton
   if (loading) {
     return (
-      <div style={S.card}>
-        <Header />
-        <div style={S.shimmer} />
-        <style>{`@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
-      </div>
+      <>
+        <StickyHeader />
+        <div style={{ ...S.card, marginTop: 56 }}>
+          <div style={S.shimmer} />
+          <style>{`@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
+        </div>
+      </>
     );
   }
 
   if (slides.length === 0) {
-    return <div style={S.card}><Header /></div>;
+    return (
+      <>
+        <StickyHeader />
+        <div style={{ ...S.card, marginTop: 56 }} />
+      </>
+    );
   }
 
   const slide = slides[current];
@@ -91,75 +124,75 @@ export default function HeroSlider({ cartCount = 0, onMenuClick, onCartClick }) 
   const categoryLink = slide.category ? categoryPath(slide.category) : '/products';
 
   return (
-    <div style={S.card}>
-      <Header />
+    <>
+      {/* Sticky header always on top */}
+      <StickyHeader />
 
-      <div style={S.slideArea}>
-        {/* ── Text block — left side, sits in front of image ── */}
-        <div style={S.textBlock}>
-          {slide.category && <p style={S.category}>{slide.category}</p>}
-          <div style={S.goldRule} />
+      {/* Push content down so it's not hidden behind sticky header */}
+      <div style={{ ...S.card, marginTop: 56 }}>
+        <div style={S.slideArea}>
+          {/* Text block */}
+          <div style={S.textBlock}>
+            {slide.category && <p style={S.category}>{slide.category}</p>}
+            <div style={S.goldRule} />
+            <h1 style={S.headline}>{slide.headline || 'Shop Now'}</h1>
+            <Link href={categoryLink} style={{ textDecoration: 'none' }}>
+              <div style={S.shopBtn}>Shop Now →</div>
+            </Link>
+          </div>
 
-          {/* Headline — single line, no wrap */}
-          <h1 style={S.headline}>{slide.headline || 'Shop Now'}</h1>
-
-          {/* Shop Now button */}
+          {/* Product image */}
           <Link href={categoryLink} style={{ textDecoration: 'none' }}>
-            <div style={S.shopBtn}>Shop Now →</div>
+            <div style={{
+              ...S.imageWrap,
+              opacity: animating ? 0 : 1,
+              transform: animating ? `translateX(${direction === 'right' ? '40px' : '-40px'})` : 'translateX(0)',
+              transition: 'opacity 0.35s ease, transform 0.35s ease',
+            }}>
+              {slide.image_url && (
+                <Image
+                  src={slide.image_url}
+                  alt={slide.category || slide.headline || 'Slide'}
+                  fill
+                  style={{ objectFit: 'contain', objectPosition: 'center bottom' }}
+                  priority={current === 0}
+                  unoptimized
+                />
+              )}
+            </div>
           </Link>
+
+          {/* Arrows + Dots */}
+          {slides.length > 1 && (
+            <>
+              <button onClick={prev} style={{ ...S.arrow, ...S.arrowLeft }} aria-label="Previous">
+                <ChevronLeft size={13} color="#4a3728" />
+              </button>
+              <button onClick={next} style={{ ...S.arrow, ...S.arrowRight }} aria-label="Next">
+                <ChevronRight size={13} color="#fff" />
+              </button>
+              <div style={S.dots}>
+                {slides.map((_, i) => (
+                  <button key={i} onClick={() => go(i, i > current ? 'right' : 'left')}
+                    style={{ ...S.dot, ...(i === current ? S.dotActive : {}) }}
+                    aria-label={`Slide ${i + 1}`} />
+                ))}
+              </div>
+            </>
+          )}
         </div>
 
-        {/* ── Product image — right side, absolute ── */}
-        <Link href={categoryLink} style={{ textDecoration: 'none' }}>
-          <div style={{
-            ...S.imageWrap,
-            opacity: animating ? 0 : 1,
-            transform: animating ? `translateX(${direction === 'right' ? '40px' : '-40px'})` : 'translateX(0)',
-            transition: 'opacity 0.35s ease, transform 0.35s ease',
-          }}>
-            {slide.image_url && (
-              <Image
-                src={slide.image_url}
-                alt={slide.category || slide.headline || 'Slide'}
-                fill
-                style={{ objectFit: 'contain', objectPosition: 'center bottom' }}
-                priority={current === 0}
-                unoptimized
-              />
-            )}
-          </div>
-        </Link>
-
-        {/* ── Arrows + Dots ── */}
-        {slides.length > 1 && (
-          <>
-            <button onClick={prev} style={{ ...S.arrow, ...S.arrowLeft }} aria-label="Previous">
-              <ChevronLeft size={13} color="#4a3728" />
-            </button>
-            <button onClick={next} style={{ ...S.arrow, ...S.arrowRight }} aria-label="Next">
-              <ChevronRight size={13} color="#fff" />
-            </button>
-            <div style={S.dots}>
-              {slides.map((_, i) => (
-                <button key={i} onClick={() => go(i, i > current ? 'right' : 'left')}
-                  style={{ ...S.dot, ...(i === current ? S.dotActive : {}) }}
-                  aria-label={`Slide ${i + 1}`} />
-              ))}
+        {/* Badges */}
+        <div style={S.badges}>
+          {badgeLabels.slice(0, 3).map((label, i) => (
+            <div key={i} style={S.badgeItem}>
+              <span style={S.badgeIcon}>{['🚚', '🛡️', '↩️'][i] || '✨'}</span>
+              <span style={S.badgeLabel}>{label}</span>
             </div>
-          </>
-        )}
+          ))}
+        </div>
       </div>
-
-      {/* Badges */}
-      <div style={S.badges}>
-        {badgeLabels.slice(0, 3).map((label, i) => (
-          <div key={i} style={S.badgeItem}>
-            <span style={S.badgeIcon}>{['🚚', '🛡️', '↩️'][i] || '✨'}</span>
-            <span style={S.badgeLabel}>{label}</span>
-          </div>
-        ))}
-      </div>
-    </div>
+    </>
   );
 }
 
@@ -170,10 +203,6 @@ const S = {
     boxShadow: '0 8px 40px rgba(74,55,40,0.13)',
     fontFamily: "'Cormorant Garamond','Georgia',serif",
     display: 'flex', flexDirection: 'column',
-  },
-  header: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '18px 20px 10px', background: '#faf8f4',
   },
   iconBtn: { background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center' },
   brand: { display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 },
@@ -195,7 +224,6 @@ const S = {
     padding: '0 0 52px 0',
   },
 
-  // Text block — 72% wide (was 58%), gives headline enough room
   textBlock: {
     padding: '20px 0 0 22px',
     position: 'relative', zIndex: 2,
@@ -209,16 +237,15 @@ const S = {
   },
   goldRule: { width: 28, height: 1.5, background: '#c9a84c', marginBottom: 10 },
 
-  // Headline — smaller font + nowrap = always single line
   headline: {
     fontFamily: "'Cormorant Garamond','Georgia',serif",
     fontWeight: 700,
-    fontSize: 22,           // was 40 — reduced so it fits one line
+    fontSize: 22,
     lineHeight: 1.1,
     color: '#2c1f14',
     margin: '0 0 16px 0',
     letterSpacing: '-0.01em',
-    whiteSpace: 'nowrap',   // key fix — no wrapping
+    whiteSpace: 'nowrap',
   },
 
   shopBtn: {
