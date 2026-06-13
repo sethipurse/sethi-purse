@@ -86,8 +86,6 @@ export default function HeroSlider({ cartCount = 0, onMenuClick, onCartClick }) 
   }
 
   const slide = slides[current];
-  // Allow natural line breaks from admin (newline char), keep font large
-  const headlineLines = (slide.headline || 'Shop Now').split('\n').filter(Boolean);
   const badgeLabels = Array.isArray(slide.badge_labels) && slide.badge_labels.length > 0
     ? slide.badge_labels : ['Free Delivery', 'Premium Quality', 'Easy Returns'];
   const categoryLink = slide.category ? categoryPath(slide.category) : '/products';
@@ -97,19 +95,15 @@ export default function HeroSlider({ cartCount = 0, onMenuClick, onCartClick }) 
       <Header />
 
       <div style={S.slideArea}>
-        {/* ── Text block — left 58%, sits in front of image ── */}
+        {/* ── Text block — left side, sits in front of image ── */}
         <div style={S.textBlock}>
           {slide.category && <p style={S.category}>{slide.category}</p>}
           <div style={S.goldRule} />
 
-          {/* Headline — large, natural wrap, max 2 lines */}
-          <h1 style={S.headline}>
-            {headlineLines.map((line, i) => (
-              <span key={i}>{line}{i < headlineLines.length - 1 && <br />}</span>
-            ))}
-          </h1>
+          {/* Headline — single line, no wrap */}
+          <h1 style={S.headline}>{slide.headline || 'Shop Now'}</h1>
 
-          {/* Shop Now button — gold pill, directly under headline */}
+          {/* Shop Now button */}
           <Link href={categoryLink} style={{ textDecoration: 'none' }}>
             <div style={S.shopBtn}>Shop Now →</div>
           </Link>
@@ -188,7 +182,6 @@ const S = {
   cartBtn: { background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', position: 'relative' },
   badge: { position: 'absolute', top: 0, right: 0, background: '#c9a84c', color: '#fff', borderRadius: '50%', width: 16, height: 16, fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' },
 
-  // Shimmer skeleton for loading
   shimmer: {
     minHeight: 320,
     background: 'linear-gradient(90deg,#f0ebe3 25%,#e8e0d4 50%,#f0ebe3 75%)',
@@ -202,11 +195,11 @@ const S = {
     padding: '0 0 52px 0',
   },
 
-  // Text left column — 58% wide, sits above image (zIndex 2)
+  // Text block — 72% wide (was 58%), gives headline enough room
   textBlock: {
     padding: '20px 0 0 22px',
     position: 'relative', zIndex: 2,
-    width: '58%',
+    width: '72%',
   },
 
   category: {
@@ -216,19 +209,18 @@ const S = {
   },
   goldRule: { width: 28, height: 1.5, background: '#c9a84c', marginBottom: 10 },
 
-  // Headline — large (40px), natural wrap up to 2 lines, NO truncation
+  // Headline — smaller font + nowrap = always single line
   headline: {
     fontFamily: "'Cormorant Garamond','Georgia',serif",
     fontWeight: 700,
-    fontSize: 40,
+    fontSize: 22,           // was 40 — reduced so it fits one line
     lineHeight: 1.1,
     color: '#2c1f14',
     margin: '0 0 16px 0',
     letterSpacing: '-0.01em',
-    // No whiteSpace:nowrap — let it wrap naturally to 2 lines, looks great
+    whiteSpace: 'nowrap',   // key fix — no wrapping
   },
 
-  // Shop Now — gold pill under headline
   shopBtn: {
     display: 'inline-block',
     background: '#c9a84c',
@@ -243,18 +235,16 @@ const S = {
     whiteSpace: 'nowrap',
   },
 
-  // Image — absolute, right side, behind text (zIndex 1)
   imageWrap: {
     position: 'absolute',
     bottom: 44,
-    left: '28%',  // starts at 28% so right 72% is image zone, overlaps slightly with text
+    left: '28%',
     right: 0,
     height: 300,
     zIndex: 1,
     cursor: 'pointer',
   },
 
-  // Arrows — 28×28 (compact)
   arrow: {
     position: 'absolute', bottom: 58,
     width: 28, height: 28, borderRadius: '50%',
