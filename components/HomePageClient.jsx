@@ -299,8 +299,16 @@ export default function HomePageClient({ initialSlides = [] }) {
 
       {/* Mobile menu */}
       {menuOpen && (
-        <div className="fixed inset-0 z-50 bg-[#2c1f14]/35" onClick={() => setMenuOpen(false)}>
-          <aside className="h-full w-[310px] bg-white p-6 shadow-xl" onClick={(event) => event.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 bg-[#2c1f14]/35"
+          style={{ animation: 'fadeIn 0.2s ease' }}
+          onClick={() => setMenuOpen(false)}
+        >
+          <aside
+            className="h-full w-[310px] bg-white p-6 shadow-xl"
+            style={{ animation: 'slideInLeft 0.3s ease', willChange: 'transform' }}
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-2xl font-bold tracking-[0.16em]">SETHI PURSE</div>
@@ -309,13 +317,21 @@ export default function HomePageClient({ initialSlides = [] }) {
               <button type="button" onClick={() => setMenuOpen(false)} aria-label="Close menu"><X className="h-6 w-6" /></button>
             </div>
             <nav className="mt-8 grid gap-3 text-xl font-semibold">
-              <Link href="/products">All Products</Link>
-              {categories.map((category) => <Link key={category.id || category.name} href={categoryPath(category.name)}>{category.name}</Link>)}
-              <Link href="/offers">Offers</Link>
-              <Link href="/reviews">Reviews</Link>
-              <Link href="/contact">Contact</Link>
+              <Link href="/products" onClick={() => setMenuOpen(false)}>All Products</Link>
+              {categories.map((category) => (
+                <Link key={category.id || category.name} href={categoryPath(category.name)} onClick={() => setMenuOpen(false)}>
+                  {category.name}
+                </Link>
+              ))}
+              <Link href="/offers" onClick={() => setMenuOpen(false)}>Offers</Link>
+              <Link href="/reviews" onClick={() => setMenuOpen(false)}>Reviews</Link>
+              <Link href="/contact" onClick={() => setMenuOpen(false)}>Contact</Link>
             </nav>
           </aside>
+          <style>{`
+            @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+            @keyframes slideInLeft { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+          `}</style>
         </div>
       )}
 
