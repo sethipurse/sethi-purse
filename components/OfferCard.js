@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { ImageOff, MessageCircle, Clock, ChevronDown, ChevronUp, Tag } from 'lucide-react';
+import { ImageOff, MessageCircle, Clock, ChevronDown, ChevronUp, Tag, ShoppingBag } from 'lucide-react';
 import { buildWhatsAppLink, formatDateShort } from '@/lib/constants';
 
 function getDaysLeft(expiryDate) {
@@ -47,6 +47,14 @@ export default function OfferCard({ offer, compact = false }) {
   const daysLeft = getDaysLeft(expiryDate);
   const isExpired = daysLeft !== null && daysLeft < 0;
 
+  // ✅ Extract discount % from title or description
+  const discountMatch = (offer.title + ' ' + (offer.description || '')).match(/(\d+)\s*%\s*off/i);
+  const discountPercent = discountMatch ? discountMatch[1] : null;
+
+  // ✅ Extract prices if available
+  const originalPrice = offer.original_price || offer.mrp || null;
+  const offerPrice = offer.offer_price || offer.sale_price || null;
+
   const waMsg = `Hi SETHI PURSE! 👋
 
 I want to claim this offer:
@@ -57,13 +65,23 @@ Please confirm availability and help me avail this deal. Thank you!`;
   return (
     <article className={`card-sethi overflow-hidden flex flex-col h-full ${isExpired ? 'opacity-60' : ''}`}>
 
-      {/* Banner Image */}
-      <div className="relative aspect-[16/9] bg-[#f5f0e8] overflow-hidden">
+      {/* ✅ Banner Image — full 16:9, object-cover properly */}
+      <div className="relative bg-[#f5f0e8] overflow-hidden" style={{ aspectRatio: '16/9' }}>
+
+        {/* OFFER badge */}
         <span className="absolute top-3 left-3 z-10 inline-flex items-center gap-1 bg-[#c9a84c] text-white text-[11px] font-bold px-2.5 py-1 rounded-sm tracking-wider">
           <Tag className="w-3 h-3" /> OFFER
         </span>
 
-        {daysLeft !== null && daysLeft <= 3 && daysLeft >= 0 && (
+        {/* ✅ Big discount % badge on image */}
+        {discountPercent && (
+          <span className="absolute top-3 right-3 z-10 bg-red-600 text-white text-sm font-black px-3 py-1.5 rounded-sm shadow-lg">
+            {discountPercent}% OFF
+          </span>
+        )}
+
+        {/* Urgency badge when no discount % */}
+        {!discountPercent && daysLeft !== null && daysLeft <= 3 && daysLeft >= 0 && (
           <span className="absolute top-3 right-3 z-10 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-sm">
             {daysLeft === 0 ? 'LAST DAY' : `${daysLeft}D LEFT`}
           </span>
@@ -84,8 +102,9 @@ Please confirm availability and help me avail this deal. Thank you!`;
             className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 hover:scale-105"
           />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-[#c9a84c]">
-            <ImageOff className="w-12 h-12" />
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-[#c9a84c] gap-2 bg-gradient-to-br from-[#2c1f14] to-[#6b5544]">
+            <Tag className="w-12 h-12 text-[#c9a84c]" />
+            <span className="text-[#c9a84c] text-sm font-semibold">{offer.title}</span>
           </div>
         )}
       </div>
@@ -97,10 +116,31 @@ Please confirm availability and help me avail this deal. Thank you!`;
           {offer.title}
         </h3>
 
-        {offer.description && (
+        {!compact && offer.description && (
           <p className="mt-2 text-[#6b5544] text-sm md:text-base leading-relaxed line-clamp-3">
             {offer.description}
           </p>
+        )}
+
+        {/* ✅ Original price vs offer price */}
+        {(originalPrice || offerPrice) && (
+          <div className="mt-3 flex items-center gap-3">
+            {offerPrice && (
+              <span className="text-2xl font-bold text-[#2c1f14]">
+                Rs.{Number(offerPrice).toLocaleString('en-IN')}
+              </span>
+            )}
+            {originalPrice && (
+              <span className="text-base text-[#8a7060] line-through">
+                Rs.{Number(originalPrice).toLocaleString('en-IN')}
+              </span>
+            )}
+            {originalPrice && offerPrice && (
+              <span className="text-sm font-bold text-green-600">
+                Save Rs.{(Number(originalPrice) - Number(offerPrice)).toLocaleString('en-IN')}
+              </span>
+            )}
+          </div>
         )}
 
         {offer.discount_label && (
@@ -113,45 +153,47 @@ Please confirm availability and help me avail this deal. Thank you!`;
         <div className="mt-3 flex items-center justify-between gap-2 flex-wrap">
           <UrgencyBadge daysLeft={daysLeft} expiryDate={expiryDate} />
           {expiryDate && daysLeft !== null && daysLeft > 7 && (
-            <span className="text-xs text-[#8a7060]">
-              Valid till {formatDateShort(expiryDate)}
-            </span>
+            <span className="text-xs text-[#8a7060]">Valid till {formatDateShort(expiryDate)}</span>
           )}
         </div>
 
         {offer.terms && (
           <div className="mt-3 border-t border-[#ede8df] pt-3">
-            <button
-              type="button"
-              onClick={() => setTermsOpen((p) => !p)}
-              className="flex items-center gap-1 text-xs text-[#8a7060] hover:text-[#2c1f14] transition-colors"
-            >
+            <button type="button" onClick={() => setTermsOpen((p) => !p)}
+              className="flex items-center gap-1 text-xs text-[#8a7060] hover:text-[#2c1f14] transition-colors">
               {termsOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
               Terms & Conditions
             </button>
-            {termsOpen && (
-              <p className="mt-2 text-xs text-[#8a7060] leading-relaxed">{offer.terms}</p>
-            )}
+            {termsOpen && <p className="mt-2 text-xs text-[#8a7060] leading-relaxed">{offer.terms}</p>}
           </div>
         )}
 
         <div className="flex-1" />
 
-        <a
-          href={isExpired ? undefined : buildWhatsAppLink(waMsg)}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-disabled={isExpired}
-          onClick={(e) => isExpired && e.preventDefault()}
-          className={`mt-5 w-full min-h-[48px] flex items-center justify-center gap-2 rounded text-sm font-bold transition-all
-            ${isExpired
-              ? 'bg-[#ede8df] text-[#8a7060] cursor-not-allowed pointer-events-none'
-              : 'bg-[#25D366] hover:bg-[#1ebe5c] active:scale-95 text-white'
-            }`}
-        >
-          <MessageCircle className="w-4 h-4" />
-          {isExpired ? 'Offer Expired' : 'Chat on WhatsApp to Claim →'}
-        </a>
+        {/* ✅ Two buttons — Shop Now + WhatsApp */}
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          <a
+            href="/products"
+            className="min-h-[48px] flex items-center justify-center gap-1.5 rounded border-2 border-[#c9a84c] text-[#c9a84c] text-sm font-bold hover:bg-[#c9a84c] hover:text-white transition-all active:scale-95"
+          >
+            <ShoppingBag className="w-4 h-4" /> Shop Now
+          </a>
+          <a
+            href={isExpired ? undefined : buildWhatsAppLink(waMsg)}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-disabled={isExpired}
+            onClick={(e) => isExpired && e.preventDefault()}
+            className={`min-h-[48px] flex items-center justify-center gap-1.5 rounded text-sm font-bold transition-all
+              ${isExpired
+                ? 'bg-[#ede8df] text-[#8a7060] cursor-not-allowed pointer-events-none'
+                : 'bg-[#25D366] hover:bg-[#1ebe5c] active:scale-95 text-white'
+              }`}
+          >
+            <MessageCircle className="w-4 h-4" />
+            {isExpired ? 'Expired' : 'Claim →'}
+          </a>
+        </div>
 
         {!isExpired && (
           <p className="mt-2 text-center text-[11px] text-[#8a7060]">
