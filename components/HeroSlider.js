@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ShoppingBag, Menu, ChevronLeft, ChevronRight } from 'lucide-react';
+import { categoryPath } from '@/lib/categoryUtils';
 
 export default function HeroSlider({ cartCount = 0, onMenuClick, onCartClick }) {
   const [slides, setSlides] = useState([]);
@@ -107,9 +108,9 @@ export default function HeroSlider({ cartCount = 0, onMenuClick, onCartClick }) 
     ? slide.badge_labels
     : ['Free Delivery', 'Premium Quality', 'Easy Returns'];
 
-  // Build category link
+  // FIX: use slug-based category path (same system as category pills on products page)
   const categoryLink = slide.category
-    ? `/products?category=${encodeURIComponent(slide.category)}`
+    ? categoryPath(slide.category)
     : '/products';
 
   return (
