@@ -38,16 +38,13 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <head>
-        {/* ✅ Disable pinch-to-zoom on mobile */}
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-
-        {/* Hard-coded fallback — guarantees og:image always appears in HTML */}
+        {/* FIX: removed user-scalable=no and maximum-scale=1 — these block scroll events on Android */}
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta property="og:image" content={OG_IMAGE} />
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
         <meta property="og:image:type" content="image/jpeg" />
         <meta name="twitter:image" content={OG_IMAGE} />
-
         {/* Google Analytics */}
         <script async src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} />
         <script
