@@ -18,9 +18,9 @@ export default function BackToTop() {
       if (timerRef.current) clearTimeout(timerRef.current);
 
       // Show after user stops scrolling for 800ms
-      // Only show if scrolled past 300px
+      // NO minimum scroll position — works on ALL pages any height
       timerRef.current = setTimeout(() => {
-        if (window.scrollY > 300) setShow(true);
+        setShow(true);
       }, 800);
     };
 
@@ -48,6 +48,8 @@ export default function BackToTop() {
       flexDirection: 'column',
       gap: '8px',
       transition: 'opacity 0.25s ease, transform 0.25s ease',
+      // FIX: ensure touch works on mobile
+      WebkitTapHighlightColor: 'transparent',
     }}>
       {/* Home — only on non-home pages */}
       {!isHome && (
@@ -64,6 +66,7 @@ export default function BackToTop() {
           boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
           textDecoration: 'none',
           gap: '2px',
+          WebkitTapHighlightColor: 'transparent',
         }}>
           <Home style={{ width: '18px', height: '18px' }} />
           <span style={{ fontSize: '8px', fontWeight: 700 }}>HOME</span>
@@ -88,6 +91,8 @@ export default function BackToTop() {
           border: 'none',
           cursor: 'pointer',
           gap: '2px',
+          WebkitTapHighlightColor: 'transparent',
+          touchAction: 'manipulation',
         }}>
         <ArrowUp style={{ width: '18px', height: '18px', strokeWidth: 2.5 }} />
         <span style={{ fontSize: '8px', fontWeight: 700 }}>TOP</span>
