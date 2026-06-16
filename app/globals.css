@@ -50,8 +50,8 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     animation: bodyFadeIn 0.4s ease both;
-    /* FIX: overflow-x clip on body only — does NOT break fixed/fullscreen like hidden does */
-    overflow-x: clip;
+    /* FIX: overflow-x hidden on body — clip breaks fixed positioning */
+    overflow-x: hidden;
   }
 
   /* Mobile sticky WhatsApp bar is 56px tall — reserve space so footer/CTAs aren't hidden */
