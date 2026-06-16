@@ -7,33 +7,27 @@ import Link from 'next/link';
 export default function BackToTop() {
   const pathname = usePathname() || '';
   const [show, setShow] = useState(false);
-  const lastScrollY = useRef(0);
-  const ticking = useRef(false);
+  const timerRef = useRef(null);
 
   useEffect(() => {
     const onScroll = () => {
-      if (ticking.current) return;
-      ticking.current = true;
-      requestAnimationFrame(() => {
-        const currentY = window.scrollY;
-        const scrollingDown = currentY > lastScrollY.current;
-        const pastTop = currentY > 200;
+      // User is scrolling — HIDE button
+      setShow(false);
 
-        // Show only when scrolling DOWN and past 200px
-        // Hide when scrolling UP or near top
-        if (scrollingDown && pastTop) {
-          setShow(true);
-        } else {
-          setShow(false);
-        }
+      // Clear previous timer
+      if (timerRef.current) clearTimeout(timerRef.current);
 
-        lastScrollY.current = currentY;
-        ticking.current = false;
-      });
+      // User stopped scrolling — SHOW button after 600ms
+      timerRef.current = setTimeout(() => {
+        setShow(true);
+      }, 600);
     };
 
     window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
   }, []);
 
   if (pathname.startsWith('/admin')) return null;
@@ -45,75 +39,49 @@ export default function BackToTop() {
       position: 'fixed',
       right: '16px',
       bottom: '24px',
+      zIndex: 9997,
       display: 'flex',
       flexDirection: 'column',
       gap: '10px',
-      zIndex: 9997,
-      transform: show ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.85)',
       opacity: show ? 1 : 0,
+      transform: show ? 'scale(1)' : 'scale(0.8)',
       pointerEvents: show ? 'auto' : 'none',
-      transition: 'opacity 0.3s ease, transform 0.3s ease',
+      transition: 'opacity 0.25s ease, transform 0.25s ease',
     }}>
-      {/* Home button — only on non-home pages */}
       {!isHome && (
-        <Link href="/" title="Go to Home" style={{
-          width: '52px',
-          height: '52px',
+        <Link href="/" style={{
+          width: '52px', height: '52px',
           borderRadius: '50%',
           background: '#2c1f14',
           color: '#c9a84c',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-          textDecoration: 'none',
-          gap: '2px',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+          textDecoration: 'none', gap: '2px',
           WebkitTapHighlightColor: 'transparent',
-          transition: 'transform 0.15s ease, box-shadow 0.15s ease',
-        }}
-        onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
-        onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-        >
+        }}>
           <Home style={{ width: '20px', height: '20px' }} />
-          <span style={{ fontSize: '8px', fontWeight: 800, letterSpacing: '0.05em' }}>HOME</span>
+          <span style={{ fontSize: '8px', fontWeight: 800 }}>HOME</span>
         </Link>
       )}
 
-      {/* Back to top button */}
       <button
         onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
         aria-label="Back to top"
-        title="Back to top"
         style={{
-          width: '52px',
-          height: '52px',
+          width: '52px', height: '52px',
           borderRadius: '50%',
           background: '#c9a84c',
           color: '#2c1f14',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
           boxShadow: '0 4px 20px rgba(201,168,76,0.5)',
-          border: 'none',
-          cursor: 'pointer',
-          gap: '2px',
+          border: 'none', cursor: 'pointer', gap: '2px',
           WebkitTapHighlightColor: 'transparent',
           touchAction: 'manipulation',
-          transition: 'transform 0.15s ease, box-shadow 0.15s ease',
-        }}
-        onMouseEnter={e => {
-          e.currentTarget.style.transform = 'scale(1.1)';
-          e.currentTarget.style.boxShadow = '0 6px 24px rgba(201,168,76,0.7)';
-        }}
-        onMouseLeave={e => {
-          e.currentTarget.style.transform = 'scale(1)';
-          e.currentTarget.style.boxShadow = '0 4px 20px rgba(201,168,76,0.5)';
-        }}
-      >
+        }}>
         <ArrowUp style={{ width: '20px', height: '20px', strokeWidth: 2.5 }} />
-        <span style={{ fontSize: '8px', fontWeight: 800, letterSpacing: '0.05em' }}>TOP</span>
+        <span style={{ fontSize: '8px', fontWeight: 800 }}>TOP</span>
       </button>
     </div>
   );
