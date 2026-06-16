@@ -61,12 +61,12 @@ export default function InstagramSection() {
         ) : (
           <div className="grid grid-cols-3 gap-2 md:gap-3">
             {posts.map((post, idx) => {
-              // Use Behold's resized image (works for both photos and reels)
+              // thumbnailUrl is the clean poster image without Instagram overlays
               const img =
-                post.sizes?.medium?.mediaUrl ||
-                post.sizes?.small?.mediaUrl ||
                 post.thumbnailUrl ||
                 post.thumbnail_url ||
+                post.sizes?.medium?.mediaUrl ||
+                post.sizes?.small?.mediaUrl ||
                 '';
               const caption = post.caption || '';
               const isReel = post.isReel || post.mediaType === 'VIDEO';
