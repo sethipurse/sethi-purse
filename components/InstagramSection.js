@@ -1,20 +1,26 @@
+'use client';
+import { useEffect, useState } from 'react';
 import { Instagram } from 'lucide-react';
 import { BUSINESS } from '@/lib/constants';
 
-const HANDLE = 'sethipurse';
+const FEED_URL = 'https://feeds.behold.so/sKoJf7qZWeS1nr1P4VwY';
 const PROFILE_URL = BUSINESS.instagram;
-
-// Static preview tiles — gold/dark pattern matching brand colors
-const TILES = [
-  { bg: '#2c1f14', text: '🧳', label: 'Trolley Bags' },
-  { bg: '#c9a84c', text: '👜', label: 'Handbags' },
-  { bg: '#6b5544', text: '🎒', label: 'Backpacks' },
-  { bg: '#2c1f14', text: '💼', label: 'Travel Bags' },
-  { bg: '#a07a28', text: '👛', label: 'Wallets' },
-  { bg: '#3d2b1c', text: '✨', label: 'New Arrivals' },
-];
+const HANDLE = 'sethipurse';
 
 export default function InstagramSection() {
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(FEED_URL)
+      .then((r) => r.json())
+      .then((data) => {
+        setPosts(Array.isArray(data) ? data.slice(0, 9) : []);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
   return (
     <section className="section-pad bg-[#faf8f4]">
       <div className="container-sethi">
@@ -38,34 +44,54 @@ export default function InstagramSection() {
           </a>
         </div>
 
-        {/* Tile grid */}
-        <div className="grid grid-cols-3 md:grid-cols-6 gap-2 md:gap-3">
-          {TILES.map((tile, idx) => (
-            <a
-              key={idx}
-              href={PROFILE_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group relative aspect-square rounded-sm overflow-hidden flex items-center justify-center transition-transform hover:-translate-y-1 hover:shadow-lg"
-              style={{ backgroundColor: tile.bg }}
-            >
-              <span className="text-4xl">{tile.text}</span>
-              {/* Hover overlay */}
-              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
-                <span className="text-white text-xs font-semibold">{tile.label}</span>
-              </div>
-              {/* Instagram icon on hover */}
-              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Instagram className="w-4 h-4 text-white" />
-              </div>
-            </a>
-          ))}
-        </div>
+        {/* Grid */}
+        {loading ? (
+          <div className="grid grid-cols-3 md:grid-cols-9 gap-2 md:gap-3">
+            {Array.from({ length: 9 }).map((_, i) => (
+              <div key={i} className="aspect-square rounded-sm bg-[#ede8df] animate-pulse" />
+            ))}
+          </div>
+        ) : posts.length === 0 ? (
+          <div className="text-center py-8 text-[#8a7060]">
+            <Instagram className="w-12 h-12 mx-auto mb-3 opacity-30" />
+            <p>Follow us on Instagram <a href={PROFILE_URL} target="_blank" rel="noopener noreferrer" className="text-[#c9a84c] font-semibold hover:underline">@{HANDLE}</a></p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 md:grid-cols-9 gap-2 md:gap-3">
+            {posts.map((post, idx) => {
+              const img = post.mediaUrl || post.thumbnailUrl || post.media_url || '';
+              const caption = post.caption || '';
+              return (
+                <a
+                  key={post.id || idx}
+                  href={post.permalink || PROFILE_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group relative aspect-square overflow-hidden rounded-sm bg-[#f5f0e8]"
+                >
+                  {img && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={img}
+                      alt={caption.slice(0, 60) || 'SETHI PURSE Instagram'}
+                      loading="lazy"
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    />
+                  )}
+                  {/* Hover overlay */}
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <Instagram className="w-6 h-6 text-white" />
+                  </div>
+                </a>
+              );
+            })}
+          </div>
+        )}
 
         {/* Bottom CTA */}
         <div className="mt-6 text-center">
           <p className="text-[#8a7060] text-sm">
-            See our latest collection, offers and customer photos →{' '}
+            See our latest collection and offers →{' '}
             <a href={PROFILE_URL} target="_blank" rel="noopener noreferrer" className="text-[#c9a84c] font-semibold hover:underline">
               @{HANDLE}
             </a>
