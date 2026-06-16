@@ -1,38 +1,24 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { ArrowUp } from 'lucide-react';
 
 export default function BackToTop() {
   const pathname = usePathname() || '';
   const [show, setShow] = useState(false);
+  const timer = useRef(null);
 
   useEffect(() => {
-    let lastY = window.scrollY;
-    let lastTime = Date.now();
-    let raf;
-
-    const check = () => {
-      const y = window.scrollY;
-      const now = Date.now();
-
-      if (y !== lastY) {
-        // Still scrolling — hide
-        lastY = y;
-        lastTime = now;
-        setShow(false);
-      } else if (now - lastTime > 200 && y > 50) {
-        // Scroll stopped 200ms ago and not at top — show
-        setShow(true);
-      } else if (y <= 50) {
-        setShow(false);
-      }
-
-      raf = requestAnimationFrame(check);
+    const onScroll = () => {
+      setShow(false);
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => setShow(true), 100);
     };
-
-    raf = requestAnimationFrame(check);
-    return () => cancelAnimationFrame(raf);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      clearTimeout(timer.current);
+    };
   }, []);
 
   if (pathname.startsWith('/admin')) return null;
@@ -62,7 +48,7 @@ export default function BackToTop() {
         opacity: show ? 1 : 0,
         transform: show ? 'scale(1)' : 'scale(0.7)',
         pointerEvents: show ? 'auto' : 'none',
-        transition: 'opacity 0.2s ease, transform 0.2s ease',
+        transition: 'opacity 0.15s ease, transform 0.15s ease',
       }}
     >
       <ArrowUp style={{ width: '22px', height: '22px', strokeWidth: 2.5 }} />
