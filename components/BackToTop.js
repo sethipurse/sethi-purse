@@ -1,26 +1,42 @@
 'use client';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { ArrowUp } from 'lucide-react';
 
 export default function BackToTop() {
   const pathname = usePathname() || '';
   const [show, setShow] = useState(false);
-  const timerRef = useRef(null);
 
   useEffect(() => {
+    const onScrollStart = () => setShow(false);
+    const onScrollEnd   = () => {
+      if (window.scrollY > 50) setShow(true);
+      else setShow(false);
+    };
+
+    // scrollend fires INSTANTLY when scroll stops — no delay
+    if ('onscrollend' in window) {
+      window.addEventListener('scroll',    onScrollStart, { passive: true });
+      window.addEventListener('scrollend', onScrollEnd,   { passive: true });
+      return () => {
+        window.removeEventListener('scroll',    onScrollStart);
+        window.removeEventListener('scrollend', onScrollEnd);
+      };
+    }
+
+    // Fallback for older browsers — 150ms barely noticeable
+    let timer;
     const onScroll = () => {
       setShow(false);
-      if (timerRef.current) clearTimeout(timerRef.current);
-      // Show when stopped — hide when at very top (< 50px)
-      timerRef.current = setTimeout(() => {
-        setShow(true);
-      }, 600);
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (window.scrollY > 50) setShow(true);
+      }, 150);
     };
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => {
       window.removeEventListener('scroll', onScroll);
-      if (timerRef.current) clearTimeout(timerRef.current);
+      clearTimeout(timer);
     };
   }, []);
 
@@ -32,7 +48,6 @@ export default function BackToTop() {
       aria-label="Back to top"
       style={{
         position: 'fixed',
-        // Mobile: above the sticky CTA bar (56px) + gap. Desktop: above WhatsApp (56px) + gap
         bottom: '80px',
         right: '16px',
         zIndex: 9997,
@@ -52,10 +67,10 @@ export default function BackToTop() {
         opacity: show ? 1 : 0,
         transform: show ? 'scale(1)' : 'scale(0.7)',
         pointerEvents: show ? 'auto' : 'none',
-        transition: 'opacity 0.25s ease, transform 0.25s ease',
+        transition: 'opacity 0.2s ease, transform 0.2s ease',
       }}
     >
-      <ArrowUp style={{ width: '20px', height: '20px', strokeWidth: 2.5 }} />
+      <ArrowUp style={{ width: '22px', height: '22px', strokeWidth: 2.5 }} />
     </button>
   );
 }
