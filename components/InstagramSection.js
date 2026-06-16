@@ -15,7 +15,6 @@ export default function InstagramSection() {
     fetch(FEED_URL)
       .then((r) => r.json())
       .then((data) => {
-        // Behold returns object with .posts array, or a direct array
         const arr = Array.isArray(data) ? data : (data.posts || []);
         setPosts(arr.slice(0, 9));
         setLoading(false);
@@ -61,12 +60,10 @@ export default function InstagramSection() {
         ) : (
           <div className="grid grid-cols-3 gap-2 md:gap-3">
             {posts.map((post, idx) => {
-              // thumbnailUrl is the clean poster image without Instagram overlays
+              // behold.pictures CDN = clean cropped images, no Instagram overlays
               const img =
-                post.thumbnailUrl ||
-                post.thumbnail_url ||
-                post.sizes?.medium?.mediaUrl ||
                 post.sizes?.small?.mediaUrl ||
+                post.sizes?.medium?.mediaUrl ||
                 '';
               const caption = post.caption || '';
               const isReel = post.isReel || post.mediaType === 'VIDEO';
