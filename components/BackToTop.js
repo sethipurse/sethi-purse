@@ -11,17 +11,16 @@ export default function BackToTop() {
 
   useEffect(() => {
     const onScroll = () => {
-      // Hide immediately when scrolling starts
-      setShow(false);
+      // Show immediately when scrolling starts
+      setShow(true);
 
       // Clear previous timer
       if (timerRef.current) clearTimeout(timerRef.current);
 
-      // Show after user stops scrolling for 800ms
-      // NO minimum scroll position — works on ALL pages any height
+      // Hide after user stops scrolling for 1 second
       timerRef.current = setTimeout(() => {
-        setShow(true);
-      }, 800);
+        setShow(false);
+      }, 1000);
     };
 
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -47,11 +46,8 @@ export default function BackToTop() {
       display: 'flex',
       flexDirection: 'column',
       gap: '8px',
-      transition: 'opacity 0.25s ease, transform 0.25s ease',
-      // FIX: ensure touch works on mobile
-      WebkitTapHighlightColor: 'transparent',
+      transition: 'opacity 0.2s ease, transform 0.2s ease',
     }}>
-      {/* Home — only on non-home pages */}
       {!isHome && (
         <Link href="/" style={{
           width: '48px',
@@ -73,7 +69,6 @@ export default function BackToTop() {
         </Link>
       )}
 
-      {/* Top */}
       <button
         onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
         aria-label="Back to top"
