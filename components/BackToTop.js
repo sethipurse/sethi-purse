@@ -29,10 +29,10 @@ export default function BackToTop() {
 
   return (
     <>
-      {/* ── Sticky "Go to Home" bar — appears at top when scrolled down ── */}
+      {/* ── Sticky "Go to Home" bar — appears below navbar when scrolled down ── */}
       <div
-        className={`fixed top-0 left-0 right-0 z-[9996] transition-all duration-300 ${
-          show ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-full pointer-events-none'
+        className={`fixed top-16 md:top-20 left-0 right-0 z-[9996] transition-all duration-300 ${
+          show ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none'
         }`}
       >
         <div className="flex items-center justify-between bg-[#2c1f14] px-4 py-2.5 shadow-lg">
