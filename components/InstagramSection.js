@@ -15,7 +15,9 @@ export default function InstagramSection() {
     fetch(FEED_URL)
       .then((r) => r.json())
       .then((data) => {
-        setPosts(Array.isArray(data) ? data.slice(0, 9) : []);
+        // Behold returns object with .posts array, or a direct array
+        const arr = Array.isArray(data) ? data : (data.posts || []);
+        setPosts(arr.slice(0, 9));
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -46,7 +48,7 @@ export default function InstagramSection() {
 
         {/* Grid */}
         {loading ? (
-          <div className="grid grid-cols-3 md:grid-cols-9 gap-2 md:gap-3">
+          <div className="grid grid-cols-3 gap-2 md:gap-3">
             {Array.from({ length: 9 }).map((_, i) => (
               <div key={i} className="aspect-square rounded-sm bg-[#ede8df] animate-pulse" />
             ))}
@@ -57,10 +59,18 @@ export default function InstagramSection() {
             <p>Follow us on Instagram <a href={PROFILE_URL} target="_blank" rel="noopener noreferrer" className="text-[#c9a84c] font-semibold hover:underline">@{HANDLE}</a></p>
           </div>
         ) : (
-          <div className="grid grid-cols-3 md:grid-cols-9 gap-2 md:gap-3">
+          <div className="grid grid-cols-3 gap-2 md:gap-3">
             {posts.map((post, idx) => {
-              const img = post.mediaUrl || post.thumbnailUrl || post.media_url || '';
+              // Use Behold's resized image (works for both photos and reels)
+              const img =
+                post.sizes?.medium?.mediaUrl ||
+                post.sizes?.small?.mediaUrl ||
+                post.thumbnailUrl ||
+                post.thumbnail_url ||
+                '';
               const caption = post.caption || '';
+              const isReel = post.isReel || post.mediaType === 'VIDEO';
+
               return (
                 <a
                   key={post.id || idx}
@@ -77,6 +87,14 @@ export default function InstagramSection() {
                       loading="lazy"
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                     />
+                  )}
+                  {/* Reel play icon */}
+                  {isReel && (
+                    <div className="absolute top-2 right-2 bg-black/50 rounded-full p-1">
+                      <svg className="w-3 h-3 text-white fill-white" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                    </div>
                   )}
                   {/* Hover overlay */}
                   <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
