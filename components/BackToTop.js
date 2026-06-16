@@ -12,9 +12,9 @@ export default function BackToTop() {
     const onScroll = () => {
       setShow(false);
       if (timerRef.current) clearTimeout(timerRef.current);
-      // Only show if scrolled more than 300px
+      // Show when stopped — hide when at very top (< 50px)
       timerRef.current = setTimeout(() => {
-        if (window.scrollY > 300) setShow(true);
+        setShow(true);
       }, 600);
     };
     window.addEventListener('scroll', onScroll, { passive: true });
