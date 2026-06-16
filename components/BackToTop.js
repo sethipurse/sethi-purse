@@ -8,36 +8,31 @@ export default function BackToTop() {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
-    const onScrollStart = () => setShow(false);
-    const onScrollEnd   = () => {
-      if (window.scrollY > 50) setShow(true);
-      else setShow(false);
+    let lastY = window.scrollY;
+    let lastTime = Date.now();
+    let raf;
+
+    const check = () => {
+      const y = window.scrollY;
+      const now = Date.now();
+
+      if (y !== lastY) {
+        // Still scrolling — hide
+        lastY = y;
+        lastTime = now;
+        setShow(false);
+      } else if (now - lastTime > 200 && y > 50) {
+        // Scroll stopped 200ms ago and not at top — show
+        setShow(true);
+      } else if (y <= 50) {
+        setShow(false);
+      }
+
+      raf = requestAnimationFrame(check);
     };
 
-    // scrollend fires INSTANTLY when scroll stops — no delay
-    if ('onscrollend' in window) {
-      window.addEventListener('scroll',    onScrollStart, { passive: true });
-      window.addEventListener('scrollend', onScrollEnd,   { passive: true });
-      return () => {
-        window.removeEventListener('scroll',    onScrollStart);
-        window.removeEventListener('scrollend', onScrollEnd);
-      };
-    }
-
-    // Fallback for older browsers — 150ms barely noticeable
-    let timer;
-    const onScroll = () => {
-      setShow(false);
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        if (window.scrollY > 50) setShow(true);
-      }, 150);
-    };
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', onScroll);
-      clearTimeout(timer);
-    };
+    raf = requestAnimationFrame(check);
+    return () => cancelAnimationFrame(raf);
   }, []);
 
   if (pathname.startsWith('/admin')) return null;
