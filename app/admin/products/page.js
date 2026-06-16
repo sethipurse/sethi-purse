@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import AdminShell from '@/components/AdminShell';
 import { toast } from 'sonner';
-import { Trash2, Edit, Plus, Search, CheckSquare, Square, Loader2, Package } from 'lucide-react';
+import { Trash2, Edit, Plus, Search, CheckSquare, Square, Loader2, Package, Star } from 'lucide-react';
 import { resolveImage } from '@/lib/constants';
 
 export default function AdminProductsPage() {
@@ -152,6 +152,30 @@ export default function AdminProductsPage() {
     }
   };
 
+  // ── Toggle Featured ──
+  const toggleFeatured = async (p) => {
+    const newFeatured = !(p.featured ?? false);
+    // Optimistic update
+    setProducts((prev) => prev.map((pr) => pr.id === p.id ? { ...pr, featured: newFeatured } : pr));
+    try {
+      const res = await fetch(`/api/products/${encodeURIComponent(p.id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...p, featured: newFeatured }),
+      });
+      if (!res.ok) {
+        // Revert on failure
+        setProducts((prev) => prev.map((pr) => pr.id === p.id ? { ...pr, featured: !newFeatured } : pr));
+        toast.error('Failed to update featured status');
+        return;
+      }
+      toast.success(newFeatured ? '⭐ Marked as Featured' : 'Removed from Featured');
+    } catch {
+      setProducts((prev) => prev.map((pr) => pr.id === p.id ? { ...pr, featured: !newFeatured } : pr));
+      toast.error('Network error');
+    }
+  };
+
   const selectedCount = selected.size;
 
   const StockCell = ({ p }) => {
@@ -252,14 +276,15 @@ export default function AdminProductsPage() {
                 <th className="px-4 py-3">
                   <span className="flex items-center gap-1">Stock <span className="text-[10px] normal-case tracking-normal text-sethi-gray400 font-normal">(click to edit)</span></span>
                 </th>
+                <th className="px-4 py-3">Featured</th>
                 <th className="px-4 py-3">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="8" className="text-center p-8 text-sethi-gray500">Loading...</td></tr>
+                <tr><td colSpan="9" className="text-center p-8 text-sethi-gray500">Loading...</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan="8" className="text-center p-8 text-sethi-gray500">No products found.</td></tr>
+                <tr><td colSpan="9" className="text-center p-8 text-sethi-gray500">No products found.</td></tr>
               ) : filtered.map((p) => (
                 <tr key={p.id} className={`border-t border-sethi-gray200 transition-colors ${selected.has(p.id) ? 'bg-sethi-gold/5' : 'hover:bg-sethi-gray100/50'}`}>
                   <td className="px-4 py-3">
@@ -276,6 +301,15 @@ export default function AdminProductsPage() {
                   <td className="px-4 py-3">{p.category}</td>
                   <td className="px-4 py-3 font-semibold">Rs.{p.salePrice ?? p.sale_price ?? p.price}</td>
                   <td className="px-4 py-3"><StockCell p={p} /></td>
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => toggleFeatured(p)}
+                      title={p.featured ? 'Remove from featured' : 'Mark as featured'}
+                      className={`flex items-center justify-center w-9 h-9 rounded-full transition-all ${p.featured ? 'bg-sethi-gold text-sethi-black' : 'bg-sethi-gray100 text-sethi-gray400 hover:bg-sethi-gold/20 hover:text-sethi-gold'}`}
+                    >
+                      <Star className={`w-4 h-4 ${p.featured ? 'fill-sethi-black' : ''}`} />
+                    </button>
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <Link href={`/admin/products/edit/${p.id}`} className="inline-flex items-center gap-1 border border-sethi-gold text-sethi-gold px-3 py-1 rounded-sm hover:bg-sethi-gold hover:text-sethi-black transition-colors">
@@ -321,7 +355,14 @@ export default function AdminProductsPage() {
                   <span className="font-semibold">Rs.{p.salePrice ?? p.sale_price ?? p.price}</span>
                   <StockCell p={p} />
                 </div>
-                <div className="flex gap-2 mt-2">
+                <div className="flex gap-2 mt-2 flex-wrap items-center">
+                  <button
+                    onClick={() => toggleFeatured(p)}
+                    className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${p.featured ? 'bg-sethi-gold text-sethi-black' : 'bg-sethi-gray100 text-sethi-gray500'}`}
+                  >
+                    <Star className={`w-3 h-3 ${p.featured ? 'fill-sethi-black' : ''}`} />
+                    {p.featured ? 'Featured' : 'Feature'}
+                  </button>
                   <Link href={`/admin/products/edit/${p.id}`} className="text-sm text-sethi-gold underline">Edit</Link>
                   <button onClick={() => setConfirm(p)} className="text-sm text-red-600 underline">Delete</button>
                 </div>
