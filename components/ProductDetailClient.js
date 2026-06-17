@@ -13,14 +13,26 @@ function rupee(value) {
   return `Rs.${Number(value || 0).toLocaleString('en-IN')}`;
 }
 
-function getImages(product) {
+function normalizeColors(product) {
+  const raw = product?.colors;
+  if (!Array.isArray(raw) || raw.length === 0) return [];
+  if (typeof raw[0] === 'object' && raw[0] !== null) {
+    return raw.map((c) => ({
+      name: c.name || '',
+      images: Array.isArray(c.images) ? c.images : [],
+      inStock: c.inStock !== false,
+    }));
+  }
+  return raw.map((name) => ({ name: String(name), images: [], inStock: true }));
+}
+
+function getDefaultImages(product) {
   const gallery = product.gallery_images || product.gallery || product.images || [];
   const parsed = Array.isArray(gallery) ? gallery : String(gallery || '').split(',').map((v) => v.trim()).filter(Boolean);
   const all = [resolveImage(product), ...parsed].filter(Boolean);
   return [...new Set(all)];
 }
 
-// ── Desktop Zoom ──────────────────────────────────────────────────────────────
 function ZoomImage({ src, alt }) {
   const containerRef = useRef(null);
   const [zoom, setZoom] = useState({ active: false, x: 50, y: 50 });
@@ -70,7 +82,6 @@ function ZoomImage({ src, alt }) {
   );
 }
 
-// ── Desktop/Mobile Fullscreen ─────────────────────────────────────────────────
 function FullscreenViewer({ src, alt, onClose }) {
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -140,29 +151,30 @@ function FullscreenViewer({ src, alt, onClose }) {
   );
 }
 
-// ── Image Gallery ─────────────────────────────────────────────────────────────
 function ImageGallery({ images, alt }) {
   const [current, setCurrent] = useState(0);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [preloadedSrc, setPreloadedSrc] = useState(null);
   const touchStartRef = useRef(null);
-  const autoSlideRef = useRef(null); // track auto-slide timer
+  const autoSlideRef = useRef(null);
 
   useEffect(() => {
     setIsMobile('ontouchstart' in window || navigator.maxTouchPoints > 0);
   }, []);
 
-  // ── AUTO-SLIDE: every 3s, only when 2+ images ──
+  useEffect(() => {
+    setCurrent(0);
+  }, [images]);
+
   useEffect(() => {
     if (images.length <= 1) return;
     autoSlideRef.current = setInterval(() => {
       setCurrent((c) => (c + 1) % images.length);
     }, 3000);
     return () => clearInterval(autoSlideRef.current);
-  }, [images.length]);
+  }, [images.length, images]);
 
-  // Reset auto-slide timer when user manually changes image
   const goTo = (index) => {
     clearInterval(autoSlideRef.current);
     setCurrent(index);
@@ -185,10 +197,7 @@ function ImageGallery({ images, alt }) {
   };
 
   const handleTouchStart = (e) => {
-    touchStartRef.current = {
-      x: e.touches[0].clientX,
-      y: e.touches[0].clientY,
-    };
+    touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
   };
 
   const handleTouchEnd = (e) => {
@@ -196,9 +205,7 @@ function ImageGallery({ images, alt }) {
     const dx = Math.abs(e.changedTouches[0].clientX - touchStartRef.current.x);
     const dy = Math.abs(e.changedTouches[0].clientY - touchStartRef.current.y);
     touchStartRef.current = null;
-    if (dx < 10 && dy < 10) {
-      openFullscreen(images[current]);
-    }
+    if (dx < 10 && dy < 10) openFullscreen(images[current]);
   };
 
   const handleDesktopClick = () => {
@@ -229,7 +236,6 @@ function ImageGallery({ images, alt }) {
           </span>
         )}
 
-        {/* Image counter badge */}
         {images.length > 1 && (
           <span className="absolute top-3 right-3 rounded-full bg-black/50 px-2.5 py-1 text-xs text-white pointer-events-none font-semibold">
             {current + 1} / {images.length}
@@ -254,7 +260,6 @@ function ImageGallery({ images, alt }) {
         )}
       </div>
 
-      {/* Thumbnail strip */}
       {images.length > 1 && (
         <div className="grid grid-cols-5 gap-2">
           {images.map((img, idx) => (
@@ -266,7 +271,6 @@ function ImageGallery({ images, alt }) {
         </div>
       )}
 
-      {/* Dots */}
       {images.length > 1 && (
         <div className="flex justify-center gap-1.5 pt-1">
           {images.map((_, i) => (
@@ -291,23 +295,47 @@ function ImageGallery({ images, alt }) {
   );
 }
 
-// ── Main Component ────────────────────────────────────────────────────────────
 export default function ProductDetailClient({ product, related = [], reviews = [] }) {
-  const images = useMemo(() => getImages(product), [product]);
+  const colorVariants = useMemo(() => normalizeColors(product), [product]);
+  const defaultImages = useMemo(() => getDefaultImages(product), [product]);
+
   const [qty, setQty] = useState(1);
   const [selectedSize, setSelectedSize] = useState('');
-  const [selectedColor, setSelectedColor] = useState('');
+  const [selectedColor, setSelectedColor] = useState(() => {
+    const firstInStock = colorVariants.find((c) => c.inStock);
+    return firstInStock ? firstInStock.name : '';
+  });
   const [added, setAdded] = useState(false);
+
+  const images = useMemo(() => {
+    if (selectedColor) {
+      const match = colorVariants.find((c) => c.name === selectedColor);
+      if (match && match.images.length > 0) return match.images;
+    }
+    return defaultImages;
+  }, [selectedColor, colorVariants, defaultImages]);
 
   const salePrice = product.sale_price ?? product.salePrice ?? product.price ?? 0;
   const mrp = product.mrp ?? product.original_price ?? 0;
   const discount = product.discount_percent || (mrp > salePrice ? Math.round(((mrp - salePrice) / mrp) * 100) : 0);
   const category = product.category || product.category_id || 'Collection';
   const sizes = Array.isArray(product.sizes) ? product.sizes : ['Standard'];
-  const colors = Array.isArray(product.colors) ? product.colors : ['Classic'];
   const outOfStock = product.stock === 0;
 
+  const selectedColorData = colorVariants.find((c) => c.name === selectedColor);
+  const colorOutOfStock = selectedColorData ? !selectedColorData.inStock : false;
+  const cannotPurchase = outOfStock || colorOutOfStock;
+
+  const handleSelectColor = (color) => {
+    if (!color.inStock) {
+      toast.info(`${color.name} is currently out of stock. Message us on WhatsApp to know when it's back!`);
+      return;
+    }
+    setSelectedColor(color.name);
+  };
+
   const addToCart = () => {
+    if (cannotPurchase) return;
     const saved = window.localStorage.getItem('sethi-cart');
     const cart = saved ? JSON.parse(saved) : [];
     const existingIndex = cart.findIndex((i) => i.id === product.id && (i.size || '') === selectedSize && (i.color || '') === selectedColor);
@@ -372,17 +400,47 @@ export default function ProductDetailClient({ product, related = [], reviews = [
                   ))}
                 </div>
               </div>
-              <div>
-                <div className="mb-3 text-lg font-bold text-[#2c1f14]">Color</div>
-                <div className="flex flex-wrap gap-2">
-                  {colors.map((color) => (
-                    <button key={color} type="button" onClick={() => setSelectedColor(color)}
-                      className={`rounded border px-4 py-2 text-base font-semibold transition ${selectedColor === color ? 'border-[#c9a84c] bg-[#c9a84c] text-white' : 'border-[#ede8df] text-[#6b5544] hover:border-[#c9a84c]'}`}>
-                      {color}
-                    </button>
-                  ))}
+
+              {colorVariants.length > 0 && (
+                <div>
+                  <div className="mb-3 text-lg font-bold text-[#2c1f14]">
+                    Color{selectedColor ? <span className="text-[#8a7060] font-normal text-base">: {selectedColor}</span> : ''}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {colorVariants.map((color) => {
+                      const isSelected = selectedColor === color.name;
+                      const isOut = !color.inStock;
+                      return (
+                        <button
+                          key={color.name}
+                          type="button"
+                          onClick={() => handleSelectColor(color)}
+                          className={`relative rounded border px-4 py-2 text-base font-semibold transition ${
+                            isOut
+                              ? 'border-[#ede8df] bg-[#f5f0e8] text-[#b3a89a] cursor-not-allowed line-through'
+                              : isSelected
+                                ? 'border-[#c9a84c] bg-[#c9a84c] text-white'
+                                : 'border-[#ede8df] text-[#6b5544] hover:border-[#c9a84c]'
+                          }`}
+                        >
+                          {color.name}
+                          {isOut && (
+                            <span className="ml-1.5 text-[10px] font-bold not-italic no-underline align-middle text-red-500">
+                              (Out of Stock)
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {colorOutOfStock && (
+                    <p className="mt-2 text-sm text-red-600 font-semibold">
+                      This color is currently out of stock. Message us on WhatsApp to know when it&apos;s restocked.
+                    </p>
+                  )}
                 </div>
-              </div>
+              )}
+
               <div className="flex items-center gap-4">
                 <span className="text-lg font-bold">Quantity</span>
                 <div className="flex h-11 items-center overflow-hidden rounded border border-[#ede8df]">
@@ -394,13 +452,13 @@ export default function ProductDetailClient({ product, related = [], reviews = [
             </div>
 
             <div className="mt-7 grid gap-3 sm:grid-cols-2">
-              <button type="button" onClick={addToCart} disabled={outOfStock}
+              <button type="button" onClick={addToCart} disabled={cannotPurchase}
                 className={`flex h-14 items-center justify-center gap-2 rounded text-xl font-bold transition-all duration-300 disabled:opacity-60 ${added ? 'bg-green-500 text-white scale-95' : 'bg-[#c9a84c] text-white hover:bg-[#a07a28]'}`}>
                 {added ? <><Check className="h-5 w-5" /> Added!</> : <><ShoppingBag className="h-5 w-5" /> Add to Cart</>}
               </button>
-              <a href={outOfStock ? undefined : buildWhatsAppLink(buyNowMessage)} target="_blank" rel="noopener noreferrer"
-                aria-disabled={outOfStock} onClick={(e) => outOfStock && e.preventDefault()}
-                className={`flex h-14 items-center justify-center gap-2 rounded border border-[#c9a84c] text-xl font-bold text-[#a07a28] transition hover:bg-[#f5f0e8] ${outOfStock ? 'pointer-events-none opacity-60' : ''}`}>
+              <a href={cannotPurchase ? undefined : buildWhatsAppLink(buyNowMessage)} target="_blank" rel="noopener noreferrer"
+                aria-disabled={cannotPurchase} onClick={(e) => cannotPurchase && e.preventDefault()}
+                className={`flex h-14 items-center justify-center gap-2 rounded border border-[#c9a84c] text-xl font-bold text-[#a07a28] transition hover:bg-[#f5f0e8] ${cannotPurchase ? 'pointer-events-none opacity-60' : ''}`}>
                 <MessageCircle className="h-5 w-5" /> Buy Now
               </a>
             </div>
