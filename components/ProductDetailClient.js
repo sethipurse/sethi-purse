@@ -128,7 +128,6 @@ function FullscreenViewer({ src, alt, onClose }) {
       >
         ✕
       </button>
-
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src}
@@ -143,7 +142,6 @@ function FullscreenViewer({ src, alt, onClose }) {
           objectFit: 'contain',
         }}
       />
-
       <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, marginTop: 12 }}>
         Tap outside or ✕ to close
       </p>
@@ -163,9 +161,7 @@ function ImageGallery({ images, alt }) {
     setIsMobile('ontouchstart' in window || navigator.maxTouchPoints > 0);
   }, []);
 
-  useEffect(() => {
-    setCurrent(0);
-  }, [images]);
+  useEffect(() => { setCurrent(0); }, [images]);
 
   useEffect(() => {
     if (images.length <= 1) return;
@@ -224,7 +220,6 @@ function ImageGallery({ images, alt }) {
         >
           <ZoomImage src={images[current] || ''} alt={alt} />
         </div>
-
         {!isMobile && (
           <span className="absolute bottom-3 left-3 rounded bg-black/50 px-2 py-1 text-xs text-white pointer-events-none">
             🔍 Hover to zoom · Click for fullscreen
@@ -235,31 +230,24 @@ function ImageGallery({ images, alt }) {
             👆 Tap for full image
           </span>
         )}
-
         {images.length > 1 && (
           <span className="absolute top-3 right-3 rounded-full bg-black/50 px-2.5 py-1 text-xs text-white pointer-events-none font-semibold">
             {current + 1} / {images.length}
           </span>
         )}
-
         {images.length > 1 && (
           <>
-            <button
-              onTouchEnd={(e) => { e.stopPropagation(); prev(); }}
-              onClick={prev}
+            <button onTouchEnd={(e) => { e.stopPropagation(); prev(); }} onClick={prev}
               className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-white/90 flex items-center justify-center shadow">
               <ChevronLeft className="w-5 h-5 text-[#2c1f14]" />
             </button>
-            <button
-              onTouchEnd={(e) => { e.stopPropagation(); next(); }}
-              onClick={next}
+            <button onTouchEnd={(e) => { e.stopPropagation(); next(); }} onClick={next}
               className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-white/90 flex items-center justify-center shadow">
               <ChevronRight className="w-5 h-5 text-[#2c1f14]" />
             </button>
           </>
         )}
       </div>
-
       {images.length > 1 && (
         <div className="grid grid-cols-5 gap-2">
           {images.map((img, idx) => (
@@ -270,26 +258,17 @@ function ImageGallery({ images, alt }) {
           ))}
         </div>
       )}
-
       {images.length > 1 && (
         <div className="flex justify-center gap-1.5 pt-1">
           {images.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => goTo(i)}
+            <button key={i} onClick={() => goTo(i)}
               className={`h-1.5 rounded-full transition-all duration-300 ${i === current ? 'w-5 bg-[#c9a84c]' : 'w-2 bg-[#ddd0be]'}`}
-              aria-label={`Image ${i + 1}`}
-            />
+              aria-label={`Image ${i + 1}`} />
           ))}
         </div>
       )}
-
       {mobileOpen && preloadedSrc && (
-        <FullscreenViewer
-          src={preloadedSrc}
-          alt={alt}
-          onClose={() => { setMobileOpen(false); setPreloadedSrc(null); }}
-        />
+        <FullscreenViewer src={preloadedSrc} alt={alt} onClose={() => { setMobileOpen(false); setPreloadedSrc(null); }} />
       )}
     </div>
   );
@@ -320,19 +299,20 @@ export default function ProductDetailClient({ product, related = [], reviews = [
   const discount = product.discount_percent || (mrp > salePrice ? Math.round(((mrp - salePrice) / mrp) * 100) : 0);
   const category = product.category || product.category_id || 'Collection';
   const sizes = Array.isArray(product.sizes) ? product.sizes : ['Standard'];
-  const outOfStock = product.stock === 0;
+
+  // ── FIX 1: Use color-level stock when colorVariants exist ──────────────────
+  // Previously: product.stock===0 was blocking in-stock color variants
+  const outOfStock = colorVariants.length > 0
+    ? colorVariants.every((c) => !c.inStock)   // true only if ALL colors are out of stock
+    : product.stock === 0;
 
   const selectedColorData = colorVariants.find((c) => c.name === selectedColor);
   const colorOutOfStock = selectedColorData ? !selectedColorData.inStock : false;
-  const cannotPurchase = outOfStock || colorOutOfStock;
 
-  const handleSelectColor = (color) => {
-    if (!color.inStock) {
-      toast.info(`${color.name} is currently out of stock. Message us on WhatsApp to know when it's back!`);
-      return;
-    }
-    setSelectedColor(color.name);
-  };
+  // ── FIX 2: Block purchase when all colors are out of stock ─────────────────
+  // Previously: all colors OOS → selectedColor='' → colorOutOfStock=false → Add to Cart enabled
+  const noInStockColorSelected = colorVariants.length > 0 && !selectedColor;
+  const cannotPurchase = outOfStock || colorOutOfStock || noInStockColorSelected;
 
   const addToCart = () => {
     if (cannotPurchase) return;
@@ -439,6 +419,11 @@ export default function ProductDetailClient({ product, related = [], reviews = [
                       This color is currently out of stock. Message us on WhatsApp to know when it&apos;s restocked.
                     </p>
                   )}
+                  {outOfStock && colorVariants.length > 0 && (
+                    <p className="mt-2 text-sm text-red-600 font-semibold">
+                      All colors are currently out of stock. Message us on WhatsApp to know when they&apos;re restocked.
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -454,8 +439,8 @@ export default function ProductDetailClient({ product, related = [], reviews = [
 
             <div className="mt-7 grid gap-3 sm:grid-cols-2">
               <button type="button" onClick={addToCart} disabled={cannotPurchase}
-                className={`flex h-14 items-center justify-center gap-2 rounded text-xl font-bold transition-all duration-300 disabled:opacity-60 ${added ? 'bg-green-500 text-white scale-95' : 'bg-[#c9a84c] text-white hover:bg-[#a07a28]'}`}>
-                {added ? <><Check className="h-5 w-5" /> Added!</> : <><ShoppingBag className="h-5 w-5" /> Add to Cart</>}
+                className={`flex h-14 items-center justify-center gap-2 rounded text-xl font-bold transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed ${added ? 'bg-green-500 text-white scale-95' : 'bg-[#c9a84c] text-white hover:bg-[#a07a28]'}`}>
+                {added ? <><Check className="h-5 w-5" /> Added!</> : <><ShoppingBag className="h-5 w-5" /> {cannotPurchase && !added ? 'Out of Stock' : 'Add to Cart'}</>}
               </button>
               <a href={cannotPurchase ? undefined : buildWhatsAppLink(buyNowMessage)} target="_blank" rel="noopener noreferrer"
                 aria-disabled={cannotPurchase} onClick={(e) => cannotPurchase && e.preventDefault()}
