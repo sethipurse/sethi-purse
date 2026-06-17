@@ -414,6 +414,7 @@ export default function ProductDetailClient({ product, related = [], reviews = [
                         <button
                           key={color.name}
                           type="button"
+                          disabled={isOut}
                           onClick={() => handleSelectColor(color)}
                           className={`relative rounded border px-4 py-2 text-base font-semibold transition ${
                             isOut
