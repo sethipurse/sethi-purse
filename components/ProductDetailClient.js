@@ -415,10 +415,10 @@ export default function ProductDetailClient({ product, related = [], reviews = [
                           key={color.name}
                           type="button"
                           disabled={isOut}
-                          onClick={() => handleSelectColor(color)}
+                          onClick={() => !isOut && setSelectedColor(color.name)}
                           className={`relative rounded border px-4 py-2 text-base font-semibold transition ${
                             isOut
-                              ? 'border-[#ede8df] bg-[#f5f0e8] text-[#b3a89a] cursor-not-allowed line-through'
+                              ? 'border-[#ede8df] bg-[#f5f0e8] text-[#b3a89a] cursor-not-allowed line-through opacity-60 pointer-events-none'
                               : isSelected
                                 ? 'border-[#c9a84c] bg-[#c9a84c] text-white'
                                 : 'border-[#ede8df] text-[#6b5544] hover:border-[#c9a84c]'
