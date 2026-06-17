@@ -2,8 +2,29 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ImageOff, Loader2, Upload } from 'lucide-react';
+import { ImageOff, Loader2, Upload, Plus, Trash2, X } from 'lucide-react';
 import { BRANDS, resolveImage } from '@/lib/constants';
+
+// ── Helpers for color variants ────────────────────────────────────────────────
+// A "colorVariant" looks like: { name: 'Red', images: ['url1','url2'], inStock: true }
+
+function normalizeColorVariants(initial) {
+  const raw = initial?.colors;
+  if (!raw) return [];
+  // New format: array of objects
+  if (Array.isArray(raw) && raw.length > 0 && typeof raw[0] === 'object') {
+    return raw.map((c) => ({
+      name: c.name || '',
+      images: Array.isArray(c.images) ? c.images : [],
+      inStock: c.inStock !== false,
+    }));
+  }
+  // Old format: array of plain strings — migrate to objects with no photos yet
+  if (Array.isArray(raw)) {
+    return raw.map((name) => ({ name: String(name), images: [], inStock: true }));
+  }
+  return [];
+}
 
 export default function ProductForm({ initial, productId, onSaved }) {
   const router = useRouter();
@@ -20,10 +41,13 @@ export default function ProductForm({ initial, productId, onSaved }) {
     galleryImages: '',
     imageType: 'url',
     sizes: '',
-    colors: '',
     featured: false,
   });
+  // ✅ NEW: color variants with per-color photos + stock toggle
+  const [colorVariants, setColorVariants] = useState([]);
+  const [newColorName, setNewColorName] = useState('');
   const [busy, setBusy] = useState(false);
+  const [uploadingColor, setUploadingColor] = useState(null); // which color index is uploading
   const [imgErr, setImgErr] = useState(false);
 
   useEffect(() => {
@@ -61,16 +85,15 @@ export default function ProductForm({ initial, productId, onSaved }) {
           : '',
         imageType: initial.imageType || 'url',
         sizes: Array.isArray(initial.sizes) ? initial.sizes.join(', ') : '',
-        colors: Array.isArray(initial.colors) ? initial.colors.join(', ') : '',
         featured: !!initial.featured,
       });
+      setColorVariants(normalizeColorVariants(initial));
     }
   }, [initial]);
 
   const update = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
-  // ✅ FIXED: Compress for WhatsApp — JPEG, max 1200px wide, under 300KB
-  // Old code used webp 1600px which WhatsApp does NOT support reliably
+  // ✅ Compress for WhatsApp — JPEG, max 1200px wide, under 300KB
   const compressImage = (file, forOG = false) =>
     new Promise((resolve, reject) => {
       const img = new Image();
@@ -78,9 +101,6 @@ export default function ProductForm({ initial, productId, onSaved }) {
 
       img.onload = () => {
         URL.revokeObjectURL(url);
-
-        // ✅ OG image: max 1200x630 (WhatsApp requirement)
-        // Gallery image: max 1200px wide, keep ratio
         const maxW = 1200;
         const maxH = forOG ? 630 : 1200;
 
@@ -94,14 +114,10 @@ export default function ProductForm({ initial, productId, onSaved }) {
         canvas.height = height;
 
         const ctx = canvas.getContext('2d');
-
-        // ✅ White background (JPEG doesn't support transparency)
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
 
-        // ✅ JPEG format — WhatsApp works best with JPEG
-        // Quality 0.82 gives ~100-200KB for most product photos
         canvas.toBlob(
           (blob) => {
             if (!blob) return reject(new Error('Compression failed'));
@@ -110,7 +126,6 @@ export default function ProductForm({ initial, productId, onSaved }) {
               file.name.replace(/\.[^.]+$/, '.jpg'),
               { type: 'image/jpeg' }
             );
-            // ✅ Safety check: warn if still over 300KB
             if (compressed.size > 300 * 1024) {
               console.warn(`Image is ${Math.round(compressed.size / 1024)}KB — WhatsApp may not show preview. Try a smaller photo.`);
             }
@@ -125,37 +140,30 @@ export default function ProductForm({ initial, productId, onSaved }) {
       img.src = url;
     });
 
+  const uploadFile = async (file, forOG = false) => {
+    const compressed = await compressImage(file, forOG);
+    const sizeKB = Math.round(compressed.size / 1024);
+    const body = new FormData();
+    body.append('file', compressed);
+    body.append('bucket', 'products');
+    const res = await fetch('/api/upload', { method: 'POST', body });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Upload failed');
+    return { url: data.url, sizeKB };
+  };
+
   const uploadImage = async (file, appendGallery = false) => {
     try {
       setBusy(true);
-
-      // ✅ Main product image = compress as OG-safe (1200px, JPEG)
-      // Gallery images = compress normally (1200px wide, JPEG)
-      const compressed = await compressImage(file, !appendGallery);
-
-      const sizeKB = Math.round(compressed.size / 1024);
+      const { url, sizeKB } = await uploadFile(file, !appendGallery);
       if (sizeKB > 300 && !appendGallery) {
         toast.warning(`Image is ${sizeKB}KB — WhatsApp preview works best under 300KB. Try a clearer/smaller photo.`);
       }
-
-      const body = new FormData();
-      body.append('file', compressed);
-      body.append('bucket', 'products');
-
-      const res = await fetch('/api/upload', { method: 'POST', body });
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        toast.error(data.error || 'Upload failed');
-        return;
-      }
-
       if (appendGallery) {
-        update('galleryImages', [form.galleryImages, data.url].filter(Boolean).join('\n'));
+        update('galleryImages', [form.galleryImages, url].filter(Boolean).join('\n'));
       } else {
-        update('imageUrl', data.url);
+        update('imageUrl', url);
       }
-
       setImgErr(false);
       toast.success(`Image uploaded ✓ (${sizeKB}KB — WhatsApp ready)`);
     } catch (error) {
@@ -163,6 +171,51 @@ export default function ProductForm({ initial, productId, onSaved }) {
     } finally {
       setBusy(false);
     }
+  };
+
+  // ── Color variant handlers ──────────────────────────────────────────────────
+  const addColorVariant = () => {
+    const name = newColorName.trim();
+    if (!name) { toast.error('Enter a color name first'); return; }
+    if (colorVariants.some((c) => c.name.toLowerCase() === name.toLowerCase())) {
+      toast.error('This color already exists');
+      return;
+    }
+    setColorVariants((prev) => [...prev, { name, images: [], inStock: true }]);
+    setNewColorName('');
+  };
+
+  const removeColorVariant = (index) => {
+    setColorVariants((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const toggleColorStock = (index) => {
+    setColorVariants((prev) =>
+      prev.map((c, i) => (i === index ? { ...c, inStock: !c.inStock } : c))
+    );
+  };
+
+  const uploadColorPhoto = async (index, file) => {
+    try {
+      setUploadingColor(index);
+      const { url, sizeKB } = await uploadFile(file, false);
+      setColorVariants((prev) =>
+        prev.map((c, i) => (i === index ? { ...c, images: [...c.images, url] } : c))
+      );
+      toast.success(`Photo added to ${colorVariants[index].name} ✓ (${sizeKB}KB)`);
+    } catch (error) {
+      toast.error(error.message || 'Upload failed');
+    } finally {
+      setUploadingColor(null);
+    }
+  };
+
+  const removeColorPhoto = (colorIndex, photoIndex) => {
+    setColorVariants((prev) =>
+      prev.map((c, i) =>
+        i === colorIndex ? { ...c, images: c.images.filter((_, pi) => pi !== photoIndex) } : c
+      )
+    );
   };
 
   const submit = async (e) => {
@@ -181,7 +234,8 @@ export default function ProductForm({ initial, productId, onSaved }) {
         .map((v) => v.trim())
         .filter(Boolean),
       sizes: form.sizes.split(',').map((v) => v.trim()).filter(Boolean),
-      colors: form.colors.split(',').map((v) => v.trim()).filter(Boolean),
+      // ✅ NEW: colors now saved as objects with images + stock status
+      colors: colorVariants,
       stock: form.stock === '' ? null : Number(form.stock),
     };
     try {
@@ -316,7 +370,7 @@ export default function ProductForm({ initial, productId, onSaved }) {
 
       <div className="md:col-span-2">
         <label className="block text-sm font-medium mb-1.5">
-          Product Image{' '}
+          Main Product Image{' '}
           <span className="text-sethi-gray500 font-normal text-xs">
             (auto-compressed to JPEG for WhatsApp preview)
           </span>
@@ -355,7 +409,12 @@ export default function ProductForm({ initial, productId, onSaved }) {
       </div>
 
       <div className="md:col-span-2">
-        <label className="block text-sm font-medium mb-1.5">Gallery Images</label>
+        <label className="block text-sm font-medium mb-1.5">
+          Gallery Images{' '}
+          <span className="text-sethi-gray500 font-normal text-xs">
+            (shown when no color is selected, or product has no color variants)
+          </span>
+        </label>
         <textarea
           value={form.galleryImages}
           onChange={(e) => update('galleryImages', e.target.value)}
@@ -384,14 +443,123 @@ export default function ProductForm({ initial, productId, onSaved }) {
         />
       </div>
 
-      <div>
-        <label className="block text-sm font-medium mb-1.5">Colors</label>
-        <input
-          value={form.colors}
-          onChange={(e) => update('colors', e.target.value)}
-          className="input-sethi"
-          placeholder="Gold, Black, Silver"
-        />
+      {/* ── ✅ NEW: Color Variants section ── */}
+      <div className="md:col-span-2 border-t border-sethi-gray200 pt-5">
+        <label className="block text-sm font-bold mb-1.5 text-sethi-black">
+          Color Variants{' '}
+          <span className="text-sethi-gray500 font-normal text-xs">
+            (each color gets its own photos + in-stock toggle)
+          </span>
+        </label>
+
+        {/* Add new color */}
+        <div className="flex gap-2 mt-2">
+          <input
+            value={newColorName}
+            onChange={(e) => setNewColorName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addColorVariant(); } }}
+            className="input-sethi flex-1"
+            placeholder="e.g. Red, Black, White"
+          />
+          <button
+            type="button"
+            onClick={addColorVariant}
+            className="inline-flex items-center gap-1.5 rounded bg-sethi-gold px-4 py-2 text-sm font-semibold text-white hover:bg-sethi-gold-dark shrink-0"
+          >
+            <Plus className="h-4 w-4" /> Add Color
+          </button>
+        </div>
+
+        {/* Color variant cards */}
+        <div className="mt-4 grid gap-3">
+          {colorVariants.map((color, index) => (
+            <div
+              key={index}
+              className={`rounded-sm border p-4 transition-colors ${
+                color.inStock ? 'border-sethi-gray200 bg-white' : 'border-red-200 bg-red-50'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-base">{color.name}</span>
+                  <span className="text-xs text-sethi-gray500">
+                    {color.images.length} photo{color.images.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {/* In Stock toggle */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleColorStock(index)}
+                      className={`relative w-12 h-6 rounded-full transition-colors ${
+                        color.inStock ? 'bg-green-500' : 'bg-red-400'
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                          color.inStock ? 'translate-x-6' : ''
+                        }`}
+                      />
+                    </button>
+                    <span className={`text-xs font-semibold ${color.inStock ? 'text-green-700' : 'text-red-600'}`}>
+                      {color.inStock ? 'In Stock' : 'Out of Stock'}
+                    </span>
+                  </div>
+
+                  {/* Remove color */}
+                  <button
+                    type="button"
+                    onClick={() => removeColorVariant(index)}
+                    className="text-red-500 hover:text-red-700 p-1"
+                    aria-label="Remove color"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Photos for this color */}
+              <div className="mt-3 flex flex-wrap gap-2">
+                {color.images.map((img, photoIndex) => (
+                  <div key={photoIndex} className="relative w-16 h-16 rounded-sm overflow-hidden border border-sethi-gray200 group">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={img} alt="" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => removeColorPhoto(index, photoIndex)}
+                      className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+
+                {/* Upload button for this color */}
+                <label className={`w-16 h-16 rounded-sm border-2 border-dashed border-sethi-gold flex items-center justify-center cursor-pointer hover:bg-sethi-gold/10 ${uploadingColor === index ? 'opacity-50 pointer-events-none' : ''}`}>
+                  {uploadingColor === index ? (
+                    <Loader2 className="h-5 w-5 text-sethi-gold animate-spin" />
+                  ) : (
+                    <Upload className="h-5 w-5 text-sethi-gold" />
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => e.target.files?.[0] && uploadColorPhoto(index, e.target.files[0])}
+                  />
+                </label>
+              </div>
+            </div>
+          ))}
+
+          {colorVariants.length === 0 && (
+            <p className="text-sm text-sethi-gray500 italic">
+              No color variants added yet. Type a color name above and click &quot;Add Color&quot;.
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="md:col-span-2">
