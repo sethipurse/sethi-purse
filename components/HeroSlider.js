@@ -12,16 +12,22 @@ export default function HeroSlider({ cartCount = 0, onMenuClick, onCartClick }) 
   const [animating, setAnimating] = useState(false);
   const [direction, setDirection] = useState('right');
   const [scrolled, setScrolled] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
   const animRef = useRef(false);
 
-  // Detect scroll to add shadow to sticky header
+  useEffect(() => {
+    const check = () => setIsDesktop(window.innerWidth >= 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10);
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  // 4s timeout so loading never hangs forever
   useEffect(() => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 4000);
@@ -64,23 +70,16 @@ export default function HeroSlider({ cartCount = 0, onMenuClick, onCartClick }) 
     return () => clearInterval(t);
   }, [slides.length]);
 
-  // ── Sticky Header — fixed to top of screen, full width ──
+  // ── Sticky Header ──
   const StickyHeader = () => (
     <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      zIndex: 1000,
+      position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1000,
       background: '#faf8f4',
       borderBottom: scrolled ? '1px solid #ede8df' : '1px solid transparent',
       boxShadow: scrolled ? '0 2px 12px rgba(44,31,20,0.10)' : 'none',
       transition: 'box-shadow 0.3s ease, border-color 0.3s ease',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       padding: '14px 20px',
-      maxWidth: '100%',
     }}>
       <button onClick={onMenuClick} style={S.iconBtn} aria-label="Menu">
         <Menu size={22} color="#4a3728" />
@@ -96,12 +95,11 @@ export default function HeroSlider({ cartCount = 0, onMenuClick, onCartClick }) 
     </div>
   );
 
-  // Shimmer skeleton
   if (loading) {
     return (
       <>
         <StickyHeader />
-        <div style={{ ...S.card, marginTop: 56 }}>
+        <div style={{ ...S.card(isDesktop), marginTop: 56 }}>
           <div style={S.shimmer} />
           <style>{`@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
         </div>
@@ -113,7 +111,7 @@ export default function HeroSlider({ cartCount = 0, onMenuClick, onCartClick }) 
     return (
       <>
         <StickyHeader />
-        <div style={{ ...S.card, marginTop: 56 }} />
+        <div style={{ ...S.card(isDesktop), marginTop: 56 }} />
       </>
     );
   }
@@ -125,26 +123,23 @@ export default function HeroSlider({ cartCount = 0, onMenuClick, onCartClick }) 
 
   return (
     <>
-      {/* Sticky header always on top */}
       <StickyHeader />
-
-      {/* Push content down so it's not hidden behind sticky header */}
-      <div style={{ ...S.card, marginTop: 56 }}>
-        <div style={S.slideArea}>
+      <div style={{ ...S.card(isDesktop), marginTop: 56 }}>
+        <div style={S.slideArea(isDesktop)}>
           {/* Text block */}
-          <div style={S.textBlock}>
+          <div style={S.textBlock(isDesktop)}>
             {slide.category && <p style={S.category}>{slide.category}</p>}
             <div style={S.goldRule} />
-            <h1 style={S.headline}>{slide.headline || 'Shop Now'}</h1>
+            <h1 style={S.headline(isDesktop)}>{slide.headline || 'Shop Now'}</h1>
             <Link href={categoryLink} style={{ textDecoration: 'none' }}>
-              <div style={S.shopBtn}>Shop Now →</div>
+              <div style={S.shopBtn(isDesktop)}>Shop Now →</div>
             </Link>
           </div>
 
           {/* Product image */}
           <Link href={categoryLink} style={{ textDecoration: 'none' }}>
             <div style={{
-              ...S.imageWrap,
+              ...S.imageWrap(isDesktop),
               opacity: animating ? 0 : 1,
               transform: animating ? `translateX(${direction === 'right' ? '40px' : '-40px'})` : 'translateX(0)',
               transition: 'opacity 0.35s ease, transform 0.35s ease',
@@ -166,10 +161,10 @@ export default function HeroSlider({ cartCount = 0, onMenuClick, onCartClick }) 
           {slides.length > 1 && (
             <>
               <button onClick={prev} style={{ ...S.arrow, ...S.arrowLeft }} aria-label="Previous">
-                <ChevronLeft size={13} color="#4a3728" />
+                <ChevronLeft size={isDesktop ? 18 : 13} color="#4a3728" />
               </button>
-              <button onClick={next} style={{ ...S.arrow, ...S.arrowRight }} aria-label="Next">
-                <ChevronRight size={13} color="#fff" />
+              <button onClick={next} style={{ ...S.arrow, ...S.arrowRight(isDesktop) }} aria-label="Next">
+                <ChevronRight size={isDesktop ? 18 : 13} color="#fff" />
               </button>
               <div style={S.dots}>
                 {slides.map((_, i) => (
@@ -183,11 +178,11 @@ export default function HeroSlider({ cartCount = 0, onMenuClick, onCartClick }) 
         </div>
 
         {/* Badges */}
-        <div style={S.badges}>
+        <div style={S.badges(isDesktop)}>
           {badgeLabels.slice(0, 3).map((label, i) => (
-            <div key={i} style={S.badgeItem}>
-              <span style={S.badgeIcon}>{['🚚', '🛡️', '↩️'][i] || '✨'}</span>
-              <span style={S.badgeLabel}>{label}</span>
+            <div key={i} style={S.badgeItem(isDesktop)}>
+              <span style={S.badgeIcon(isDesktop)}>{['🚚', '🛡️', '↩️'][i] || '✨'}</span>
+              <span style={S.badgeLabel(isDesktop)}>{label}</span>
             </div>
           ))}
         </div>
@@ -197,13 +192,19 @@ export default function HeroSlider({ cartCount = 0, onMenuClick, onCartClick }) 
 }
 
 const S = {
-  card: {
-    width: '100%', maxWidth: 390, margin: '0 auto',
-    background: '#faf8f4', borderRadius: 28, overflow: 'hidden',
-    boxShadow: '0 8px 40px rgba(74,55,40,0.13)',
+  // ✅ Full width on desktop, mobile card style on mobile
+  card: (isDesktop) => ({
+    width: '100%',
+    maxWidth: isDesktop ? '100%' : 390,
+    margin: '0 auto',
+    background: isDesktop ? 'linear-gradient(135deg, #faf8f4 0%, #f5f0e8 100%)' : '#faf8f4',
+    borderRadius: isDesktop ? 0 : 28,
+    overflow: 'hidden',
+    boxShadow: isDesktop ? 'none' : '0 8px 40px rgba(74,55,40,0.13)',
     fontFamily: "'Cormorant Garamond','Georgia',serif",
     display: 'flex', flexDirection: 'column',
-  },
+  }),
+
   iconBtn: { background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center' },
   brand: { display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 },
   brandName: { fontFamily: "'Cormorant Garamond','Georgia',serif", fontWeight: 700, fontSize: 18, letterSpacing: '0.18em', color: '#2c1f14' },
@@ -218,17 +219,21 @@ const S = {
     animation: 'shimmer 1.5s infinite',
   },
 
-  slideArea: {
-    position: 'relative', minHeight: 440,
+  slideArea: (isDesktop) => ({
+    position: 'relative',
+    minHeight: isDesktop ? 520 : 440,
     display: 'flex', flexDirection: 'column',
-    padding: '0 0 52px 0',
-  },
+    padding: isDesktop ? '0 0 60px 0' : '0 0 52px 0',
+    maxWidth: isDesktop ? 1200 : '100%',
+    margin: isDesktop ? '0 auto' : 0,
+    width: '100%',
+  }),
 
-  textBlock: {
-    padding: '20px 0 0 22px',
+  textBlock: (isDesktop) => ({
+    padding: isDesktop ? '48px 0 0 48px' : '20px 0 0 22px',
     position: 'relative', zIndex: 2,
-    width: '72%',
-  },
+    width: isDesktop ? '45%' : '72%',
+  }),
 
   category: {
     fontFamily: "'Cormorant Garamond','Georgia',serif",
@@ -237,63 +242,61 @@ const S = {
   },
   goldRule: { width: 28, height: 1.5, background: '#c9a84c', marginBottom: 10 },
 
-  headline: {
+  headline: (isDesktop) => ({
     fontFamily: "'Cormorant Garamond','Georgia',serif",
     fontWeight: 700,
-    fontSize: 22,
+    fontSize: isDesktop ? 52 : 22,
     lineHeight: 1.1,
     color: '#2c1f14',
-    margin: '0 0 16px 0',
+    margin: isDesktop ? '0 0 28px 0' : '0 0 16px 0',
     letterSpacing: '-0.01em',
-    whiteSpace: 'nowrap',
-  },
+    whiteSpace: 'pre-line',
+  }),
 
-  shopBtn: {
+  shopBtn: (isDesktop) => ({
     display: 'inline-block',
-    background: '#c9a84c',
-    color: '#fff',
+    background: '#c9a84c', color: '#fff',
     fontFamily: "'Cormorant Garamond','Georgia',serif",
     fontWeight: 700,
-    fontSize: 14,
+    fontSize: isDesktop ? 18 : 14,
     letterSpacing: '0.03em',
-    padding: '9px 20px',
-    borderRadius: 24,
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-  },
+    padding: isDesktop ? '12px 32px' : '9px 20px',
+    borderRadius: 24, cursor: 'pointer', whiteSpace: 'nowrap',
+  }),
 
-  imageWrap: {
+  imageWrap: (isDesktop) => ({
     position: 'absolute',
-    bottom: 44,
-    left: '28%',
-    right: 0,
-    height: 300,
-    zIndex: 1,
-    cursor: 'pointer',
-  },
+    bottom: isDesktop ? 40 : 44,
+    left: isDesktop ? '42%' : '28%',
+    right: isDesktop ? 48 : 0,
+    height: isDesktop ? 440 : 300,
+    zIndex: 1, cursor: 'pointer',
+  }),
 
   arrow: {
-    position: 'absolute', bottom: 58,
-    width: 28, height: 28, borderRadius: '50%',
+    position: 'absolute', bottom: 68,
+    width: 36, height: 36, borderRadius: '50%',
     border: 'none', cursor: 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3,
   },
-  arrowLeft:  { left: 10,  background: '#fff', boxShadow: '0 2px 6px rgba(74,55,40,0.15)' },
-  arrowRight: { right: 10, background: '#c9a84c' },
+  arrowLeft: { left: 16, background: '#fff', boxShadow: '0 2px 6px rgba(74,55,40,0.15)' },
+  arrowRight: (isDesktop) => ({ right: isDesktop ? 16 : 10, background: '#c9a84c' }),
 
   dots: {
-    position: 'absolute', bottom: 16, left: 0, right: 0,
+    position: 'absolute', bottom: 20, left: 0, right: 0,
     display: 'flex', justifyContent: 'center', gap: 6, zIndex: 3,
   },
-  dot:       { width: 18, height: 4, borderRadius: 3, background: '#ddd0be', border: 'none', cursor: 'pointer', padding: 0 },
+  dot: { width: 18, height: 4, borderRadius: 3, background: '#ddd0be', border: 'none', cursor: 'pointer', padding: 0 },
   dotActive: { background: '#c9a84c' },
 
-  badges: {
-    display: 'flex', justifyContent: 'space-around',
-    padding: '14px 10px 18px', background: '#faf8f4',
+  badges: (isDesktop) => ({
+    display: 'flex', justifyContent: isDesktop ? 'center' : 'space-around',
+    gap: isDesktop ? 80 : 0,
+    padding: isDesktop ? '20px 48px 24px' : '14px 10px 18px',
+    background: '#faf8f4',
     borderTop: '1px solid #ede8df',
-  },
-  badgeItem:  { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flex: 1 },
-  badgeIcon:  { fontSize: 20 },
-  badgeLabel: { fontSize: 10, color: '#6b5544', textAlign: 'center', lineHeight: 1.3, maxWidth: 64 },
+  }),
+  badgeItem: (isDesktop) => ({ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flex: isDesktop ? 0 : 1 }),
+  badgeIcon: (isDesktop) => ({ fontSize: isDesktop ? 28 : 20 }),
+  badgeLabel: (isDesktop) => ({ fontSize: isDesktop ? 13 : 10, color: '#6b5544', textAlign: 'center', lineHeight: 1.3, maxWidth: isDesktop ? 120 : 64 }),
 };
