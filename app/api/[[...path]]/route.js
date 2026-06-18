@@ -34,7 +34,8 @@ async function handle(request, { params }) {
     (segments[0] === 'auth' && segments[1] === 'login') ||
     segments[0] === 'inquiries' ||
     segments[0] === 'reviews' ||
-    segments[0] === 'push';
+    segments[0] === 'push' ||
+    segments[0] === 'chat';
 
   // ===== Uploads — must be handled BEFORE body parsing =====
   if (segments[0] === 'upload' && method === 'POST') {
@@ -72,6 +73,78 @@ async function handle(request, { params }) {
   let body = null;
   if (['POST', 'PUT', 'PATCH'].includes(method)) {
     try { body = await request.json(); } catch (e) { body = null; }
+  }
+
+  // ===== AI Chat (Gemini) =====
+  if (segments[0] === 'chat' && method === 'POST') {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return json({ error: 'AI not configured' }, 500);
+
+    const { messages, products } = body || {};
+
+    let catalogText = 'No products loaded.';
+    if (Array.isArray(products) && products.length > 0) {
+      catalogText = products
+        .slice(0, 60)
+        .map((p) => {
+          const price = p.sale_price || p.salePrice || p.price || 0;
+          const category = p.category_name || p.category || '';
+          const brand = p.brand || '';
+          const stock = p.in_stock === false || p.inStock === false ? 'Out of Stock' : 'In Stock';
+          return `- ${p.name} | Brand: ${brand} | Category: ${category} | Price: Rs.${price} | ${stock}`;
+        })
+        .join('\n');
+    }
+
+    const systemPrompt = `You are a friendly and helpful sales assistant for SETHI PURSE, a premium luggage and bag store in Jalandhar, Punjab, India.
+
+STORE INFORMATION:
+- Store Name: SETHI PURSE
+- Address: Inside Mai Hiran Gate, Near Books Market, Chowk Adda Tanda, Dhan Mohalla, Jalandhar, Punjab 144001
+- Phone: +91 7986161633
+- Timings: 10:00 AM - 8:00 PM (All Days)
+- Website: https://sethi-purse.vercel.app
+- Brands: American Tourister, Safari, Genie, Arctic Fox
+
+PRODUCT CATEGORIES: Slings, LUGGAGE, Backpacks, Handbags, Party Wear Purse
+
+CURRENT PRODUCT CATALOG:
+${catalogText}
+
+YOUR RULES:
+1. Answer questions about products, prices, availability using the catalog above.
+2. Be warm and friendly. Occasionally use Hindi words (bilkul, zaroor, bahut accha) to feel local.
+3. If customer wants to buy → always say "WhatsApp करें: +91 7986161633" or "Click the WhatsApp button below!"
+4. Keep responses SHORT — 2 to 4 sentences max.
+5. Do NOT make up prices or products not in the catalog.
+6. For delivery questions say: "We offer in-store pickup. For special arrangements, WhatsApp us!"
+7. Always be positive and helpful.`;
+
+    const geminiMessages = (messages || []).map((m) => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }],
+    }));
+
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: systemPrompt }] },
+            contents: geminiMessages,
+            generationConfig: { temperature: 0.7, maxOutputTokens: 300 },
+          }),
+        }
+      );
+      if (!res.ok) return json({ error: 'Gemini API error' }, 500);
+      const data = await res.json();
+      const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text || 'Sorry, please try again!';
+      return json({ reply });
+    } catch (err) {
+      return json({ error: 'Server error' }, 500);
+    }
   }
 
   // ===== Slider Images =====
