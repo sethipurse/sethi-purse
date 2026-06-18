@@ -1,5 +1,4 @@
 'use client';
-import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { getWALinkForPath } from '@/lib/constants';
 
@@ -13,72 +12,45 @@ function WhatsAppIcon({ className }) {
 
 export default function WhatsAppFloat() {
   const pathname = usePathname() || '';
-  const isAdmin = pathname.startsWith('/admin');
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768);
-    check();
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
-  }, []);
-
-  if (isAdmin) return null;
+  if (pathname.startsWith('/admin')) return null;
 
   const link = getWALinkForPath(pathname);
 
   return (
-    <a
-      href={link}
-      target="_blank"
-      rel="noopener noreferrer"
-      aria-label="Chat with us on WhatsApp"
-      title="Chat with us on WhatsApp"
-      style={{
-        position: 'fixed',
-        // FIX: moved to LEFT side so it doesn't overlap BackToTop button on right
-        bottom: isMobile ? '80px' : '24px',
-        left: '16px',
-        zIndex: 99990,
-        width: 56,
-        height: 56,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        textDecoration: 'none',
-        WebkitTapHighlightColor: 'transparent',
-      }}
-    >
-      {/* Pulse ring */}
-      <span style={{
-        position: 'absolute',
-        inset: 0,
-        borderRadius: '50%',
-        backgroundColor: '#25D366',
-        opacity: 0.4,
-        animation: 'wa-pulse 2s ease-out infinite',
-      }} />
-      {/* Button */}
-      <span style={{
-        position: 'relative',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: 56,
-        height: 56,
-        borderRadius: '50%',
-        backgroundColor: '#25D366',
-        boxShadow: '0 4px 20px rgba(37,211,102,0.5)',
-      }}>
-        <WhatsAppIcon className="w-7 h-7 text-white" />
-      </span>
-      <style>{`
-        @keyframes wa-pulse {
-          0% { transform: scale(1); opacity: 0.4; }
-          70% { transform: scale(1.6); opacity: 0; }
-          100% { transform: scale(1.6); opacity: 0; }
-        }
-      `}</style>
-    </a>
+    <>
+      {/* Full width sticky WhatsApp bar — always visible at bottom */}
+      <a
+        href={link}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Chat with us on WhatsApp"
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 99990,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 10,
+          height: 52,
+          backgroundColor: '#25D366',
+          color: '#fff',
+          fontWeight: 700,
+          fontSize: 16,
+          textDecoration: 'none',
+          boxShadow: '0 -2px 12px rgba(0,0,0,0.15)',
+          WebkitTapHighlightColor: 'transparent',
+          letterSpacing: '0.02em',
+        }}
+      >
+        <WhatsAppIcon className="w-6 h-6 text-white" />
+        Chat with us on WhatsApp
+      </a>
+
+      {/* Spacer so page content is not hidden behind the bar */}
+      <div style={{ height: 52 }} />
+    </>
   );
 }
