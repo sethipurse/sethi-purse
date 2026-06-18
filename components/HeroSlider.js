@@ -230,7 +230,7 @@ const S = {
   }),
 
   textBlock: (isDesktop) => ({
-    padding: isDesktop ? '48px 0 0 48px' : '20px 0 0 22px',
+    padding: isDesktop ? '80px 0 0 48px' : '20px 0 0 22px',
     position: 'relative', zIndex: 2,
     width: isDesktop ? '45%' : '72%',
   }),
