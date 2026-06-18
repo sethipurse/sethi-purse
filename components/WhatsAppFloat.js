@@ -1,5 +1,5 @@
 'use client';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { getWALinkForPath } from '@/lib/constants';
 
@@ -14,37 +14,78 @@ function WhatsAppIcon({ className }) {
 export default function WhatsAppFloat() {
   const pathname = usePathname() || '';
   const isAdmin = pathname.startsWith('/admin');
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
-    if (isAdmin) {
-      document.body.classList.remove('has-sticky-wa');
-      return;
-    }
     document.body.classList.remove('has-sticky-wa');
     return () => document.body.classList.remove('has-sticky-wa');
   }, [isAdmin]);
 
   if (isAdmin) return null;
+
   const link = getWALinkForPath(pathname);
 
   return (
-    <>
-      <a
-        href={link}
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label="Chat with us on WhatsApp"
-        title="Chat with us"
-        className="fixed bottom-5 right-5 z-[9999] group"
-        style={{ width: 56, height: 56 }}
-      >
-        <span className="absolute inset-0 rounded-full bg-[#25D366] animate-pulse-ring" />
-        <span className="relative flex items-center justify-center w-14 h-14 rounded-full bg-[#25D366] shadow-lg hover:scale-105 transition-transform">
-          <WhatsAppIcon className="w-7 h-7 text-white" />
-        </span>
-      </a>
+    <a
+      href={link}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="Chat with us on WhatsApp"
+      title="Chat with us on WhatsApp"
+      style={{
+        position: 'fixed',
+        // ✅ On mobile: sit above the sticky CTA bar (68px) + some gap
+        // On desktop: standard bottom-5
+        bottom: isMobile ? '80px' : '20px',
+        right: '16px',
+        zIndex: 99990,
+        width: 56,
+        height: 56,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        textDecoration: 'none',
+      }}
+    >
+      {/* Pulse ring */}
+      <span style={{
+        position: 'absolute',
+        inset: 0,
+        borderRadius: '50%',
+        backgroundColor: '#25D366',
+        opacity: 0.4,
+        animation: 'wa-pulse 2s ease-out infinite',
+      }} />
+      {/* Button */}
+      <span style={{
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 56,
+        height: 56,
+        borderRadius: '50%',
+        backgroundColor: '#25D366',
+        boxShadow: '0 4px 20px rgba(37,211,102,0.5)',
+      }}>
+        <WhatsAppIcon className="w-7 h-7 text-white" />
+      </span>
 
-    </>
+      <style>{`
+        @keyframes wa-pulse {
+          0% { transform: scale(1); opacity: 0.4; }
+          70% { transform: scale(1.6); opacity: 0; }
+          100% { transform: scale(1.6); opacity: 0; }
+        }
+      `}</style>
+    </a>
   );
 }
