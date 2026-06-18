@@ -23,12 +23,6 @@ export default function WhatsAppFloat() {
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-    document.body.classList.remove('has-sticky-wa');
-    return () => document.body.classList.remove('has-sticky-wa');
-  }, [isAdmin]);
-
   if (isAdmin) return null;
 
   const link = getWALinkForPath(pathname);
@@ -42,10 +36,9 @@ export default function WhatsAppFloat() {
       title="Chat with us on WhatsApp"
       style={{
         position: 'fixed',
-        // ✅ On mobile: sit above the sticky CTA bar (68px) + some gap
-        // On desktop: standard bottom-5
-        bottom: isMobile ? '80px' : '20px',
-        right: '16px',
+        // FIX: moved to LEFT side so it doesn't overlap BackToTop button on right
+        bottom: isMobile ? '80px' : '24px',
+        left: '16px',
         zIndex: 99990,
         width: 56,
         height: 56,
@@ -53,6 +46,7 @@ export default function WhatsAppFloat() {
         alignItems: 'center',
         justifyContent: 'center',
         textDecoration: 'none',
+        WebkitTapHighlightColor: 'transparent',
       }}
     >
       {/* Pulse ring */}
@@ -78,7 +72,6 @@ export default function WhatsAppFloat() {
       }}>
         <WhatsAppIcon className="w-7 h-7 text-white" />
       </span>
-
       <style>{`
         @keyframes wa-pulse {
           0% { transform: scale(1); opacity: 0.4; }
