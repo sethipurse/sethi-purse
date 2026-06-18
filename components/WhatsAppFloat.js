@@ -14,24 +14,16 @@ function WhatsAppIcon({ className }) {
 export default function WhatsAppFloat() {
   const pathname = usePathname() || '';
   const [show, setShow] = useState(false);
-  // FIX: track exact viewport position where user stopped
   const [stopY, setStopY] = useState('50%');
   const timerRef = useRef(null);
 
   useEffect(() => {
     const onScroll = () => {
-      // User started scrolling → HIDE
       setShow(false);
-
       if (timerRef.current) clearTimeout(timerRef.current);
-
-      // User stopped → SHOW at current viewport center
       timerRef.current = setTimeout(() => {
-        // Calculate where in the viewport the user stopped
-        // Use center of current visible area
         const viewportHeight = window.innerHeight;
         const scrollY = window.scrollY;
-        // Position button at 60% of viewport height (slightly below center — natural eye position)
         const buttonY = scrollY + (viewportHeight * 0.6);
         setStopY(buttonY);
         setShow(true);
@@ -54,18 +46,16 @@ export default function WhatsAppFloat() {
       href={link}
       target="_blank"
       rel="noopener noreferrer"
-      aria-label="Chat with us on WhatsApp"
-      title="Chat with us on WhatsApp"
+      aria-label="Get Best Price on WhatsApp"
+      title="Get Best Price on WhatsApp"
       style={{
-        position: 'absolute', // FIX: absolute so it positions on the PAGE not screen
+        position: 'absolute',
         top: stopY,
         left: '16px',
         zIndex: 99990,
-        width: 56,
-        height: 56,
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center',
+        gap: 8,
         textDecoration: 'none',
         WebkitTapHighlightColor: 'transparent',
         touchAction: 'manipulation',
@@ -75,27 +65,46 @@ export default function WhatsAppFloat() {
         transition: 'opacity 0.25s ease, transform 0.25s ease',
       }}
     >
+      {/* Icon circle with pulse */}
+      <div style={{ position: 'relative', width: 48, height: 48, flexShrink: 0 }}>
+        <span style={{
+          position: 'absolute',
+          inset: 0,
+          borderRadius: '50%',
+          backgroundColor: '#25D366',
+          opacity: 0.4,
+          animation: 'wa-pulse 2s ease-out infinite',
+        }} />
+        <span style={{
+          position: 'relative',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 48,
+          height: 48,
+          borderRadius: '50%',
+          backgroundColor: '#25D366',
+          boxShadow: '0 4px 16px rgba(37,211,102,0.5)',
+        }}>
+          <WhatsAppIcon className="w-6 h-6 text-white" />
+        </span>
+      </div>
+
+      {/* Text label */}
       <span style={{
-        position: 'absolute',
-        inset: 0,
-        borderRadius: '50%',
         backgroundColor: '#25D366',
-        opacity: 0.4,
-        animation: 'wa-pulse 2s ease-out infinite',
-      }} />
-      <span style={{
-        position: 'relative',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: 56,
-        height: 56,
-        borderRadius: '50%',
-        backgroundColor: '#25D366',
-        boxShadow: '0 4px 20px rgba(37,211,102,0.5)',
+        color: '#fff',
+        fontWeight: 700,
+        fontSize: 13,
+        padding: '6px 12px',
+        borderRadius: 20,
+        boxShadow: '0 4px 16px rgba(37,211,102,0.4)',
+        whiteSpace: 'nowrap',
+        letterSpacing: '0.02em',
       }}>
-        <WhatsAppIcon className="w-7 h-7 text-white" />
+        💬 Get Best Price
       </span>
+
       <style>{`
         @keyframes wa-pulse {
           0% { transform: scale(1); opacity: 0.4; }
