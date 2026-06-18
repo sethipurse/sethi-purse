@@ -4,7 +4,6 @@ import { clearAdminCookie, makeAdminToken, rateLimit, requireAdmin, setAdminCook
 import { v4 as uuidv4 } from 'uuid';
 import categoriesJson from '@/data/categories.json';
 
-// Normalize local JSON fallback data for categories only
 const LOCAL_CATEGORIES = categoriesJson.map((c) => ({
   ...c,
   image_url: c.image_url || c.imageUrl || '',
@@ -21,11 +20,9 @@ async function handle(request, { params }) {
   const segments = (params?.path || []);
   const method = request.method;
 
-  // Global rate limit: max 60 requests per minute per IP (all routes)
   const globalLimited = rateLimit(request, 'global', 60);
   if (globalLimited) return globalLimited;
 
-  // Per-route rate limit (stricter for mutations)
   const limited = rateLimit(request, `${method}:${segments[0] || 'root'}`, method === 'GET' ? 180 : 45);
   if (limited) return limited;
 
@@ -37,7 +34,7 @@ async function handle(request, { params }) {
     segments[0] === 'push' ||
     segments[0] === 'chat';
 
-  // ===== Uploads — must be handled BEFORE body parsing =====
+  // ===== Uploads =====
   if (segments[0] === 'upload' && method === 'POST') {
     const authError = requireAdmin(request);
     if (authError) return authError;
@@ -138,11 +135,16 @@ YOUR RULES:
           }),
         }
       );
-      if (!res.ok) return json({ error: 'Gemini API error' }, 500);
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error('Gemini error:', res.status, errText);
+        return json({ error: 'Gemini API error' }, 500);
+      }
       const data = await res.json();
       const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text || 'Sorry, please try again!';
       return json({ reply });
     } catch (err) {
+      console.error('Chat error:', err);
       return json({ error: 'Server error' }, 500);
     }
   }
@@ -151,10 +153,7 @@ YOUR RULES:
   if (segments[0] === 'slider-images' || segments[0] === 'slider_images') {
     if (segments.length === 1) {
       if (method === 'GET') {
-        const { data, error } = await supabase
-          .from('slider_images')
-          .select('*')
-          .order('sort_order', { ascending: true });
+        const { data, error } = await supabase.from('slider_images').select('*').order('sort_order', { ascending: true });
         if (error) return json([]);
         return json(data || []);
       }
@@ -255,8 +254,7 @@ YOUR RULES:
         if (p.mrp !== undefined) updates.mrp = Number(p.mrp);
         if (p.original_price !== undefined) updates.original_price = Number(p.original_price);
         if (p.salePrice !== undefined || p.sale_price !== undefined || p.price !== undefined) {
-          const value = p.salePrice ?? p.sale_price ?? p.price;
-          updates.sale_price = Number(value);
+          updates.sale_price = Number(p.salePrice ?? p.sale_price ?? p.price);
         }
         if (p.discount_percent !== undefined) updates.discount_percent = Number(p.discount_percent);
         if (p.description !== undefined) updates.description = String(p.description).trim();
