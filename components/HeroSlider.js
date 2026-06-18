@@ -237,8 +237,9 @@ const S = {
 
   category: {
     fontFamily: "'Cormorant Garamond','Georgia',serif",
-    fontWeight: 600, fontSize: 11, letterSpacing: '0.22em',
-    color: '#c9a84c', margin: '0 0 6px', textTransform: 'uppercase',
+    fontWeight: 700, fontSize: 13, letterSpacing: '0.22em',
+    color: '#c9a84c', margin: '0 0 8px', textTransform: 'uppercase',
+    opacity: 1,
   },
   goldRule: { width: 28, height: 1.5, background: '#c9a84c', marginBottom: 10 },
 
