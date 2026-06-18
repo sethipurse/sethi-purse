@@ -14,17 +14,26 @@ function WhatsAppIcon({ className }) {
 export default function WhatsAppFloat() {
   const pathname = usePathname() || '';
   const [show, setShow] = useState(false);
+  // FIX: track exact viewport position where user stopped
+  const [stopY, setStopY] = useState('50%');
   const timerRef = useRef(null);
 
   useEffect(() => {
     const onScroll = () => {
-      // User started scrolling → HIDE button
+      // User started scrolling → HIDE
       setShow(false);
 
       if (timerRef.current) clearTimeout(timerRef.current);
 
-      // User stopped scrolling → SHOW button after 600ms
+      // User stopped → SHOW at current viewport center
       timerRef.current = setTimeout(() => {
+        // Calculate where in the viewport the user stopped
+        // Use center of current visible area
+        const viewportHeight = window.innerHeight;
+        const scrollY = window.scrollY;
+        // Position button at 60% of viewport height (slightly below center — natural eye position)
+        const buttonY = scrollY + (viewportHeight * 0.6);
+        setStopY(buttonY);
         setShow(true);
       }, 600);
     };
@@ -48,8 +57,8 @@ export default function WhatsAppFloat() {
       aria-label="Chat with us on WhatsApp"
       title="Chat with us on WhatsApp"
       style={{
-        position: 'fixed',
-        bottom: '24px',
+        position: 'absolute', // FIX: absolute so it positions on the PAGE not screen
+        top: stopY,
         left: '16px',
         zIndex: 99990,
         width: 56,
@@ -66,7 +75,6 @@ export default function WhatsAppFloat() {
         transition: 'opacity 0.25s ease, transform 0.25s ease',
       }}
     >
-      {/* Pulse ring */}
       <span style={{
         position: 'absolute',
         inset: 0,
@@ -75,7 +83,6 @@ export default function WhatsAppFloat() {
         opacity: 0.4,
         animation: 'wa-pulse 2s ease-out infinite',
       }} />
-      {/* Button */}
       <span style={{
         position: 'relative',
         display: 'flex',
