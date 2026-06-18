@@ -237,11 +237,15 @@ const S = {
 
   category: {
     fontFamily: "'Cormorant Garamond','Georgia',serif",
-    fontWeight: 700, fontSize: 13, letterSpacing: '0.22em',
-    color: '#c9a84c', margin: '0 0 8px', textTransform: 'uppercase',
+    fontWeight: 700, fontSize: 14, letterSpacing: '0.25em',
+    color: '#2c1f14', margin: '0 0 8px', textTransform: 'uppercase',
     opacity: 1,
+    background: 'linear-gradient(90deg, #c9a84c, #a07a28)',
+    WebkitBackgroundClip: 'text',
+    WebkitTextFillColor: 'transparent',
+    backgroundClip: 'text',
   },
-  goldRule: { width: 28, height: 1.5, background: '#c9a84c', marginBottom: 10 },
+  goldRule: { width: 40, height: 3, background: '#c9a84c', marginBottom: 12, borderRadius: 2 },
 
   headline: (isDesktop) => ({
     fontFamily: "'Cormorant Garamond','Georgia',serif",
