@@ -3,14 +3,17 @@ import { ADMIN_COOKIE } from '@/lib/security';
 
 export function middleware(request) {
   const { pathname } = request.nextUrl;
+
   const isAdminPage = pathname.startsWith('/admin') && pathname !== '/admin';
+
   const isAdminApiWrite =
     pathname.startsWith('/api/') &&
     ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method) &&
     !pathname.startsWith('/api/auth/login') &&
     !pathname.startsWith('/api/inquiries') &&
     !pathname.startsWith('/api/reviews') &&
-    !pathname.startsWith('/api/push');
+    !pathname.startsWith('/api/push') &&
+    !pathname.startsWith('/api/chat');
 
   if (!isAdminPage && !isAdminApiWrite) return NextResponse.next();
 
