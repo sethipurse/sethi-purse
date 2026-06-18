@@ -18,15 +18,15 @@ export default function WhatsAppFloat() {
 
   useEffect(() => {
     const onScroll = () => {
-      // User scrolling → show button
-      setShow(true);
+      // User started scrolling → HIDE button
+      setShow(false);
 
       if (timerRef.current) clearTimeout(timerRef.current);
 
-      // User stopped scrolling → hide button after 1 second
+      // User stopped scrolling → SHOW button after 600ms
       timerRef.current = setTimeout(() => {
-        setShow(false);
-      }, 1000);
+        setShow(true);
+      }, 600);
     };
 
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -59,6 +59,7 @@ export default function WhatsAppFloat() {
         justifyContent: 'center',
         textDecoration: 'none',
         WebkitTapHighlightColor: 'transparent',
+        touchAction: 'manipulation',
         opacity: show ? 1 : 0,
         transform: show ? 'scale(1)' : 'scale(0.8)',
         pointerEvents: show ? 'auto' : 'none',
