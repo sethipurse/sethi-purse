@@ -3,6 +3,8 @@ import { useEffect, useState, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { getWALinkForPath, buildWhatsAppLink } from '@/lib/constants';
 
+// ─── Icons ───────────────────────────────────────────────────────────────────
+
 function WhatsAppIcon() {
   return (
     <svg viewBox="0 0 32 32" fill="currentColor" style={{ width: 22, height: 22 }} aria-hidden="true">
@@ -44,6 +46,8 @@ function CloseIcon({ size = 18 }) {
   );
 }
 
+// ─── Quick questions ──────────────────────────────────────────────────────────
+
 const QUICK_QUESTIONS = [
   '💼 Show luggage options',
   '👜 What handbags do you have?',
@@ -53,7 +57,9 @@ const QUICK_QUESTIONS = [
   '🕐 Timings?',
 ];
 
-function AIChatPanel({ onClose, bottomOffset }) {
+// ─── AI Chat Panel ────────────────────────────────────────────────────────────
+
+function AIChatPanel({ onClose }) {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
@@ -113,11 +119,11 @@ function AIChatPanel({ onClose, bottomOffset }) {
   return (
     <div style={{
       position: 'fixed',
-      bottom: bottomOffset + 60,
-      right: 16,
-      left: 'auto',
+      bottom: 90,
+      left: 12,
+      right: 12,
       maxWidth: 400,
-      width: 'calc(100vw - 32px)',
+      width: 'calc(100vw - 24px)',
       zIndex: 99999,
       borderRadius: 20,
       overflow: 'hidden',
@@ -128,6 +134,8 @@ function AIChatPanel({ onClose, bottomOffset }) {
       backgroundColor: '#faf8f4',
       border: '1px solid rgba(201,168,76,0.3)',
     }}>
+
+      {/* Header */}
       <div style={{
         background: 'linear-gradient(135deg, #2c1f14 0%, #3d2a1a 100%)',
         padding: '12px 14px',
@@ -160,15 +168,18 @@ function AIChatPanel({ onClose, bottomOffset }) {
         </button>
       </div>
 
+      {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '14px 12px 8px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {messages.map((msg, i) => (
           <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
             <div style={{
-              maxWidth: '82%', padding: '9px 13px',
+              maxWidth: '82%',
+              padding: '9px 13px',
               borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
               backgroundColor: msg.role === 'user' ? '#2c1f14' : '#fff',
               color: msg.role === 'user' ? '#c9a84c' : '#2c1f14',
-              fontSize: 13.5, lineHeight: 1.55,
+              fontSize: 13.5,
+              lineHeight: 1.55,
               boxShadow: '0 2px 8px rgba(0,0,0,0.07)',
               border: msg.role === 'user' ? 'none' : '1px solid rgba(201,168,76,0.2)',
               fontFamily: 'system-ui, sans-serif',
@@ -177,6 +188,7 @@ function AIChatPanel({ onClose, bottomOffset }) {
             />
           </div>
         ))}
+
         {loading && (
           <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
             <div style={{ padding: '10px 14px', borderRadius: '16px 16px 16px 4px', backgroundColor: '#fff', border: '1px solid rgba(201,168,76,0.2)', display: 'flex', gap: 5, alignItems: 'center' }}>
@@ -189,6 +201,7 @@ function AIChatPanel({ onClose, bottomOffset }) {
         <div ref={bottomRef} />
       </div>
 
+      {/* Quick questions */}
       {messages.length <= 1 && (
         <div style={{ padding: '0 12px 10px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {QUICK_QUESTIONS.map((q) => (
@@ -201,6 +214,7 @@ function AIChatPanel({ onClose, bottomOffset }) {
         </div>
       )}
 
+      {/* WhatsApp strip */}
       <a href={waLink} target="_blank" rel="noopener noreferrer" style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
         backgroundColor: '#25D366', color: '#fff', padding: '7px',
@@ -211,6 +225,7 @@ function AIChatPanel({ onClose, bottomOffset }) {
         <span style={{ fontSize: 12 }}>Chat on WhatsApp · +91 7986161633</span>
       </a>
 
+      {/* Input */}
       <div style={{
         padding: '9px 10px', borderTop: '1px solid rgba(201,168,76,0.2)',
         display: 'flex', gap: 8, alignItems: 'center',
@@ -252,51 +267,63 @@ function AIChatPanel({ onClose, bottomOffset }) {
   );
 }
 
+// ─── Main Float Component ─────────────────────────────────────────────────────
+
 export default function WhatsAppFloat() {
   const pathname = usePathname() || '';
   const [show, setShow] = useState(false);
+  const [stopY, setStopY] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  const timerRef = useRef(null);
 
   useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768);
-    check();
-    window.addEventListener('resize', check);
-    const t = setTimeout(() => setShow(true), 500);
-    return () => { clearTimeout(t); window.removeEventListener('resize', check); };
+    const onScroll = () => {
+      setShow(false);
+      setMenuOpen(false);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+        const baseY = window.scrollY + window.innerHeight * 0.6;
+        setStopY(baseY);
+        setShow(true);
+      }, 600);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
   }, []);
 
   if (pathname.startsWith('/admin')) return null;
 
-  // On mobile: sit above MobileStickyCTA (64px tall) + 12px gap = 76px
-  // On desktop: 20px from bottom
-  const bottomOffset = isMobile ? 76 : 20;
   const waLink = getWALinkForPath(pathname);
 
   return (
     <>
-      {chatOpen && <AIChatPanel onClose={() => setChatOpen(false)} bottomOffset={bottomOffset} />}
+      {/* AI Chat panel */}
+      {chatOpen && <AIChatPanel onClose={() => setChatOpen(false)} />}
 
-      {menuOpen && (
+      {/* Popup menu — appears above the main button */}
+      {menuOpen && stopY !== null && (
         <div style={{
-          position: 'fixed',
-          bottom: bottomOffset + 60,
-          right: 16,
+          position: 'absolute',
+          top: stopY - 130,
+          left: 16,
           zIndex: 99992,
           display: 'flex',
           flexDirection: 'column',
-          alignItems: 'flex-end',
           gap: 10,
           opacity: show ? 1 : 0,
           transform: show ? 'translateY(0)' : 'translateY(10px)',
           transition: 'opacity 0.2s ease, transform 0.2s ease',
           pointerEvents: show ? 'auto' : 'none',
         }}>
+          {/* Ask AI option */}
           <button
             onClick={() => { setChatOpen(true); setMenuOpen(false); }}
             style={{
-              display: 'flex', alignItems: 'center', flexDirection: 'row-reverse', gap: 10,
+              display: 'flex', alignItems: 'center', gap: 10,
               background: 'none', border: 'none', padding: 0, cursor: 'pointer',
               WebkitTapHighlightColor: 'transparent',
             }}
@@ -320,13 +347,14 @@ export default function WhatsAppFloat() {
             </span>
           </button>
 
+          {/* WhatsApp option */}
           <a
             href={waLink}
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => setMenuOpen(false)}
             style={{
-              display: 'flex', alignItems: 'center', flexDirection: 'row-reverse', gap: 10,
+              display: 'flex', alignItems: 'center', gap: 10,
               textDecoration: 'none', WebkitTapHighlightColor: 'transparent',
             }}
           >
@@ -351,63 +379,69 @@ export default function WhatsAppFloat() {
         </div>
       )}
 
-      <button
-        onClick={() => setMenuOpen((o) => !o)}
-        aria-label="Contact us"
-        style={{
-          position: 'fixed',
-          bottom: bottomOffset,
-          right: 16,
-          zIndex: 99991,
-          display: 'flex',
-          alignItems: 'center',
-          flexDirection: 'row-reverse',
-          gap: 8,
-          background: 'none',
-          border: 'none',
-          padding: 0,
-          cursor: 'pointer',
-          WebkitTapHighlightColor: 'transparent',
-          touchAction: 'manipulation',
-          opacity: show ? 1 : 0,
-          transform: show ? 'scale(1)' : 'scale(0.8)',
-          pointerEvents: show ? 'auto' : 'none',
-          transition: 'opacity 0.25s ease, transform 0.25s ease',
-        }}
-      >
-        <div style={{ position: 'relative', width: 52, height: 52, flexShrink: 0 }}>
+      {/* Main floating button */}
+      {stopY !== null && (
+        <button
+          onClick={() => setMenuOpen((o) => !o)}
+          aria-label="Contact us"
+          style={{
+            position: 'absolute',
+            top: stopY,
+            left: 16,
+            zIndex: 99991,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+            WebkitTapHighlightColor: 'transparent',
+            touchAction: 'manipulation',
+            opacity: show ? 1 : 0,
+            transform: show ? 'scale(1)' : 'scale(0.8)',
+            pointerEvents: show ? 'auto' : 'none',
+            transition: 'opacity 0.25s ease, transform 0.25s ease',
+          }}
+        >
+          {/* Pulse ring */}
+          <div style={{ position: 'relative', width: 52, height: 52, flexShrink: 0 }}>
+            {!menuOpen && (
+              <span style={{
+                position: 'absolute', inset: 0, borderRadius: '50%',
+                backgroundColor: '#25D366', opacity: 0.35,
+                animation: 'wa-pulse 2s ease-out infinite',
+              }} />
+            )}
+            <span style={{
+              position: 'relative',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 52, height: 52, borderRadius: '50%',
+              backgroundColor: menuOpen ? '#2c1f14' : '#25D366',
+              boxShadow: menuOpen
+                ? '0 4px 16px rgba(44,31,20,0.4)'
+                : '0 4px 16px rgba(37,211,102,0.5)',
+              transition: 'background 0.2s',
+              color: menuOpen ? '#c9a84c' : '#fff',
+            }}>
+              {menuOpen ? <CloseIcon size={20} /> : <WhatsAppIcon />}
+            </span>
+          </div>
+
+          {/* Label */}
           {!menuOpen && (
             <span style={{
-              position: 'absolute', inset: 0, borderRadius: '50%',
-              backgroundColor: '#25D366', opacity: 0.35,
-              animation: 'wa-pulse 2s ease-out infinite',
-            }} />
+              backgroundColor: '#25D366', color: '#fff',
+              fontWeight: 700, fontSize: 13, padding: '6px 14px',
+              borderRadius: 20, whiteSpace: 'nowrap',
+              boxShadow: '0 4px 16px rgba(37,211,102,0.4)',
+              letterSpacing: '0.02em',
+            }}>
+              💬 Get Best Price
+            </span>
           )}
-          <span style={{
-            position: 'relative',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            width: 52, height: 52, borderRadius: '50%',
-            backgroundColor: menuOpen ? '#2c1f14' : '#25D366',
-            boxShadow: menuOpen ? '0 4px 16px rgba(44,31,20,0.4)' : '0 4px 16px rgba(37,211,102,0.5)',
-            transition: 'background 0.2s',
-            color: menuOpen ? '#c9a84c' : '#fff',
-          }}>
-            {menuOpen ? <CloseIcon size={20} /> : <WhatsAppIcon />}
-          </span>
-        </div>
-
-        {!menuOpen && (
-          <span style={{
-            backgroundColor: '#25D366', color: '#fff',
-            fontWeight: 700, fontSize: 13, padding: '6px 14px',
-            borderRadius: 20, whiteSpace: 'nowrap',
-            boxShadow: '0 4px 16px rgba(37,211,102,0.4)',
-            letterSpacing: '0.02em',
-          }}>
-            💬 Get Best Price
-          </span>
-        )}
-      </button>
+        </button>
+      )}
 
       <style>{`
         @keyframes wa-pulse {
