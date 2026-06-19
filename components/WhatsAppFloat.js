@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { getWALinkForPath, buildWhatsAppLink } from '@/lib/constants';
 
@@ -58,6 +58,9 @@ const QUICK_QUESTIONS = [
 ];
 
 // ─── AI Chat Panel ────────────────────────────────────────────────────────────
+// position: fixed + bottom/right anchored to the VIEWPORT (not the page),
+// so it always opens in the same visible spot near the FAB, no matter how
+// far down the page the user has scrolled.
 
 function AIChatPanel({ onClose }) {
   const [messages, setMessages] = useState([
@@ -72,7 +75,7 @@ function AIChatPanel({ onClose }) {
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
 
-  useEffect(() => {
+  useState(() => {
     fetch('/api/products')
       .then((r) => r.json())
       .then((data) => {
@@ -80,12 +83,7 @@ function AIChatPanel({ onClose }) {
         setProducts(list);
       })
       .catch(() => {});
-    setTimeout(() => inputRef.current?.focus(), 300);
-  }, []);
-
-  useEffect(() => {
-    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 80);
-  }, [messages]);
+  });
 
   async function sendMessage(text) {
     const userText = (text || input).trim();
@@ -107,6 +105,7 @@ function AIChatPanel({ onClose }) {
       setMessages((prev) => [...prev, { role: 'assistant', content: 'Network error. Please WhatsApp us directly!' }]);
     } finally {
       setLoading(false);
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 80);
     }
   }
 
@@ -120,10 +119,10 @@ function AIChatPanel({ onClose }) {
     <div style={{
       position: 'fixed',
       bottom: 90,
-      left: 12,
-      right: 12,
-      maxWidth: 400,
-      width: 'calc(100vw - 24px)',
+      left: 16,
+      right: 'auto',
+      maxWidth: 380,
+      width: 'min(380px, calc(100vw - 32px))',
       zIndex: 99999,
       borderRadius: 20,
       overflow: 'hidden',
@@ -268,32 +267,14 @@ function AIChatPanel({ onClose }) {
 }
 
 // ─── Main Float Component ─────────────────────────────────────────────────────
+// FAB and its speed-dial menu use position: fixed anchored to bottom/right
+// of the VIEWPORT. This means they never move based on scroll position and
+// the chat panel always opens in the same visible spot, right above the FAB.
 
 export default function WhatsAppFloat() {
   const pathname = usePathname() || '';
-  const [show, setShow] = useState(false);
-  const [stopY, setStopY] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
-  const timerRef = useRef(null);
-
-  useEffect(() => {
-    const onScroll = () => {
-      setShow(false);
-      setMenuOpen(false);
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => {
-        const baseY = window.scrollY + window.innerHeight * 0.6;
-        setStopY(baseY);
-        setShow(true);
-      }, 600);
-    };
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', onScroll);
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, []);
 
   if (pathname.startsWith('/admin')) return null;
 
@@ -305,19 +286,16 @@ export default function WhatsAppFloat() {
       {chatOpen && <AIChatPanel onClose={() => setChatOpen(false)} />}
 
       {/* Popup menu — appears above the main button */}
-      {menuOpen && stopY !== null && (
+      {menuOpen && (
         <div style={{
-          position: 'absolute',
-          top: stopY - 130,
+          position: 'fixed',
+          bottom: 158,
           left: 16,
           zIndex: 99992,
           display: 'flex',
           flexDirection: 'column',
+          alignItems: 'flex-start',
           gap: 10,
-          opacity: show ? 1 : 0,
-          transform: show ? 'translateY(0)' : 'translateY(10px)',
-          transition: 'opacity 0.2s ease, transform 0.2s ease',
-          pointerEvents: show ? 'auto' : 'none',
         }}>
           {/* Ask AI option */}
           <button
@@ -380,68 +358,62 @@ export default function WhatsAppFloat() {
       )}
 
       {/* Main floating button */}
-      {stopY !== null && (
-        <button
-          onClick={() => setMenuOpen((o) => !o)}
-          aria-label="Contact us"
-          style={{
-            position: 'absolute',
-            top: stopY,
-            left: 16,
-            zIndex: 99991,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            background: 'none',
-            border: 'none',
-            padding: 0,
-            cursor: 'pointer',
-            WebkitTapHighlightColor: 'transparent',
-            touchAction: 'manipulation',
-            opacity: show ? 1 : 0,
-            transform: show ? 'scale(1)' : 'scale(0.8)',
-            pointerEvents: show ? 'auto' : 'none',
-            transition: 'opacity 0.25s ease, transform 0.25s ease',
-          }}
-        >
-          {/* Pulse ring */}
-          <div style={{ position: 'relative', width: 52, height: 52, flexShrink: 0 }}>
-            {!menuOpen && (
-              <span style={{
-                position: 'absolute', inset: 0, borderRadius: '50%',
-                backgroundColor: '#25D366', opacity: 0.35,
-                animation: 'wa-pulse 2s ease-out infinite',
-              }} />
-            )}
-            <span style={{
-              position: 'relative',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: 52, height: 52, borderRadius: '50%',
-              backgroundColor: menuOpen ? '#2c1f14' : '#25D366',
-              boxShadow: menuOpen
-                ? '0 4px 16px rgba(44,31,20,0.4)'
-                : '0 4px 16px rgba(37,211,102,0.5)',
-              transition: 'background 0.2s',
-              color: menuOpen ? '#c9a84c' : '#fff',
-            }}>
-              {menuOpen ? <CloseIcon size={20} /> : <WhatsAppIcon />}
-            </span>
-          </div>
-
-          {/* Label */}
+      <button
+        onClick={() => setMenuOpen((o) => !o)}
+        aria-label="Contact us"
+        style={{
+          position: 'fixed',
+          bottom: 90,
+          left: 16,
+          zIndex: 99991,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          background: 'none',
+          border: 'none',
+          padding: 0,
+          cursor: 'pointer',
+          WebkitTapHighlightColor: 'transparent',
+          touchAction: 'manipulation',
+        }}
+      >
+        {/* Pulse ring */}
+        <div style={{ position: 'relative', width: 52, height: 52, flexShrink: 0 }}>
           {!menuOpen && (
             <span style={{
-              backgroundColor: '#25D366', color: '#fff',
-              fontWeight: 700, fontSize: 13, padding: '6px 14px',
-              borderRadius: 20, whiteSpace: 'nowrap',
-              boxShadow: '0 4px 16px rgba(37,211,102,0.4)',
-              letterSpacing: '0.02em',
-            }}>
-              💬 Get Best Price
-            </span>
+              position: 'absolute', inset: 0, borderRadius: '50%',
+              backgroundColor: '#25D366', opacity: 0.35,
+              animation: 'wa-pulse 2s ease-out infinite',
+            }} />
           )}
-        </button>
-      )}
+          <span style={{
+            position: 'relative',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 52, height: 52, borderRadius: '50%',
+            backgroundColor: menuOpen ? '#2c1f14' : '#25D366',
+            boxShadow: menuOpen
+              ? '0 4px 16px rgba(44,31,20,0.4)'
+              : '0 4px 16px rgba(37,211,102,0.5)',
+            transition: 'background 0.2s',
+            color: menuOpen ? '#c9a84c' : '#fff',
+          }}>
+            {menuOpen ? <CloseIcon size={20} /> : <WhatsAppIcon />}
+          </span>
+        </div>
+
+        {/* Label */}
+        {!menuOpen && (
+          <span style={{
+            backgroundColor: '#25D366', color: '#fff',
+            fontWeight: 700, fontSize: 13, padding: '6px 14px',
+            borderRadius: 20, whiteSpace: 'nowrap',
+            boxShadow: '0 4px 16px rgba(37,211,102,0.4)',
+            letterSpacing: '0.02em',
+          }}>
+            💬 Get Best Price
+          </span>
+        )}
+      </button>
 
       <style>{`
         @keyframes wa-pulse {
