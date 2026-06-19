@@ -29,11 +29,11 @@ export default function BackToTop() {
       aria-label="Back to top"
       style={{
         position: 'fixed',
-        bottom: '90px',
+        bottom: '80px',
         right: '16px',
         zIndex: 9997,
-        width: '52px',
-        height: '52px',
+        width: '44px',
+        height: '44px',
         borderRadius: '50%',
         background: '#c9a84c',
         color: '#2c1f14',
