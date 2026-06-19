@@ -117,35 +117,107 @@ YOUR RULES:
 6. For delivery questions say: "We offer in-store pickup. For special arrangements, WhatsApp us!"
 7. Always be positive and helpful.`;
 
-    const geminiMessages = (messages || []).map((m) => ({
+    // Keep only the last 12 messages so the payload (and Gemini's job) stays small
+    // as the conversation grows — prevents slow/oversized requests on long chats.
+    const trimmedMessages = (messages || []).slice(-12);
+    const geminiMessages = trimmedMessages.map((m) => ({
       role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }],
+      parts: [{ text: String(m.content || '') }],
     }));
 
-    try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            system_instruction: { parts: [{ text: systemPrompt }] },
-            contents: geminiMessages,
-            generationConfig: { temperature: 0.7, maxOutputTokens: 300 },
-          }),
+    // One attempt at calling Gemini, with its own timeout.
+    async function callGemini(maxOutputTokens, timeoutMs) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              system_instruction: { parts: [{ text: systemPrompt }] },
+              contents: geminiMessages,
+              generationConfig: { temperature: 0.7, maxOutputTokens },
+            }),
+            signal: controller.signal,
+          }
+        );
+        clearTimeout(timer);
+
+        if (!res.ok) {
+          const errText = await res.text().catch(() => '');
+          console.error('Gemini HTTP error:', res.status, errText);
+          return { ok: false, reason: 'http_error', status: res.status };
         }
-      );
-      if (!res.ok) {
-        const errText = await res.text();
-        console.error('Gemini error:', res.status, errText);
-        return json({ error: 'Gemini API error' }, 500);
+
+        const data = await res.json().catch(() => null);
+        if (!data) {
+          console.error('Gemini returned invalid JSON');
+          return { ok: false, reason: 'bad_json' };
+        }
+
+        const candidate = data?.candidates?.[0];
+        const finishReason = candidate?.finishReason;
+        const text = candidate?.content?.parts?.map((p) => p?.text || '').join('').trim();
+
+        if (text) {
+          return { ok: true, text, finishReason };
+        }
+
+        // 200 OK but no usable text — classify why.
+        console.error('Gemini empty reply. finishReason:', finishReason, JSON.stringify(data).slice(0, 500));
+        return { ok: false, reason: finishReason || 'empty' };
+      } catch (err) {
+        clearTimeout(timer);
+        if (err?.name === 'AbortError') {
+          console.error('Gemini call timed out after', timeoutMs, 'ms');
+          return { ok: false, reason: 'timeout' };
+        }
+        console.error('Gemini fetch threw:', err);
+        return { ok: false, reason: 'fetch_error' };
       }
-      const data = await res.json();
-      const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text || 'Sorry, please try again!';
-      return json({ reply });
+    }
+
+    try {
+      // First attempt: generous token budget, 12s timeout.
+      let result = await callGemini(500, 12000);
+
+      // If it was cut off for length, retry once asking for a shorter answer —
+      // cheaper/faster than raising tokens indefinitely and almost always succeeds.
+      if (!result.ok && result.reason === 'MAX_TOKENS') {
+        geminiMessages.push({
+          role: 'user',
+          parts: [{ text: '(Please answer in 1-2 short sentences only.)' }],
+        });
+        result = await callGemini(200, 10000);
+      }
+
+      // If it timed out, retry once more quickly — most timeouts are transient.
+      if (!result.ok && result.reason === 'timeout') {
+        result = await callGemini(250, 8000);
+      }
+
+      if (result.ok) {
+        return json({ reply: result.text });
+      }
+
+      // Friendly, honest fallbacks per failure type instead of one generic line.
+      const fallbacks = {
+        SAFETY: "I can't quite answer that one — try rephrasing, or WhatsApp us at +91 7986161633!",
+        MAX_TOKENS: "That's a bigger question than I can answer quickly — WhatsApp us at +91 7986161633 for full details!",
+        timeout: "I'm a little slow right now — please try again in a moment, or WhatsApp us at +91 7986161633!",
+        http_error: "I'm having trouble connecting right now — please WhatsApp us at +91 7986161633!",
+        empty: "I didn't quite get that — could you ask in a different way?",
+      };
+      const reply = fallbacks[result.reason] || "Sorry, I'm having trouble right now — please WhatsApp us at +91 7986161633!";
+      return json({ reply, debugReason: result.reason }, 200);
     } catch (err) {
-      console.error('Chat error:', err);
-      return json({ error: 'Server error' }, 500);
+      console.error('Chat handler error:', err);
+      return json({
+        reply: "Sorry, something went wrong on our end — please WhatsApp us at +91 7986161633!",
+        debugReason: 'unhandled',
+      }, 200);
     }
   }
 
