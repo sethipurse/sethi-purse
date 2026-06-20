@@ -3,6 +3,8 @@ import { useEffect, useState, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { ArrowUp } from 'lucide-react';
 
+const SCROLL_THRESHOLD = 150; // px user must scroll down before button can appear
+
 export default function BackToTop() {
   const pathname = usePathname() || '';
   const [show, setShow] = useState(false);
@@ -10,9 +12,17 @@ export default function BackToTop() {
 
   useEffect(() => {
     const onScroll = () => {
+      // Never show until the user has actually scrolled past the threshold.
+      if (window.scrollY < SCROLL_THRESHOLD) {
+        setShow(false);
+        clearTimeout(timer.current);
+        return;
+      }
       setShow(false);
       clearTimeout(timer.current);
-      timer.current = setTimeout(() => setShow(true), 100);
+      timer.current = setTimeout(() => {
+        if (window.scrollY >= SCROLL_THRESHOLD) setShow(true);
+      }, 150);
     };
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => {
@@ -29,7 +39,6 @@ export default function BackToTop() {
       aria-label="Back to top"
       className="back-to-top-btn"
       style={{
-        // TRUE FAB: fixed to viewport, never tied to scroll position or page layout.
         position: 'fixed',
         left: '16px',
         zIndex: 9996,
@@ -54,11 +63,9 @@ export default function BackToTop() {
     >
       <ArrowUp style={{ width: '22px', height: '22px', strokeWidth: 2.5 }} />
       <style>{`
-        /* Mobile: clear the MobileStickyCTA bar (~64px tall) with visible gap */
         .back-to-top-btn {
           bottom: 92px;
         }
-        /* Desktop: no sticky bar exists */
         @media (min-width: 768px) {
           .back-to-top-btn {
             bottom: 20px;
