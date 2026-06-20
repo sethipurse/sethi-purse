@@ -90,43 +90,6 @@ async function handle(request, { params }) {
     try { body = await request.json(); } catch (e) { body = null; }
   }
 
-  // ===== Most Wanted (product mention frequency from AI chats, last 30 days) =====
-  if (segments[0] === 'most-wanted' && method === 'GET') {
-    try {
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - 30);
-      const { data: chats, error } = await supabase
-        .from('inquiries')
-        .select('message, created_at')
-        .ilike('message', '[AI CHAT]%')
-        .gte('created_at', cutoff.toISOString());
-      if (error) return json({ error: error.message }, 500);
-
-      // Get current product names so we only count real matches
-      const { data: products } = await supabase.from('products').select('id, name');
-      const productList = products || [];
-
-      const counts = {};
-      (chats || []).forEach((chat) => {
-        const text = (chat.message || '').toLowerCase();
-        productList.forEach((p) => {
-          if (p.name && text.includes(p.name.toLowerCase())) {
-            counts[p.id] = (counts[p.id] || 0) + 1;
-          }
-        });
-      });
-
-      const topIds = Object.entries(counts)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 10)
-        .map(([id, count]) => ({ id, count }));
-
-      return json({ productIds: topIds.map((t) => t.id), counts: topIds });
-    } catch (error) {
-      return json({ error: error.message || 'Failed to compute most-wanted' }, 500);
-    }
-  }
-
   // ===== AI Description Generation (Gemini) =====
   if (segments[0] === 'generate-description' && method === 'POST') {
     const authError = requireAdmin(request);
