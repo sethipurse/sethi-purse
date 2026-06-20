@@ -16,7 +16,7 @@ function WhatsAppIcon() {
 function BotIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-      style={{ width: 18, height: 18 }} aria-hidden="true">
+      style={{ width: 19, height: 19 }} aria-hidden="true">
       <rect x="3" y="11" width="18" height="10" rx="2" />
       <circle cx="12" cy="7" r="3" />
       <path d="M12 10v1" />
@@ -188,7 +188,7 @@ function AIChatPanel({ onClose }) {
             <BotIcon />
           </div>
           <div>
-            <div style={{ color: '#c9a84c', fontWeight: 700, fontSize: 14 }}>SETHI PURSE AI</div>
+            <div style={{ color: '#c9a84c', fontWeight: 700, fontSize: 14 }}>SETHI PURSE — Live Chat</div>
             <div style={{ color: 'rgba(201,168,76,0.6)', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
               <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#4ade80', display: 'inline-block' }} />
               Online · Powered by Gemini
@@ -344,11 +344,13 @@ function AIChatPanel({ onClose }) {
 }
 
 // ─── Main Float Component ─────────────────────────────────────────────────────
-// Small round "Ask AI" icon button. Fixed to viewport bottom-right, position
-// never changes. STAYS HIDDEN on initial load — only appears once the user
-// has scrolled down past SCROLL_THRESHOLD. Hides again while actively
-// scrolling, reappears ~150ms after scroll stops (as long as still past
-// threshold). Scrolling back up to the top hides it again.
+// "Live Chat" FAB — gold (#c9a84c) to stay visible against both the light page
+// background and the dark footer (the old dark-brown button was invisible on
+// dark sections). Fixed to viewport bottom-right, position never changes.
+// Hidden on initial load — only appears once the user scrolls past
+// SCROLL_THRESHOLD. Hides while actively scrolling, reappears ~250ms after
+// scroll stops. Animation: stronger pulse ring + a continuous gentle bounce
+// so it's noticeably more eye-catching ("vibrant") than before.
 
 export default function WhatsAppFloat() {
   const pathname = usePathname() || '';
@@ -385,27 +387,28 @@ export default function WhatsAppFloat() {
       {/* AI Chat panel */}
       {chatOpen && <AIChatPanel onClose={() => setChatOpen(false)} />}
 
-      {/* Small round icon-only FAB — TRUE fixed position, never scroll-tied */}
+      {/* Small round icon-only FAB — gold, vibrant pulse + bounce animation */}
       <button
         onClick={() => setChatOpen(true)}
-        aria-label="Ask AI Assistant"
-        className="wa-float-fab"
+        aria-label="Live Chat"
+        title="Live Chat"
+        className={`wa-float-fab${isShown ? ' wa-float-fab--bounce' : ''}`}
         style={{
           position: 'fixed',
           right: 16,
           zIndex: 99991,
-          width: 44,
-          height: 44,
+          width: 48,
+          height: 48,
           borderRadius: '50%',
-          background: '#2c1f14',
+          background: '#c9a84c',
           border: 'none',
           padding: 0,
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: '#c9a84c',
-          boxShadow: '0 4px 14px rgba(44,31,20,0.4)',
+          color: '#2c1f14',
+          boxShadow: '0 4px 18px rgba(201,168,76,0.6)',
           WebkitTapHighlightColor: 'transparent',
           touchAction: 'manipulation',
           opacity: isShown ? 1 : 0,
@@ -414,10 +417,17 @@ export default function WhatsAppFloat() {
           transition: 'opacity 0.25s ease, transform 0.25s ease',
         }}
       >
+        {/* Outer pulse ring — bigger & faster for visibility */}
         <span style={{
-          position: 'absolute', inset: 0, borderRadius: '50%',
-          backgroundColor: '#2c1f14', opacity: 0.25,
-          animation: 'wa-pulse 2s ease-out infinite',
+          position: 'absolute', inset: -4, borderRadius: '50%',
+          backgroundColor: '#c9a84c', opacity: 0.45,
+          animation: 'wa-pulse 1.6s ease-out infinite',
+        }} />
+        {/* Secondary offset pulse for extra liveliness */}
+        <span style={{
+          position: 'absolute', inset: -4, borderRadius: '50%',
+          backgroundColor: '#c9a84c', opacity: 0.3,
+          animation: 'wa-pulse 1.6s ease-out infinite 0.5s',
         }} />
         <span style={{ position: 'relative', display: 'flex' }}>
           <BotIcon />
@@ -426,9 +436,18 @@ export default function WhatsAppFloat() {
 
       <style>{`
         @keyframes wa-pulse {
-          0%   { transform: scale(1);   opacity: 0.25; }
-          70%  { transform: scale(1.6); opacity: 0; }
-          100% { transform: scale(1.6); opacity: 0; }
+          0%   { transform: scale(1);    opacity: 0.45; }
+          70%  { transform: scale(1.9);  opacity: 0; }
+          100% { transform: scale(1.9);  opacity: 0; }
+        }
+
+        @keyframes wa-bounce {
+          0%, 100% { transform: scale(1) translateY(0); }
+          50%      { transform: scale(1.07) translateY(-3px); }
+        }
+
+        .wa-float-fab--bounce {
+          animation: wa-bounce 1.8s ease-in-out infinite;
         }
 
         .wa-float-fab {
