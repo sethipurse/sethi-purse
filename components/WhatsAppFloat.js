@@ -103,7 +103,14 @@ function AIChatPanel({ onClose }) {
         body: JSON.stringify({ messages: newMessages, products }),
       });
       const data = await res.json();
-      setMessages((prev) => [...prev, { role: 'assistant', content: data.reply || 'Sorry, please try again!' }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: data.reply || 'Sorry, please try again!',
+          products: Array.isArray(data.products) ? data.products : [],
+        },
+      ]);
     } catch {
       setMessages((prev) => [...prev, { role: 'assistant', content: 'Network error. Please WhatsApp us directly!' }]);
     } finally {
@@ -115,7 +122,19 @@ function AIChatPanel({ onClose }) {
     return text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br/>');
   }
 
-  const waLink = buildWhatsAppLink('Hi SETHI PURSE! I was chatting with your AI assistant and want to know more.');
+  // ── Build a WhatsApp link that carries the last few chat messages as context ──
+  function buildContextWhatsAppLink() {
+    const recentUserMsgs = messages
+      .filter((m) => m.role === 'user')
+      .slice(-2)
+      .map((m) => m.content)
+      .join('; ');
+    const base = 'Hi SETHI PURSE! I was chatting with your AI assistant';
+    const context = recentUserMsgs ? ` about: ${recentUserMsgs}` : '';
+    return buildWhatsAppLink(`${base}${context}. Please help me further!`);
+  }
+
+  const waLink = buildContextWhatsAppLink();
 
   return (
     <div className="wa-chat-panel" style={{
@@ -172,7 +191,7 @@ function AIChatPanel({ onClose }) {
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '14px 12px 8px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {messages.map((msg, i) => (
-          <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+          <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start', gap: 6 }}>
             <div style={{
               maxWidth: '82%',
               padding: '9px 13px',
@@ -187,6 +206,50 @@ function AIChatPanel({ onClose }) {
             }}
               dangerouslySetInnerHTML={{ __html: fmt(msg.content) }}
             />
+
+            {/* ── Mini product cards for AI-suggested items ── */}
+            {Array.isArray(msg.products) && msg.products.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: '88%', width: '100%' }}>
+                {msg.products.map((p) => {
+                  const price = p.sale_price ?? p.salePrice ?? p.price ?? 0;
+                  const img = p.image_url || p.imageUrl || '';
+                  return (
+                    <a
+                      key={p.id}
+                      href={`/product/${p.id}`}
+                      style={{
+                        display: 'flex',
+                        gap: 8,
+                        alignItems: 'center',
+                        backgroundColor: '#fff',
+                        border: '1px solid rgba(201,168,76,0.3)',
+                        borderRadius: 12,
+                        padding: 8,
+                        textDecoration: 'none',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                      }}
+                    >
+                      {img ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={img} alt={p.name} style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', flexShrink: 0, background: '#f5f0e8' }} />
+                      ) : (
+                        <div style={{ width: 44, height: 44, borderRadius: 8, flexShrink: 0, background: '#f5f0e8' }} />
+                      )}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12.5, fontWeight: 700, color: '#2c1f14', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#c9a84c' }}>Rs.{Number(price).toLocaleString('en-IN')}</div>
+                      </div>
+                      <span style={{
+                        fontSize: 11, fontWeight: 700, color: '#fff', backgroundColor: '#c9a84c',
+                        padding: '5px 10px', borderRadius: 14, whiteSpace: 'nowrap', flexShrink: 0,
+                      }}>
+                        View →
+                      </span>
+                    </a>
+                  );
+                })}
+              </div>
+            )}
           </div>
         ))}
 
