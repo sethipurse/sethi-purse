@@ -145,9 +145,10 @@ YOUR RULES:
 8. If a customer asks for something NOT in the catalog or it's Out of Stock, do NOT just say no — suggest 2-3 similar available products from the catalog instead, by name.
 9. If there's a relevant active offer above and the customer's question relates to it (matching category or general browsing), mention it naturally in your reply.
 10. If a customer asks to compare two specific products (e.g. "American Tourister vs Safari trolley"), give a short side-by-side comparison using ONLY price, brand, and category from the catalog above — do not invent specs you don't have.
-11. When you mention specific products the customer can view, end your message with a line in this EXACT machine-readable format so the app can show product cards (only include this line if relevant products exist in the catalog):
+11. CRITICAL — NEVER write product IDs, UUIDs, or any "(ID: ...)" text inside your spoken reply. Customers must never see raw IDs. Refer to products only by name and price in your visible text.
+12. When you mention specific products the customer can view, end your message with a line in this EXACT machine-readable format so the app can show product cards (only include this line if relevant products exist in the catalog):
 PRODUCTS: [id1, id2, id3]
-Only put real IDs from the catalog above, max 3. If no specific products are relevant, omit this line entirely.`;
+This PRODUCTS line is the ONLY place IDs are allowed to appear — it is stripped before the customer sees your message. Only put real IDs from the catalog above, max 3. If no specific products are relevant, omit this line entirely.`;
 
     // Keep only the last 12 messages so the payload (and Gemini's job) stays small
     // as the conversation grows — prevents slow/oversized requests on long chats.
@@ -244,6 +245,14 @@ Only put real IDs from the catalog above, max 3. If no specific products are rel
             .slice(0, 3);
           reply = reply.replace(/PRODUCTS:\s*\[([^\]]*)\]/i, '').trim();
         }
+
+        // ✅ Safety net — strip any stray UUID or "(ID: ...)" text Gemini might
+        // have leaked into the visible reply, even if it ignored the system prompt.
+        reply = reply
+          .replace(/\(?\s*ID:?\s*[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\s*\)?/gi, '')
+          .replace(/\s{2,}/g, ' ')
+          .trim();
+
         const matchedProducts = Array.isArray(products)
           ? products.filter((p) => productIds.includes(String(p.id)))
           : [];
