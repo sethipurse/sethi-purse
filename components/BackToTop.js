@@ -29,9 +29,8 @@ export default function BackToTop() {
       aria-label="Back to top"
       className="back-to-top-btn"
       style={{
+        // TRUE FAB: fixed to viewport, never tied to scroll position or page layout.
         position: 'fixed',
-        // FIX: moved to the LEFT side of the screen so it never overlaps
-        // the WhatsApp FAB which lives on the right at the same bottom band.
         left: '16px',
         zIndex: 9996,
         width: '44px',
