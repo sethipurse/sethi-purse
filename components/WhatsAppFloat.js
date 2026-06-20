@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
 import { usePathname } from 'next/navigation';
-import { getWALinkForPath, buildWhatsAppLink } from '@/lib/constants';
+import { buildWhatsAppLink } from '@/lib/constants';
 
 // ─── Icons ───────────────────────────────────────────────────────────────────
 
@@ -58,7 +58,6 @@ const QUICK_QUESTIONS = [
 ];
 
 // ─── AI Chat Panel ────────────────────────────────────────────────────────────
-// Positioned relative to the SAME anchor as the FAB (bottom-right), fixed to viewport.
 
 function AIChatPanel({ onClose }) {
   const [messages, setMessages] = useState([
@@ -135,7 +134,6 @@ function AIChatPanel({ onClose }) {
     return text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br/>');
   }
 
-  // ── Build a WhatsApp link that carries the last few chat messages as context ──
   function buildContextWhatsAppLink() {
     const recentUserMsgs = messages
       .filter((m) => m.role === 'user')
@@ -220,7 +218,6 @@ function AIChatPanel({ onClose }) {
               dangerouslySetInnerHTML={{ __html: fmt(msg.content) }}
             />
 
-            {/* ── Mini product cards for AI-suggested items ── */}
             {Array.isArray(msg.products) && msg.products.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: '88%', width: '100%' }}>
                 {msg.products.map((p) => {
@@ -345,115 +342,46 @@ function AIChatPanel({ onClose }) {
 }
 
 // ─── Main Float Component ─────────────────────────────────────────────────────
-// FIX: position: fixed, anchored bottom-right of the VIEWPORT, never absolute,
-// never tied to window.scrollY. No scroll listener for positioning at all.
-// On mobile, sits ABOVE MobileStickyCTA (which is ~64px tall) by using bottom: 76px.
-// On desktop (md+), sits at bottom: 20px since there is no sticky bar.
+// Single "Ask AI" FAB only. Fixed to viewport bottom-right — position never
+// changes. Visibility toggles based on scroll: hides while scrolling, shows
+// ~250ms after scrolling stops. On mobile it sits above MobileStickyCTA.
 
 export default function WhatsAppFloat() {
   const pathname = usePathname() || '';
-  const [menuOpen, setMenuOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [visible, setVisible] = useState(true);
+  const scrollTimerRef = useRef(null);
 
   useEffect(() => { setMounted(true); }, []);
 
+  // Hide while actively scrolling, reveal shortly after scrolling stops.
+  useEffect(() => {
+    const onScroll = () => {
+      setVisible(false);
+      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+      scrollTimerRef.current = setTimeout(() => setVisible(true), 250);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+    };
+  }, []);
+
   if (pathname.startsWith('/admin')) return null;
 
-  const waLink = getWALinkForPath(pathname);
-
-  // FAB bottom offset: 76px on mobile (clears MobileStickyCTA's ~64px bar + gap),
-  // 20px on desktop (md+) where there's no sticky bar.
-  const fabBottomMobile = 76;
-  const fabBottomDesktop = 20;
+  const isShown = mounted && visible && !chatOpen;
 
   return (
     <>
-      {/* AI Chat panel — sits above the FAB, same right-side anchor */}
+      {/* AI Chat panel */}
       {chatOpen && <AIChatPanel onClose={() => setChatOpen(false)} />}
 
-      {/* Popup menu — appears directly above the main button, anchored bottom-right */}
-      {menuOpen && (
-        <div
-          className="wa-float-menu"
-          style={{
-            position: 'fixed',
-            right: 16,
-            zIndex: 99992,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'flex-end',
-            gap: 10,
-            opacity: mounted ? 1 : 0,
-            transform: mounted ? 'translateY(0)' : 'translateY(10px)',
-            transition: 'opacity 0.2s ease, transform 0.2s ease',
-          }}
-        >
-          {/* Ask AI option */}
-          <button
-            onClick={() => { setChatOpen(true); setMenuOpen(false); }}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-              WebkitTapHighlightColor: 'transparent', flexDirection: 'row-reverse',
-            }}
-          >
-            <div style={{
-              width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
-              backgroundColor: '#2c1f14', color: '#c9a84c',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 4px 14px rgba(44,31,20,0.35)',
-            }}>
-              <BotIcon />
-            </div>
-            <span style={{
-              backgroundColor: '#2c1f14', color: '#c9a84c',
-              fontWeight: 700, fontSize: 13, padding: '6px 14px',
-              borderRadius: 20, whiteSpace: 'nowrap',
-              boxShadow: '0 4px 14px rgba(44,31,20,0.25)',
-              letterSpacing: '0.02em',
-            }}>
-              🤖 Ask AI
-            </span>
-          </button>
-
-          {/* WhatsApp option */}
-          <a
-            href={waLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => setMenuOpen(false)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              textDecoration: 'none', WebkitTapHighlightColor: 'transparent',
-              flexDirection: 'row-reverse',
-            }}
-          >
-            <div style={{
-              width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
-              backgroundColor: '#25D366', color: '#fff',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 4px 14px rgba(37,211,102,0.45)',
-            }}>
-              <WhatsAppIcon />
-            </div>
-            <span style={{
-              backgroundColor: '#25D366', color: '#fff',
-              fontWeight: 700, fontSize: 13, padding: '6px 14px',
-              borderRadius: 20, whiteSpace: 'nowrap',
-              boxShadow: '0 4px 14px rgba(37,211,102,0.3)',
-              letterSpacing: '0.02em',
-            }}>
-              💬 Get Best Price
-            </span>
-          </a>
-        </div>
-      )}
-
-      {/* Main floating button — TRUE fixed, bottom-right, never scroll-tied */}
+      {/* Single FAB — "Ask AI" only, TRUE fixed position, never scroll-tied */}
       <button
-        onClick={() => setMenuOpen((o) => !o)}
-        aria-label="Contact us"
+        onClick={() => setChatOpen(true)}
+        aria-label="Ask AI Assistant"
         className="wa-float-fab"
         style={{
           position: 'fixed',
@@ -469,66 +397,56 @@ export default function WhatsAppFloat() {
           cursor: 'pointer',
           WebkitTapHighlightColor: 'transparent',
           touchAction: 'manipulation',
-          opacity: mounted ? 1 : 0,
-          transform: mounted ? 'scale(1)' : 'scale(0.8)',
+          opacity: isShown ? 1 : 0,
+          transform: isShown ? 'scale(1) translateY(0)' : 'scale(0.85) translateY(8px)',
+          pointerEvents: isShown ? 'auto' : 'none',
           transition: 'opacity 0.25s ease, transform 0.25s ease',
         }}
       >
         {/* Pulse ring */}
         <div style={{ position: 'relative', width: 52, height: 52, flexShrink: 0 }}>
-          {!menuOpen && (
-            <span style={{
-              position: 'absolute', inset: 0, borderRadius: '50%',
-              backgroundColor: '#25D366', opacity: 0.35,
-              animation: 'wa-pulse 2s ease-out infinite',
-            }} />
-          )}
+          <span style={{
+            position: 'absolute', inset: 0, borderRadius: '50%',
+            backgroundColor: '#2c1f14', opacity: 0.25,
+            animation: 'wa-pulse 2s ease-out infinite',
+          }} />
           <span style={{
             position: 'relative',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             width: 52, height: 52, borderRadius: '50%',
-            backgroundColor: menuOpen ? '#2c1f14' : '#25D366',
-            boxShadow: menuOpen
-              ? '0 4px 16px rgba(44,31,20,0.4)'
-              : '0 4px 16px rgba(37,211,102,0.5)',
-            transition: 'background 0.2s',
-            color: menuOpen ? '#c9a84c' : '#fff',
+            backgroundColor: '#2c1f14',
+            boxShadow: '0 4px 16px rgba(44,31,20,0.45)',
+            color: '#c9a84c',
           }}>
-            {menuOpen ? <CloseIcon size={20} /> : <WhatsAppIcon />}
+            <BotIcon />
           </span>
         </div>
 
         {/* Label */}
-        {!menuOpen && (
-          <span style={{
-            backgroundColor: '#25D366', color: '#fff',
-            fontWeight: 700, fontSize: 13, padding: '6px 14px',
-            borderRadius: 20, whiteSpace: 'nowrap',
-            boxShadow: '0 4px 16px rgba(37,211,102,0.4)',
-            letterSpacing: '0.02em',
-          }}>
-            💬 Get Best Price
-          </span>
-        )}
+        <span style={{
+          backgroundColor: '#2c1f14', color: '#c9a84c',
+          fontWeight: 700, fontSize: 13, padding: '6px 14px',
+          borderRadius: 20, whiteSpace: 'nowrap',
+          boxShadow: '0 4px 16px rgba(44,31,20,0.35)',
+          letterSpacing: '0.02em',
+        }}>
+          🤖 Ask AI
+        </span>
       </button>
 
       <style>{`
         @keyframes wa-pulse {
-          0%   { transform: scale(1);   opacity: 0.35; }
+          0%   { transform: scale(1);   opacity: 0.25; }
           70%  { transform: scale(1.7); opacity: 0; }
           100% { transform: scale(1.7); opacity: 0; }
         }
 
         /* Mobile: clear the MobileStickyCTA bar (~64px tall) with a visible gap */
-        .wa-float-fab,
-        .wa-float-menu {
+        .wa-float-fab {
           bottom: 92px;
         }
-        .wa-float-menu {
-          bottom: 154px; /* 92px FAB offset + 52px FAB height + 10px gap */
-        }
         .wa-chat-panel {
-          bottom: 154px; /* same as menu — sits directly above the FAB */
+          bottom: 154px; /* sits directly above the FAB on mobile */
         }
 
         /* Desktop: no sticky bar exists, sit lower */
@@ -536,11 +454,8 @@ export default function WhatsAppFloat() {
           .wa-float-fab {
             bottom: 20px;
           }
-          .wa-float-menu {
-            bottom: 84px; /* 20px FAB offset + 52px FAB height + 12px gap */
-          }
           .wa-chat-panel {
-            bottom: 84px; /* same as menu on desktop */
+            bottom: 84px; /* sits directly above the FAB on desktop */
           }
         }
       `}</style>
