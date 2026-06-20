@@ -12,6 +12,24 @@ const LOCAL_CATEGORIES = categoriesJson.map((c) => ({
 
 const VALID_STATUSES = ['new', 'contacted', 'converted', 'closed'];
 
+// ── Category keyword map, shared by inquiry auto-tagging and the dashboard ──
+const CATEGORY_KEYWORDS = {
+  'Backpacks': ['backpack', 'bag pack', 'rucksack'],
+  'Handbags': ['handbag', 'hand bag', 'ladies bag', 'purse'],
+  'Luggage': ['luggage', 'trolley', 'suitcase', 'travel bag'],
+  'Wallets': ['wallet', 'purse for cash'],
+  'Slings': ['sling'],
+  'School Bags': ['school bag'],
+};
+
+function detectCategory(text) {
+  const lower = (text || '').toLowerCase();
+  for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+    if (keywords.some((kw) => lower.includes(kw))) return category;
+  }
+  return 'Other';
+}
+
 function json(data, status = 200) {
   return NextResponse.json(data, { status });
 }
@@ -70,6 +88,91 @@ async function handle(request, { params }) {
   let body = null;
   if (['POST', 'PUT', 'PATCH'].includes(method)) {
     try { body = await request.json(); } catch (e) { body = null; }
+  }
+
+  // ===== Most Wanted (product mention frequency from AI chats, last 30 days) =====
+  if (segments[0] === 'most-wanted' && method === 'GET') {
+    try {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 30);
+      const { data: chats, error } = await supabase
+        .from('inquiries')
+        .select('message, created_at')
+        .ilike('message', '[AI CHAT]%')
+        .gte('created_at', cutoff.toISOString());
+      if (error) return json({ error: error.message }, 500);
+
+      // Get current product names so we only count real matches
+      const { data: products } = await supabase.from('products').select('id, name');
+      const productList = products || [];
+
+      const counts = {};
+      (chats || []).forEach((chat) => {
+        const text = (chat.message || '').toLowerCase();
+        productList.forEach((p) => {
+          if (p.name && text.includes(p.name.toLowerCase())) {
+            counts[p.id] = (counts[p.id] || 0) + 1;
+          }
+        });
+      });
+
+      const topIds = Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([id, count]) => ({ id, count }));
+
+      return json({ productIds: topIds.map((t) => t.id), counts: topIds });
+    } catch (error) {
+      return json({ error: error.message || 'Failed to compute most-wanted' }, 500);
+    }
+  }
+
+  // ===== AI Description Generation (Gemini) =====
+  if (segments[0] === 'generate-description' && method === 'POST') {
+    const authError = requireAdmin(request);
+    if (authError) return authError;
+
+    const { name, brand, category } = body || {};
+    if (!name) return json({ error: 'Product name is required' }, 400);
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return json({ error: 'GEMINI_API_KEY is not configured on the server' }, 500);
+
+    const prompt = `Write a concise, persuasive product description (2-3 sentences, no markdown, no headings) for an e-commerce listing.
+Product name: ${name}
+${brand ? `Brand: ${brand}` : ''}
+${category ? `Category: ${category}` : ''}
+Focus on quality, style, and everyday usefulness. Do not invent specific measurements, materials, or prices that weren't given. Return only the description text, nothing else.`;
+
+    try {
+      const geminiRes = await fetch(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey,
+          },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          }),
+        }
+      );
+
+      const geminiData = await geminiRes.json().catch(() => ({}));
+
+      if (!geminiRes.ok) {
+        const message = geminiData?.error?.message || `Gemini API error (status ${geminiRes.status})`;
+        return json({ error: message }, geminiRes.status >= 400 && geminiRes.status < 600 ? geminiRes.status : 500);
+      }
+
+      const description = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+      if (!description) return json({ error: 'Gemini returned an empty response' }, 502);
+
+      return json({ description });
+    } catch (error) {
+      return json({ error: error.message || 'Failed to reach Gemini API' }, 500);
+    }
   }
 
   // ===== AI Chat (Gemini) =====
@@ -150,15 +253,12 @@ YOUR RULES:
 PRODUCTS: [id1, id2, id3]
 This PRODUCTS line is the ONLY place IDs are allowed to appear — it is stripped before the customer sees your message. Only put real IDs from the catalog above, max 3. If no specific products are relevant, omit this line entirely.`;
 
-    // Keep only the last 12 messages so the payload (and Gemini's job) stays small
-    // as the conversation grows — prevents slow/oversized requests on long chats.
     const trimmedMessages = (messages || []).slice(-12);
     const geminiMessages = trimmedMessages.map((m) => ({
       role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: String(m.content || '') }],
     }));
 
-    // One attempt at calling Gemini, with its own timeout.
     async function callGemini(maxOutputTokens, timeoutMs) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -198,7 +298,6 @@ This PRODUCTS line is the ONLY place IDs are allowed to appear — it is strippe
           return { ok: true, text, finishReason };
         }
 
-        // 200 OK but no usable text — classify why.
         console.error('Gemini empty reply. finishReason:', finishReason, JSON.stringify(data).slice(0, 500));
         return { ok: false, reason: finishReason || 'empty' };
       } catch (err) {
@@ -213,11 +312,8 @@ This PRODUCTS line is the ONLY place IDs are allowed to appear — it is strippe
     }
 
     try {
-      // First attempt: generous token budget, 12s timeout.
       let result = await callGemini(500, 12000);
 
-      // If it was cut off for length, retry once asking for a shorter answer —
-      // cheaper/faster than raising tokens indefinitely and almost always succeeds.
       if (!result.ok && result.reason === 'MAX_TOKENS') {
         geminiMessages.push({
           role: 'user',
@@ -226,7 +322,6 @@ This PRODUCTS line is the ONLY place IDs are allowed to appear — it is strippe
         result = await callGemini(200, 10000);
       }
 
-      // If it timed out, retry once more quickly — most timeouts are transient.
       if (!result.ok && result.reason === 'timeout') {
         result = await callGemini(250, 8000);
       }
@@ -234,7 +329,6 @@ This PRODUCTS line is the ONLY place IDs are allowed to appear — it is strippe
       if (result.ok) {
         let reply = result.text;
 
-        // ── Extract structured product IDs the AI flagged, strip the marker line from visible text ──
         let productIds = [];
         const match = reply.match(/PRODUCTS:\s*\[([^\]]*)\]/i);
         if (match) {
@@ -246,8 +340,6 @@ This PRODUCTS line is the ONLY place IDs are allowed to appear — it is strippe
           reply = reply.replace(/PRODUCTS:\s*\[([^\]]*)\]/i, '').trim();
         }
 
-        // ✅ Safety net — strip any stray UUID or "(ID: ...)" text Gemini might
-        // have leaked into the visible reply, even if it ignored the system prompt.
         reply = reply
           .replace(/\(?\s*ID:?\s*[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\s*\)?/gi, '')
           .replace(/\s{2,}/g, ' ')
@@ -257,10 +349,17 @@ This PRODUCTS line is the ONLY place IDs are allowed to appear — it is strippe
           ? products.filter((p) => productIds.includes(String(p.id)))
           : [];
 
+        // ── Detect if any matched product is out of stock — feeds the demand tracker ──
+        const outOfStockMatches = matchedProducts.filter((p) => {
+          const stock = p.stock;
+          return stock === 0 || p.in_stock === false || p.inStock === false;
+        });
+
         // ── Save this exchange to inquiries table for later review (best-effort, never blocks reply) ──
         try {
           const lastUserMsg = [...(messages || [])].reverse().find((m) => m.role === 'user');
           if (lastUserMsg) {
+            const detectedCategory = detectCategory(`${lastUserMsg.content} ${reply}`);
             await supabase.from('inquiries').insert([{
               id: uuidv4(),
               name: 'AI Chat Visitor',
@@ -269,6 +368,8 @@ This PRODUCTS line is the ONLY place IDs are allowed to appear — it is strippe
               product_interest: matchedProducts.map((p) => p.name).join(', ') || 'General enquiry',
               message: `[AI CHAT] User asked: "${lastUserMsg.content}" | AI replied: "${reply.slice(0, 300)}"`,
               status: 'new',
+              category: detectedCategory,
+              demand_type: outOfStockMatches.length > 0 ? 'out_of_stock_interest' : null,
               created_at: nowIST(),
             }]);
           }
@@ -279,7 +380,6 @@ This PRODUCTS line is the ONLY place IDs are allowed to appear — it is strippe
         return json({ reply, products: matchedProducts });
       }
 
-      // Friendly, honest fallbacks per failure type instead of one generic line.
       const fallbacks = {
         SAFETY: "I can't quite answer that one — try rephrasing, or WhatsApp us at +91 7986161633!",
         MAX_TOKENS: "That's a bigger question than I can answer quickly — WhatsApp us at +91 7986161633 for full details!",
@@ -533,6 +633,7 @@ This PRODUCTS line is the ONLY place IDs are allowed to appear — it is strippe
           return json({ error: 'All fields are required' }, 400);
         if (phone.length !== 10)
           return json({ error: 'Phone must be 10 digits' }, 400);
+        const detectedCategory = detectCategory(`${i.productInterest} ${i.message}`);
         const inquiry = {
           id: uuidv4(),
           name: String(i.name).trim(),
@@ -541,6 +642,8 @@ This PRODUCTS line is the ONLY place IDs are allowed to appear — it is strippe
           product_interest: String(i.productInterest).trim(),
           message: String(i.message).trim(),
           status: 'new',
+          category: detectedCategory,
+          whatsapp_consent: !!i.whatsappConsent,
           created_at: nowIST(),
         };
         const { data, error } = await supabase.from('inquiries').insert([inquiry]).select().single();
