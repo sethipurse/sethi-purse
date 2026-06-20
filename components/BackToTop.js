@@ -27,11 +27,13 @@ export default function BackToTop() {
     <button
       onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
       aria-label="Back to top"
+      className="back-to-top-btn"
       style={{
         position: 'fixed',
-        bottom: '80px',
-        right: '16px',
-        zIndex: 9997,
+        // FIX: moved to the LEFT side of the screen so it never overlaps
+        // the WhatsApp FAB which lives on the right at the same bottom band.
+        left: '16px',
+        zIndex: 9996,
         width: '44px',
         height: '44px',
         borderRadius: '50%',
@@ -52,6 +54,18 @@ export default function BackToTop() {
       }}
     >
       <ArrowUp style={{ width: '22px', height: '22px', strokeWidth: 2.5 }} />
+      <style>{`
+        /* Mobile: clear the MobileStickyCTA bar (~64px tall) */
+        .back-to-top-btn {
+          bottom: 76px;
+        }
+        /* Desktop: no sticky bar exists */
+        @media (min-width: 768px) {
+          .back-to-top-btn {
+            bottom: 20px;
+          }
+        }
+      `}</style>
     </button>
   );
 }
