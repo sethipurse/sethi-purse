@@ -443,16 +443,16 @@ export default function WhatsAppFloat() {
           100% { transform: scale(1.7); opacity: 0; }
         }
 
-        /* Mobile: clear the MobileStickyCTA bar (~64px tall) */
+        /* Mobile: clear the MobileStickyCTA bar (~64px tall) with a visible gap */
         .wa-float-fab,
         .wa-float-menu {
-          bottom: 76px;
+          bottom: 92px;
         }
         .wa-float-menu {
-          bottom: 138px; /* 76px FAB offset + 52px FAB height + 10px gap */
+          bottom: 154px; /* 92px FAB offset + 52px FAB height + 10px gap */
         }
         .wa-chat-panel {
-          bottom: 138px; /* same as menu — sits directly above the FAB */
+          bottom: 154px; /* same as menu — sits directly above the FAB */
         }
 
         /* Desktop: no sticky bar exists, sit lower */
