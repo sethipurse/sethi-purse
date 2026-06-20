@@ -344,13 +344,15 @@ function AIChatPanel({ onClose }) {
 }
 
 // ─── Main Float Component ─────────────────────────────────────────────────────
-// "Live Chat" FAB — gold (#c9a84c) to stay visible against both the light page
-// background and the dark footer (the old dark-brown button was invisible on
-// dark sections). Fixed to viewport bottom-right, position never changes.
+// "Live Chat" FAB — now RED (#e53935) per request, with a visible text label
+// pill next to the round icon button (matches the original two-piece layout:
+// icon circle + separate label pill). Fixed to viewport bottom-right.
 // Hidden on initial load — only appears once the user scrolls past
 // SCROLL_THRESHOLD. Hides while actively scrolling, reappears ~250ms after
-// scroll stops. Animation: stronger pulse ring + a continuous gentle bounce
-// so it's noticeably more eye-catching ("vibrant") than before.
+// scroll stops. Pulse ring + gentle bounce kept for visibility.
+
+const FAB_RED = '#e53935';
+const FAB_RED_DARK = '#c62828';
 
 export default function WhatsAppFloat() {
   const pathname = usePathname() || '';
@@ -387,7 +389,7 @@ export default function WhatsAppFloat() {
       {/* AI Chat panel */}
       {chatOpen && <AIChatPanel onClose={() => setChatOpen(false)} />}
 
-      {/* Small round icon-only FAB — gold, vibrant pulse + bounce animation */}
+      {/* FAB — icon circle + "Live Chat" text label, red, fixed bottom-right */}
       <button
         onClick={() => setChatOpen(true)}
         aria-label="Live Chat"
@@ -397,18 +399,13 @@ export default function WhatsAppFloat() {
           position: 'fixed',
           right: 16,
           zIndex: 99991,
-          width: 48,
-          height: 48,
-          borderRadius: '50%',
-          background: '#c9a84c',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          background: 'none',
           border: 'none',
           padding: 0,
           cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#2c1f14',
-          boxShadow: '0 4px 18px rgba(201,168,76,0.6)',
           WebkitTapHighlightColor: 'transparent',
           touchAction: 'manipulation',
           opacity: isShown ? 1 : 0,
@@ -417,20 +414,46 @@ export default function WhatsAppFloat() {
           transition: 'opacity 0.25s ease, transform 0.25s ease',
         }}
       >
-        {/* Outer pulse ring — bigger & faster for visibility */}
+        {/* Text label pill */}
         <span style={{
-          position: 'absolute', inset: -4, borderRadius: '50%',
-          backgroundColor: '#c9a84c', opacity: 0.45,
-          animation: 'wa-pulse 1.6s ease-out infinite',
-        }} />
-        {/* Secondary offset pulse for extra liveliness */}
-        <span style={{
-          position: 'absolute', inset: -4, borderRadius: '50%',
-          backgroundColor: '#c9a84c', opacity: 0.3,
-          animation: 'wa-pulse 1.6s ease-out infinite 0.5s',
-        }} />
-        <span style={{ position: 'relative', display: 'flex' }}>
-          <BotIcon />
+          backgroundColor: FAB_RED,
+          color: '#fff',
+          fontWeight: 700,
+          fontSize: 13,
+          padding: '7px 14px',
+          borderRadius: 20,
+          whiteSpace: 'nowrap',
+          boxShadow: '0 4px 16px rgba(229,57,53,0.45)',
+          letterSpacing: '0.02em',
+          fontFamily: 'system-ui, sans-serif',
+        }}>
+          Live Chat
+        </span>
+
+        {/* Round icon button */}
+        <span style={{ position: 'relative', width: 48, height: 48, flexShrink: 0 }}>
+          {/* Outer pulse ring */}
+          <span style={{
+            position: 'absolute', inset: -4, borderRadius: '50%',
+            backgroundColor: FAB_RED, opacity: 0.45,
+            animation: 'wa-pulse 1.6s ease-out infinite',
+          }} />
+          {/* Secondary offset pulse for extra liveliness */}
+          <span style={{
+            position: 'absolute', inset: -4, borderRadius: '50%',
+            backgroundColor: FAB_RED, opacity: 0.3,
+            animation: 'wa-pulse 1.6s ease-out infinite 0.5s',
+          }} />
+          <span style={{
+            position: 'relative',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 48, height: 48, borderRadius: '50%',
+            background: FAB_RED,
+            color: '#fff',
+            boxShadow: '0 4px 18px rgba(229,57,53,0.6)',
+          }}>
+            <BotIcon />
+          </span>
         </span>
       </button>
 
