@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { getWALinkForPath, buildWhatsAppLink } from '@/lib/constants';
 
@@ -58,9 +58,7 @@ const QUICK_QUESTIONS = [
 ];
 
 // ─── AI Chat Panel ────────────────────────────────────────────────────────────
-// position: fixed + bottom/right anchored to the VIEWPORT (not the page),
-// so it always opens in the same visible spot near the FAB, no matter how
-// far down the page the user has scrolled.
+// Positioned relative to the SAME anchor as the FAB (bottom-right), fixed to viewport.
 
 function AIChatPanel({ onClose }) {
   const [messages, setMessages] = useState([
@@ -93,6 +91,10 @@ function AIChatPanel({ onClose }) {
     setTimeout(() => inputRef.current?.focus(), 300);
   }, []);
 
+  useEffect(() => {
+    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 80);
+  }, [messages]);
+
   async function sendMessage(text) {
     const userText = (text || input).trim();
     if (!userText || loading) return;
@@ -114,12 +116,18 @@ function AIChatPanel({ onClose }) {
       });
       const data = await res.json();
       if (data.contactCaptured) setContactCaptured(true);
-      setMessages((prev) => [...prev, { role: 'assistant', content: data.reply || 'Sorry, please try again!' }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: data.reply || 'Sorry, please try again!',
+          products: Array.isArray(data.products) ? data.products : [],
+        },
+      ]);
     } catch {
       setMessages((prev) => [...prev, { role: 'assistant', content: 'Network error. Please WhatsApp us directly!' }]);
     } finally {
       setLoading(false);
-      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 80);
     }
   }
 
@@ -127,16 +135,28 @@ function AIChatPanel({ onClose }) {
     return text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br/>');
   }
 
-  const waLink = buildWhatsAppLink('Hi SETHI PURSE! I was chatting with your AI assistant and want to know more.');
+  // ── Build a WhatsApp link that carries the last few chat messages as context ──
+  function buildContextWhatsAppLink() {
+    const recentUserMsgs = messages
+      .filter((m) => m.role === 'user')
+      .slice(-2)
+      .map((m) => m.content)
+      .join('; ');
+    const base = 'Hi SETHI PURSE! I was chatting with your AI assistant';
+    const context = recentUserMsgs ? ` about: ${recentUserMsgs}` : '';
+    return buildWhatsAppLink(`${base}${context}. Please help me further!`);
+  }
+
+  const waLink = buildContextWhatsAppLink();
 
   return (
-    <div style={{
+    <div className="wa-chat-panel" style={{
       position: 'fixed',
-      bottom: 90,
-      left: 16,
-      right: 'auto',
-      maxWidth: 380,
-      width: 'min(380px, calc(100vw - 32px))',
+      left: 12,
+      right: 12,
+      maxWidth: 400,
+      width: 'calc(100vw - 24px)',
+      marginLeft: 'auto',
       zIndex: 99999,
       borderRadius: 20,
       overflow: 'hidden',
@@ -184,7 +204,7 @@ function AIChatPanel({ onClose }) {
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '14px 12px 8px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {messages.map((msg, i) => (
-          <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+          <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start', gap: 6 }}>
             <div style={{
               maxWidth: '82%',
               padding: '9px 13px',
@@ -199,6 +219,50 @@ function AIChatPanel({ onClose }) {
             }}
               dangerouslySetInnerHTML={{ __html: fmt(msg.content) }}
             />
+
+            {/* ── Mini product cards for AI-suggested items ── */}
+            {Array.isArray(msg.products) && msg.products.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: '88%', width: '100%' }}>
+                {msg.products.map((p) => {
+                  const price = p.sale_price ?? p.salePrice ?? p.price ?? 0;
+                  const img = p.image_url || p.imageUrl || '';
+                  return (
+                    <a
+                      key={p.id}
+                      href={`/product/${p.id}`}
+                      style={{
+                        display: 'flex',
+                        gap: 8,
+                        alignItems: 'center',
+                        backgroundColor: '#fff',
+                        border: '1px solid rgba(201,168,76,0.3)',
+                        borderRadius: 12,
+                        padding: 8,
+                        textDecoration: 'none',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                      }}
+                    >
+                      {img ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={img} alt={p.name} style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', flexShrink: 0, background: '#f5f0e8' }} />
+                      ) : (
+                        <div style={{ width: 44, height: 44, borderRadius: 8, flexShrink: 0, background: '#f5f0e8' }} />
+                      )}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12.5, fontWeight: 700, color: '#2c1f14', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#c9a84c' }}>Rs.{Number(price).toLocaleString('en-IN')}</div>
+                      </div>
+                      <span style={{
+                        fontSize: 11, fontWeight: 700, color: '#fff', backgroundColor: '#c9a84c',
+                        padding: '5px 10px', borderRadius: 14, whiteSpace: 'nowrap', flexShrink: 0,
+                      }}>
+                        View →
+                      </span>
+                    </a>
+                  );
+                })}
+              </div>
+            )}
           </div>
         ))}
 
@@ -281,43 +345,57 @@ function AIChatPanel({ onClose }) {
 }
 
 // ─── Main Float Component ─────────────────────────────────────────────────────
-// FAB and its speed-dial menu use position: fixed anchored to bottom/right
-// of the VIEWPORT. This means they never move based on scroll position and
-// the chat panel always opens in the same visible spot, right above the FAB.
+// FIX: position: fixed, anchored bottom-right of the VIEWPORT, never absolute,
+// never tied to window.scrollY. No scroll listener for positioning at all.
+// On mobile, sits ABOVE MobileStickyCTA (which is ~64px tall) by using bottom: 76px.
+// On desktop (md+), sits at bottom: 20px since there is no sticky bar.
 
 export default function WhatsAppFloat() {
   const pathname = usePathname() || '';
   const [menuOpen, setMenuOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
 
   if (pathname.startsWith('/admin')) return null;
 
   const waLink = getWALinkForPath(pathname);
 
+  // FAB bottom offset: 76px on mobile (clears MobileStickyCTA's ~64px bar + gap),
+  // 20px on desktop (md+) where there's no sticky bar.
+  const fabBottomMobile = 76;
+  const fabBottomDesktop = 20;
+
   return (
     <>
-      {/* AI Chat panel */}
+      {/* AI Chat panel — sits above the FAB, same right-side anchor */}
       {chatOpen && <AIChatPanel onClose={() => setChatOpen(false)} />}
 
-      {/* Popup menu — appears above the main button */}
+      {/* Popup menu — appears directly above the main button, anchored bottom-right */}
       {menuOpen && (
-        <div style={{
-          position: 'fixed',
-          bottom: 158,
-          left: 16,
-          zIndex: 99992,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'flex-start',
-          gap: 10,
-        }}>
+        <div
+          className="wa-float-menu"
+          style={{
+            position: 'fixed',
+            right: 16,
+            zIndex: 99992,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-end',
+            gap: 10,
+            opacity: mounted ? 1 : 0,
+            transform: mounted ? 'translateY(0)' : 'translateY(10px)',
+            transition: 'opacity 0.2s ease, transform 0.2s ease',
+          }}
+        >
           {/* Ask AI option */}
           <button
             onClick={() => { setChatOpen(true); setMenuOpen(false); }}
             style={{
               display: 'flex', alignItems: 'center', gap: 10,
               background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-              WebkitTapHighlightColor: 'transparent',
+              WebkitTapHighlightColor: 'transparent', flexDirection: 'row-reverse',
             }}
           >
             <div style={{
@@ -348,6 +426,7 @@ export default function WhatsAppFloat() {
             style={{
               display: 'flex', alignItems: 'center', gap: 10,
               textDecoration: 'none', WebkitTapHighlightColor: 'transparent',
+              flexDirection: 'row-reverse',
             }}
           >
             <div style={{
@@ -371,24 +450,28 @@ export default function WhatsAppFloat() {
         </div>
       )}
 
-      {/* Main floating button */}
+      {/* Main floating button — TRUE fixed, bottom-right, never scroll-tied */}
       <button
         onClick={() => setMenuOpen((o) => !o)}
         aria-label="Contact us"
+        className="wa-float-fab"
         style={{
           position: 'fixed',
-          bottom: 90,
-          left: 16,
+          right: 16,
           zIndex: 99991,
           display: 'flex',
           alignItems: 'center',
           gap: 8,
+          flexDirection: 'row-reverse',
           background: 'none',
           border: 'none',
           padding: 0,
           cursor: 'pointer',
           WebkitTapHighlightColor: 'transparent',
           touchAction: 'manipulation',
+          opacity: mounted ? 1 : 0,
+          transform: mounted ? 'scale(1)' : 'scale(0.8)',
+          transition: 'opacity 0.25s ease, transform 0.25s ease',
         }}
       >
         {/* Pulse ring */}
@@ -434,6 +517,31 @@ export default function WhatsAppFloat() {
           0%   { transform: scale(1);   opacity: 0.35; }
           70%  { transform: scale(1.7); opacity: 0; }
           100% { transform: scale(1.7); opacity: 0; }
+        }
+
+        /* Mobile: clear the MobileStickyCTA bar (~64px tall) with a visible gap */
+        .wa-float-fab,
+        .wa-float-menu {
+          bottom: 92px;
+        }
+        .wa-float-menu {
+          bottom: 154px; /* 92px FAB offset + 52px FAB height + 10px gap */
+        }
+        .wa-chat-panel {
+          bottom: 154px; /* same as menu — sits directly above the FAB */
+        }
+
+        /* Desktop: no sticky bar exists, sit lower */
+        @media (min-width: 768px) {
+          .wa-float-fab {
+            bottom: 20px;
+          }
+          .wa-float-menu {
+            bottom: 84px; /* 20px FAB offset + 52px FAB height + 12px gap */
+          }
+          .wa-chat-panel {
+            bottom: 84px; /* same as menu on desktop */
+          }
         }
       `}</style>
     </>
