@@ -16,7 +16,7 @@ const PRODUCT_OPTIONS = [
   'General Inquiry',
 ];
 
-const INITIAL = { name: '', phone: '', city: '', productInterest: '', message: '' };
+const INITIAL = { name: '', phone: '', city: '', productInterest: '', message: '', whatsappConsent: false };
 
 export default function InquiryForm() {
   const [form, setForm] = useState(INITIAL);
@@ -110,6 +110,18 @@ export default function InquiryForm() {
         <label className="block text-sm font-medium mb-1.5">Message *</label>
         <textarea value={form.message} onChange={(e) => update('message', e.target.value)} rows={4} className="input-sethi !min-h-[120px] py-3" placeholder="Tell us what you're looking for..." />
         {errors.message && <p className="text-red-600 text-xs mt-1">{errors.message}</p>}
+      </div>
+
+      <div className="md:col-span-2">
+        <label className="flex items-start gap-2.5 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={form.whatsappConsent}
+            onChange={(e) => update('whatsappConsent', e.target.checked)}
+            className="mt-0.5 w-4 h-4 accent-sethi-gold shrink-0"
+          />
+          <span className="text-sm text-sethi-gray500">I agree to be contacted on WhatsApp regarding this inquiry.</span>
+        </label>
       </div>
 
       <div className="md:col-span-2">
