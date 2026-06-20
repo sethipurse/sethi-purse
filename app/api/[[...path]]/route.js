@@ -79,6 +79,7 @@ async function handle(request, { params }) {
 
     const { messages, products } = body || {};
 
+    // ── Build catalog text WITH product IDs so we can extract structured product cards ──
     let catalogText = 'No products loaded.';
     if (Array.isArray(products) && products.length > 0) {
       catalogText = products
@@ -87,10 +88,32 @@ async function handle(request, { params }) {
           const price = p.sale_price || p.salePrice || p.price || 0;
           const category = p.category_name || p.category || '';
           const brand = p.brand || '';
-          const stock = p.in_stock === false || p.inStock === false ? 'Out of Stock' : 'In Stock';
-          return `- ${p.name} | Brand: ${brand} | Category: ${category} | Price: Rs.${price} | ${stock}`;
+          const stock = p.stock === 0 ? 'Out of Stock' : (p.in_stock === false || p.inStock === false ? 'Out of Stock' : 'In Stock');
+          return `- ID:${p.id} | ${p.name} | Brand: ${brand} | Category: ${category} | Price: Rs.${price} | ${stock}`;
         })
         .join('\n');
+    }
+
+    // ── Fetch active, non-expired offers so AI can mention them naturally (best-effort) ──
+    let offersText = 'No active offers right now.';
+    try {
+      const { data: offers } = await supabase
+        .from('offers')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(5);
+      const liveOffers = (offers || []).filter((o) => {
+        if (!o.expiry_date) return true;
+        return new Date(o.expiry_date) >= new Date();
+      });
+      if (liveOffers.length > 0) {
+        offersText = liveOffers
+          .map((o) => `- ${o.title}${o.description ? ': ' + o.description : ''}${o.expiry_date ? ' (expires ' + o.expiry_date + ')' : ''}`)
+          .join('\n');
+      }
+    } catch (e) {
+      // offers are a nice-to-have; never block chat on this failing
     }
 
     const systemPrompt = `You are a friendly and helpful sales assistant for SETHI PURSE, a premium luggage and bag store in Jalandhar, Punjab, India.
@@ -108,6 +131,9 @@ PRODUCT CATEGORIES: Slings, LUGGAGE, Backpacks, Handbags, Party Wear Purse
 CURRENT PRODUCT CATALOG:
 ${catalogText}
 
+ACTIVE OFFERS RIGHT NOW:
+${offersText}
+
 YOUR RULES:
 1. Answer questions about products, prices, availability using the catalog above.
 2. Be warm and friendly. Occasionally use Hindi words (bilkul, zaroor, bahut accha) to feel local.
@@ -115,7 +141,13 @@ YOUR RULES:
 4. Keep responses SHORT — 2 to 4 sentences max.
 5. Do NOT make up prices or products not in the catalog.
 6. For delivery questions say: "We offer in-store pickup. For special arrangements, WhatsApp us!"
-7. Always be positive and helpful.`;
+7. Always be positive and helpful.
+8. If a customer asks for something NOT in the catalog or it's Out of Stock, do NOT just say no — suggest 2-3 similar available products from the catalog instead, by name.
+9. If there's a relevant active offer above and the customer's question relates to it (matching category or general browsing), mention it naturally in your reply.
+10. If a customer asks to compare two specific products (e.g. "American Tourister vs Safari trolley"), give a short side-by-side comparison using ONLY price, brand, and category from the catalog above — do not invent specs you don't have.
+11. When you mention specific products the customer can view, end your message with a line in this EXACT machine-readable format so the app can show product cards (only include this line if relevant products exist in the catalog):
+PRODUCTS: [id1, id2, id3]
+Only put real IDs from the catalog above, max 3. If no specific products are relevant, omit this line entirely.`;
 
     // Keep only the last 12 messages so the payload (and Gemini's job) stays small
     // as the conversation grows — prevents slow/oversized requests on long chats.
@@ -199,7 +231,43 @@ YOUR RULES:
       }
 
       if (result.ok) {
-        return json({ reply: result.text });
+        let reply = result.text;
+
+        // ── Extract structured product IDs the AI flagged, strip the marker line from visible text ──
+        let productIds = [];
+        const match = reply.match(/PRODUCTS:\s*\[([^\]]*)\]/i);
+        if (match) {
+          productIds = match[1]
+            .split(',')
+            .map((s) => s.trim().replace(/['"]/g, ''))
+            .filter(Boolean)
+            .slice(0, 3);
+          reply = reply.replace(/PRODUCTS:\s*\[([^\]]*)\]/i, '').trim();
+        }
+        const matchedProducts = Array.isArray(products)
+          ? products.filter((p) => productIds.includes(String(p.id)))
+          : [];
+
+        // ── Save this exchange to inquiries table for later review (best-effort, never blocks reply) ──
+        try {
+          const lastUserMsg = [...(messages || [])].reverse().find((m) => m.role === 'user');
+          if (lastUserMsg) {
+            await supabase.from('inquiries').insert([{
+              id: uuidv4(),
+              name: 'AI Chat Visitor',
+              phone: '0000000000',
+              city: '',
+              product_interest: matchedProducts.map((p) => p.name).join(', ') || 'General enquiry',
+              message: `[AI CHAT] User asked: "${lastUserMsg.content}" | AI replied: "${reply.slice(0, 300)}"`,
+              status: 'new',
+              created_at: nowIST(),
+            }]);
+          }
+        } catch (e) {
+          // logging failure should never break the chat response
+        }
+
+        return json({ reply, products: matchedProducts });
       }
 
       // Friendly, honest fallbacks per failure type instead of one generic line.
