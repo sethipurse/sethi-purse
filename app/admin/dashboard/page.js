@@ -303,7 +303,7 @@ export default function DashboardPage() {
                 ))}
                 {lowStock.length > 4 && (
                   <p className="text-xs text-sethi-gray500 text-center pt-1">
-                    +{lowStock.length - 4} more low stock items
+                    +{lowStock.length - 4} more low stock items — <Link href="/admin/products" className="text-sethi-gold underline">view all</Link>
                   </p>
                 )}
               </ul>
