@@ -1,13 +1,14 @@
 import './globals.css';
 import { Toaster } from '@/components/ui/sonner';
 import WhatsAppFloat from '@/components/WhatsAppFloat';
-import OfferPromoCard from '@/components/OfferPromoCard';
 import BackToTop from '@/components/BackToTop';
 import MobileStickyCTA from '@/components/MobileStickyCTA';
 import PWAInstall from '@/components/PWAInstall';
+
 const OG_IMAGE =
   'https://bbdatviaaiqpfvwumkkd.supabase.co/storage/v1/object/public/products/og-default.jpg';
 const GA_ID = 'G-Z3JBN45975';
+
 export const metadata = {
   metadataBase: new URL('https://sethi-purse.vercel.app'),
   title: "SETHI PURSE | Punjab's Trusted Premium Luggage Destination",
@@ -32,6 +33,7 @@ export const metadata = {
   },
   icons: { icon: '/icons/icon-192.svg', apple: '/icons/icon-192.svg' },
 };
+
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
@@ -62,7 +64,6 @@ export default function RootLayout({ children }) {
         {children}
         <PWAInstall />
         <WhatsAppFloat />
-        <OfferPromoCard />
         <MobileStickyCTA />
         <BackToTop />
         <Toaster position="top-center" richColors />
