@@ -58,6 +58,7 @@ const QUICK_QUESTIONS = [
 ];
 
 // ─── AI Chat Panel ────────────────────────────────────────────────────────────
+// Positioned relative to the SAME anchor as the FAB (bottom-right), fixed to viewport.
 
 function AIChatPanel({ onClose }) {
   const [messages, setMessages] = useState([
@@ -117,13 +118,13 @@ function AIChatPanel({ onClose }) {
   const waLink = buildWhatsAppLink('Hi SETHI PURSE! I was chatting with your AI assistant and want to know more.');
 
   return (
-    <div style={{
+    <div className="wa-chat-panel" style={{
       position: 'fixed',
-      bottom: 90,
       left: 12,
       right: 12,
       maxWidth: 400,
       width: 'calc(100vw - 24px)',
+      marginLeft: 'auto',
       zIndex: 99999,
       borderRadius: 20,
       overflow: 'hidden',
@@ -268,64 +269,57 @@ function AIChatPanel({ onClose }) {
 }
 
 // ─── Main Float Component ─────────────────────────────────────────────────────
+// FIX: position: fixed, anchored bottom-right of the VIEWPORT, never absolute,
+// never tied to window.scrollY. No scroll listener for positioning at all.
+// On mobile, sits ABOVE MobileStickyCTA (which is ~64px tall) by using bottom: 76px.
+// On desktop (md+), sits at bottom: 20px since there is no sticky bar.
 
 export default function WhatsAppFloat() {
   const pathname = usePathname() || '';
-  const [show, setShow] = useState(false);
-  const [stopY, setStopY] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
-  const timerRef = useRef(null);
+  const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    const onScroll = () => {
-      setShow(false);
-      setMenuOpen(false);
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => {
-        const baseY = window.scrollY + window.innerHeight * 0.6;
-        setStopY(baseY);
-        setShow(true);
-      }, 600);
-    };
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', onScroll);
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, []);
+  useEffect(() => { setMounted(true); }, []);
 
   if (pathname.startsWith('/admin')) return null;
 
   const waLink = getWALinkForPath(pathname);
 
+  // FAB bottom offset: 76px on mobile (clears MobileStickyCTA's ~64px bar + gap),
+  // 20px on desktop (md+) where there's no sticky bar.
+  const fabBottomMobile = 76;
+  const fabBottomDesktop = 20;
+
   return (
     <>
-      {/* AI Chat panel */}
+      {/* AI Chat panel — sits above the FAB, same right-side anchor */}
       {chatOpen && <AIChatPanel onClose={() => setChatOpen(false)} />}
 
-      {/* Popup menu — appears above the main button */}
-      {menuOpen && stopY !== null && (
-        <div style={{
-          position: 'absolute',
-          top: stopY - 130,
-          left: 16,
-          zIndex: 99992,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 10,
-          opacity: show ? 1 : 0,
-          transform: show ? 'translateY(0)' : 'translateY(10px)',
-          transition: 'opacity 0.2s ease, transform 0.2s ease',
-          pointerEvents: show ? 'auto' : 'none',
-        }}>
+      {/* Popup menu — appears directly above the main button, anchored bottom-right */}
+      {menuOpen && (
+        <div
+          className="wa-float-menu"
+          style={{
+            position: 'fixed',
+            right: 16,
+            zIndex: 99992,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-end',
+            gap: 10,
+            opacity: mounted ? 1 : 0,
+            transform: mounted ? 'translateY(0)' : 'translateY(10px)',
+            transition: 'opacity 0.2s ease, transform 0.2s ease',
+          }}
+        >
           {/* Ask AI option */}
           <button
             onClick={() => { setChatOpen(true); setMenuOpen(false); }}
             style={{
               display: 'flex', alignItems: 'center', gap: 10,
               background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-              WebkitTapHighlightColor: 'transparent',
+              WebkitTapHighlightColor: 'transparent', flexDirection: 'row-reverse',
             }}
           >
             <div style={{
@@ -356,6 +350,7 @@ export default function WhatsAppFloat() {
             style={{
               display: 'flex', alignItems: 'center', gap: 10,
               textDecoration: 'none', WebkitTapHighlightColor: 'transparent',
+              flexDirection: 'row-reverse',
             }}
           >
             <div style={{
@@ -379,75 +374,98 @@ export default function WhatsAppFloat() {
         </div>
       )}
 
-      {/* Main floating button */}
-      {stopY !== null && (
-        <button
-          onClick={() => setMenuOpen((o) => !o)}
-          aria-label="Contact us"
-          style={{
-            position: 'absolute',
-            top: stopY,
-            left: 16,
-            zIndex: 99991,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            background: 'none',
-            border: 'none',
-            padding: 0,
-            cursor: 'pointer',
-            WebkitTapHighlightColor: 'transparent',
-            touchAction: 'manipulation',
-            opacity: show ? 1 : 0,
-            transform: show ? 'scale(1)' : 'scale(0.8)',
-            pointerEvents: show ? 'auto' : 'none',
-            transition: 'opacity 0.25s ease, transform 0.25s ease',
-          }}
-        >
-          {/* Pulse ring */}
-          <div style={{ position: 'relative', width: 52, height: 52, flexShrink: 0 }}>
-            {!menuOpen && (
-              <span style={{
-                position: 'absolute', inset: 0, borderRadius: '50%',
-                backgroundColor: '#25D366', opacity: 0.35,
-                animation: 'wa-pulse 2s ease-out infinite',
-              }} />
-            )}
-            <span style={{
-              position: 'relative',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: 52, height: 52, borderRadius: '50%',
-              backgroundColor: menuOpen ? '#2c1f14' : '#25D366',
-              boxShadow: menuOpen
-                ? '0 4px 16px rgba(44,31,20,0.4)'
-                : '0 4px 16px rgba(37,211,102,0.5)',
-              transition: 'background 0.2s',
-              color: menuOpen ? '#c9a84c' : '#fff',
-            }}>
-              {menuOpen ? <CloseIcon size={20} /> : <WhatsAppIcon />}
-            </span>
-          </div>
-
-          {/* Label */}
+      {/* Main floating button — TRUE fixed, bottom-right, never scroll-tied */}
+      <button
+        onClick={() => setMenuOpen((o) => !o)}
+        aria-label="Contact us"
+        className="wa-float-fab"
+        style={{
+          position: 'fixed',
+          right: 16,
+          zIndex: 99991,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          flexDirection: 'row-reverse',
+          background: 'none',
+          border: 'none',
+          padding: 0,
+          cursor: 'pointer',
+          WebkitTapHighlightColor: 'transparent',
+          touchAction: 'manipulation',
+          opacity: mounted ? 1 : 0,
+          transform: mounted ? 'scale(1)' : 'scale(0.8)',
+          transition: 'opacity 0.25s ease, transform 0.25s ease',
+        }}
+      >
+        {/* Pulse ring */}
+        <div style={{ position: 'relative', width: 52, height: 52, flexShrink: 0 }}>
           {!menuOpen && (
             <span style={{
-              backgroundColor: '#25D366', color: '#fff',
-              fontWeight: 700, fontSize: 13, padding: '6px 14px',
-              borderRadius: 20, whiteSpace: 'nowrap',
-              boxShadow: '0 4px 16px rgba(37,211,102,0.4)',
-              letterSpacing: '0.02em',
-            }}>
-              💬 Get Best Price
-            </span>
+              position: 'absolute', inset: 0, borderRadius: '50%',
+              backgroundColor: '#25D366', opacity: 0.35,
+              animation: 'wa-pulse 2s ease-out infinite',
+            }} />
           )}
-        </button>
-      )}
+          <span style={{
+            position: 'relative',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 52, height: 52, borderRadius: '50%',
+            backgroundColor: menuOpen ? '#2c1f14' : '#25D366',
+            boxShadow: menuOpen
+              ? '0 4px 16px rgba(44,31,20,0.4)'
+              : '0 4px 16px rgba(37,211,102,0.5)',
+            transition: 'background 0.2s',
+            color: menuOpen ? '#c9a84c' : '#fff',
+          }}>
+            {menuOpen ? <CloseIcon size={20} /> : <WhatsAppIcon />}
+          </span>
+        </div>
+
+        {/* Label */}
+        {!menuOpen && (
+          <span style={{
+            backgroundColor: '#25D366', color: '#fff',
+            fontWeight: 700, fontSize: 13, padding: '6px 14px',
+            borderRadius: 20, whiteSpace: 'nowrap',
+            boxShadow: '0 4px 16px rgba(37,211,102,0.4)',
+            letterSpacing: '0.02em',
+          }}>
+            💬 Get Best Price
+          </span>
+        )}
+      </button>
 
       <style>{`
         @keyframes wa-pulse {
           0%   { transform: scale(1);   opacity: 0.35; }
           70%  { transform: scale(1.7); opacity: 0; }
           100% { transform: scale(1.7); opacity: 0; }
+        }
+
+        /* Mobile: clear the MobileStickyCTA bar (~64px tall) */
+        .wa-float-fab,
+        .wa-float-menu {
+          bottom: 76px;
+        }
+        .wa-float-menu {
+          bottom: 138px; /* 76px FAB offset + 52px FAB height + 10px gap */
+        }
+        .wa-chat-panel {
+          bottom: 138px; /* same as menu — sits directly above the FAB */
+        }
+
+        /* Desktop: no sticky bar exists, sit lower */
+        @media (min-width: 768px) {
+          .wa-float-fab {
+            bottom: 20px;
+          }
+          .wa-float-menu {
+            bottom: 84px; /* 20px FAB offset + 52px FAB height + 12px gap */
+          }
+          .wa-chat-panel {
+            bottom: 84px; /* same as menu on desktop */
+          }
         }
       `}</style>
     </>
