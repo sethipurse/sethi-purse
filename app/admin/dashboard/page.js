@@ -75,7 +75,7 @@ function AIChatInsights({ inquiries, loading }) {
   }, [inquiries]);
 
   return (
-    <div className="bg-white border border-sethi-gray200 rounded-sm lg:col-span-2">
+    <div className="bg-white border border-sethi-gray200 rounded-sm">
       <div className="p-5 border-b border-sethi-gray200 flex items-center justify-between flex-wrap gap-2">
         <h2 className="font-serif text-xl flex items-center gap-2">
           <Bot className="w-5 h-5 text-sethi-gold" /> AI Chat Insights
@@ -92,7 +92,7 @@ function AIChatInsights({ inquiries, loading }) {
           <p className="text-sm">No AI chats yet. Once customers start using the AI assistant, insights will appear here.</p>
         </div>
       ) : (
-        <div className="p-5 grid md:grid-cols-2 gap-6">
+        <div className="p-5 grid gap-5">
           {/* Left: stats + chart */}
           <div>
             <div className="grid grid-cols-2 gap-3 mb-5">
@@ -192,8 +192,8 @@ export default function DashboardPage() {
   const activeOffers = offers.filter((o) => o.is_active ?? o.isActive).length;
   const newInquiries = inquiries.filter((i) => i.status === 'new').length;
   const activeSlides = slides.filter((s) => s.is_active !== false).length;
-  const recent = [...products].slice(0, 5);
-  const recentInquiries = [...inquiries].filter((i) => !String(i.message || '').startsWith('[AI CHAT]')).slice(0, 5);
+  const recent = [...products].slice(0, 3);
+  const recentInquiries = [...inquiries].filter((i) => !String(i.message || '').startsWith('[AI CHAT]')).slice(0, 3);
   const lowStock = products.filter((p) => typeof p.stock === 'number' && p.stock <= 5);
 
   const stats = [
@@ -234,10 +234,7 @@ export default function DashboardPage() {
 
       <div className="grid lg:grid-cols-2 gap-6">
 
-        {/* ── AI Chat Insights — NEW ── */}
-        <AIChatInsights inquiries={inquiries} loading={loading} />
-
-        {/* ── Recent Products ── */}
+        {/* ── Low Stock Alert — most urgent, comes first ── */}
         <div className="bg-white border border-sethi-gray200 rounded-sm">
           <div className="p-5 border-b border-sethi-gray200 flex items-center justify-between">
             <h2 className="font-serif text-xl">Recent Products</h2>
@@ -276,7 +273,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ── Low Stock Alert ── */}
         <div className="bg-white border border-sethi-gray200 rounded-sm">
           <div className="p-5 border-b border-sethi-gray200 flex items-center gap-2">
             <AlertCircle className="w-5 h-5 text-red-600" />
@@ -291,7 +287,7 @@ export default function DashboardPage() {
               </div>
             ) : (
               <ul className="space-y-3">
-                {lowStock.map((p) => (
+                {lowStock.slice(0, 4).map((p) => (
                   <li key={p.id} className="flex items-center gap-3 border border-red-100 rounded-sm p-2">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={resolveImage(p)} alt="" className="w-12 h-12 object-cover bg-sethi-gray100 rounded-sm" />
@@ -305,10 +301,18 @@ export default function DashboardPage() {
                     </Link>
                   </li>
                 ))}
+                {lowStock.length > 4 && (
+                  <p className="text-xs text-sethi-gray500 text-center pt-1">
+                    +{lowStock.length - 4} more low stock items
+                  </p>
+                )}
               </ul>
             )}
           </div>
         </div>
+
+        {/* ── AI Chat Insights ── */}
+        <AIChatInsights inquiries={inquiries} loading={loading} />
 
         {/* ── Hero Slider Preview ── */}
         <div className="bg-white border border-sethi-gray200 rounded-sm">
@@ -408,7 +412,7 @@ export default function DashboardPage() {
                       <div className="text-xs text-sethi-gray500 mt-0.5">
                         {formatIST(i.createdAt)} • {i.productInterest}
                       </div>
-                      <p className="text-sm mt-1 line-clamp-2 text-sethi-gray800">{i.message}</p>
+                      <p className="text-sm mt-1 line-clamp-1 text-sethi-gray800">{i.message}</p>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2 shrink-0">
                       <a href={`tel:+91${i.phone}`} className="inline-flex items-center gap-1 text-sethi-gold text-xs hover:underline">
