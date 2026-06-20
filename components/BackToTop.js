@@ -54,9 +54,9 @@ export default function BackToTop() {
     >
       <ArrowUp style={{ width: '22px', height: '22px', strokeWidth: 2.5 }} />
       <style>{`
-        /* Mobile: clear the MobileStickyCTA bar (~64px tall) */
+        /* Mobile: clear the MobileStickyCTA bar (~64px tall) with visible gap */
         .back-to-top-btn {
-          bottom: 76px;
+          bottom: 92px;
         }
         /* Desktop: no sticky bar exists */
         @media (min-width: 768px) {
