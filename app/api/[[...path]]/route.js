@@ -30,8 +30,61 @@ function detectCategory(text) {
   return 'Other';
 }
 
+// ── Buy-intent detection: standard ecommerce signal words ──
+const BUY_INTENT_KEYWORDS = [
+  'buy', 'order', 'purchase', 'book', 'reserve',
+  'available', 'in stock', 'price', 'cost', 'kitne', 'kitna',
+  'how much', 'discount', 'cash on delivery', 'cod', 'pay',
+];
+
+function hasBuyIntent(text) {
+  const lower = (text || '').toLowerCase();
+  return BUY_INTENT_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
+// ── Extract a 10-digit Indian phone number the customer may have typed ──
+function extractPhone(text) {
+  const match = String(text || '').match(/(?:\+?91[\s-]?)?([6-9]\d{9})\b/);
+  return match ? match[1] : null;
+}
+
+// ── Extract a plausible name from "my name is X" / "I'm X" style replies ──
+function extractName(text) {
+  const t = String(text || '').trim();
+  const patterns = [
+    /(?:my name is|i am|i'm|naam)\s+([a-zA-Z\u0900-\u097F]{2,30})/i,
+  ];
+  for (const p of patterns) {
+    const m = t.match(p);
+    if (m) return m[1].trim();
+  }
+  // Fallback: if the whole message is just a short name-like string (2-30 chars, letters only)
+  if (/^[a-zA-Z\u0900-\u097F\s]{2,30}$/.test(t) && t.split(' ').length <= 3) return t;
+  return null;
+}
+
 function json(data, status = 200) {
   return NextResponse.json(data, { status });
+}
+
+// ── Simple in-memory cache for active offers — avoids a DB call on every chat message.
+// Serverless instances are short-lived, so this only helps within a warm instance,
+// but that's still most real traffic bursts. Cache for 3 minutes.
+let offersCache = { data: null, expiresAt: 0 };
+async function getCachedOffers() {
+  if (offersCache.data && Date.now() < offersCache.expiresAt) return offersCache.data;
+  const { data: offers } = await supabase
+    .from('offers')
+    .select('*')
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
+    .limit(5);
+  const liveOffers = (offers || []).filter((o) => {
+    if (!o.expiry_date) return true;
+    return new Date(o.expiry_date) >= new Date();
+  });
+  offersCache = { data: liveOffers, expiresAt: Date.now() + 3 * 60 * 1000 };
+  return liveOffers;
 }
 
 async function handle(request, { params }) {
@@ -143,7 +196,18 @@ Focus on quality, style, and everyday usefulness. Do not invent specific measure
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) return json({ error: 'AI not configured' }, 500);
 
-    const { messages, products } = body || {};
+    const { messages, products, sessionId: incomingSessionId, contactCaptured } = body || {};
+    const sessionId = incomingSessionId || uuidv4();
+
+    const lastUserMsg = [...(messages || [])].reverse().find((m) => m.role === 'user');
+    const buyIntentNow = hasBuyIntent(lastUserMsg?.content);
+
+    // Has the customer already given contact info earlier in this session?
+    // The frontend tracks this and tells us via `contactCaptured`; we also
+    // double-check by trying to extract a phone from the current message.
+    const phoneInThisMessage = extractPhone(lastUserMsg?.content);
+    const nameInThisMessage = extractName(lastUserMsg?.content);
+    const shouldAskForContact = buyIntentNow && !contactCaptured && !phoneInThisMessage;
 
     // ── Build catalog text WITH product IDs so we can extract structured product cards ──
     let catalogText = 'No products loaded.';
@@ -160,19 +224,10 @@ Focus on quality, style, and everyday usefulness. Do not invent specific measure
         .join('\n');
     }
 
-    // ── Fetch active, non-expired offers so AI can mention them naturally (best-effort) ──
+    // ── Fetch active, non-expired offers (cached) so AI can mention them naturally ──
     let offersText = 'No active offers right now.';
     try {
-      const { data: offers } = await supabase
-        .from('offers')
-        .select('*')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false })
-        .limit(5);
-      const liveOffers = (offers || []).filter((o) => {
-        if (!o.expiry_date) return true;
-        return new Date(o.expiry_date) >= new Date();
-      });
+      const liveOffers = await getCachedOffers();
       if (liveOffers.length > 0) {
         offersText = liveOffers
           .map((o) => `- ${o.title}${o.description ? ': ' + o.description : ''}${o.expiry_date ? ' (expires ' + o.expiry_date + ')' : ''}`)
@@ -214,12 +269,14 @@ YOUR RULES:
 11. CRITICAL — NEVER write product IDs, UUIDs, or any "(ID: ...)" text inside your spoken reply. Customers must never see raw IDs. Refer to products only by name and price in your visible text.
 12. When you mention specific products the customer can view, end your message with a line in this EXACT machine-readable format so the app can show product cards (only include this line if relevant products exist in the catalog):
 PRODUCTS: [id1, id2, id3]
-This PRODUCTS line is the ONLY place IDs are allowed to appear — it is stripped before the customer sees your message. Only put real IDs from the catalog above, max 3. If no specific products are relevant, omit this line entirely.`;
+This PRODUCTS line is the ONLY place IDs are allowed to appear — it is stripped before the customer sees your message. Only put real IDs from the catalog above, max 3. If no specific products are relevant, omit this line entirely.
+${shouldAskForContact ? `13. The customer just showed buying interest and we don't have their contact info yet. After answering their question normally, ADD one warm, brief line asking for their name and phone number so our team can help them directly (e.g. "By the way, could I get your name and number so we can assist you better? 😊"). Do not be pushy — ask only once, naturally, at the end of your reply.` : ''}`;
 
+    const MAX_MESSAGE_CHARS = 800;
     const trimmedMessages = (messages || []).slice(-12);
     const geminiMessages = trimmedMessages.map((m) => ({
       role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: String(m.content || '') }],
+      parts: [{ text: String(m.content || '').slice(0, MAX_MESSAGE_CHARS) }],
     }));
 
     async function callGemini(maxOutputTokens, timeoutMs) {
@@ -318,29 +375,62 @@ This PRODUCTS line is the ONLY place IDs are allowed to appear — it is strippe
           return stock === 0 || p.in_stock === false || p.inStock === false;
         });
 
-        // ── Save this exchange to inquiries table for later review (best-effort, never blocks reply) ──
+        // ── Save/update this session's inquiry row (one row per conversation, not per message) ──
+        let contactNowCaptured = !!contactCaptured;
         try {
-          const lastUserMsg = [...(messages || [])].reverse().find((m) => m.role === 'user');
           if (lastUserMsg) {
             const detectedCategory = detectCategory(`${lastUserMsg.content} ${reply}`);
-            await supabase.from('inquiries').insert([{
-              id: uuidv4(),
-              name: 'AI Chat Visitor',
-              phone: '0000000000',
-              city: '',
-              product_interest: matchedProducts.map((p) => p.name).join(', ') || 'General enquiry',
-              message: `[AI CHAT] User asked: "${lastUserMsg.content}" | AI replied: "${reply.slice(0, 300)}"`,
-              status: 'new',
-              category: detectedCategory,
-              demand_type: outOfStockMatches.length > 0 ? 'out_of_stock_interest' : null,
-              created_at: nowIST(),
-            }]);
+            const capturedPhone = phoneInThisMessage;
+            const capturedName = nameInThisMessage;
+            if (capturedPhone) contactNowCaptured = true;
+
+            // Try to find an existing row for this session first
+            const { data: existing } = await supabase
+              .from('inquiries')
+              .select('id, message, name, phone, product_interest')
+              .eq('session_id', sessionId)
+              .maybeSingle();
+
+            const interestList = Array.from(new Set([
+              ...(existing?.product_interest ? existing.product_interest.split(', ').filter(Boolean) : []),
+              ...matchedProducts.map((p) => p.name),
+            ])).join(', ') || existing?.product_interest || 'General enquiry';
+
+            const transcriptLine = `User asked: "${lastUserMsg.content}" | AI replied: "${reply.slice(0, 300)}"`;
+
+            if (existing) {
+              const updates = {
+                message: `[AI CHAT] ${transcriptLine}`,
+                product_interest: interestList,
+                category: detectedCategory,
+                demand_type: outOfStockMatches.length > 0 ? 'out_of_stock_interest' : null,
+                updated_at: nowIST(),
+              };
+              if (capturedName && (!existing.name || existing.name === 'AI Chat Visitor')) updates.name = capturedName;
+              if (capturedPhone && (!existing.phone || existing.phone === '0000000000')) updates.phone = capturedPhone;
+              if (buyIntentNow) updates.status = 'new';
+              await supabase.from('inquiries').update(updates).eq('id', existing.id);
+            } else {
+              await supabase.from('inquiries').insert([{
+                id: uuidv4(),
+                session_id: sessionId,
+                name: capturedName || 'AI Chat Visitor',
+                phone: capturedPhone || '0000000000',
+                city: '',
+                product_interest: interestList,
+                message: `[AI CHAT] ${transcriptLine}`,
+                status: 'new',
+                category: detectedCategory,
+                demand_type: outOfStockMatches.length > 0 ? 'out_of_stock_interest' : null,
+                created_at: nowIST(),
+              }]);
+            }
           }
         } catch (e) {
           // logging failure should never break the chat response
         }
 
-        return json({ reply, products: matchedProducts });
+        return json({ reply, products: matchedProducts, sessionId, contactCaptured: contactNowCaptured });
       }
 
       const fallbacks = {
@@ -351,7 +441,29 @@ This PRODUCTS line is the ONLY place IDs are allowed to appear — it is strippe
         empty: "I didn't quite get that — could you ask in a different way?",
       };
       const reply = fallbacks[result.reason] || "Sorry, I'm having trouble right now — please WhatsApp us at +91 7986161633!";
-      return json({ reply, debugReason: result.reason }, 200);
+
+      // ── Log the failure itself so it's visible on the dashboard, not just server logs ──
+      try {
+        if (lastUserMsg) {
+          await supabase.from('inquiries').insert([{
+            id: uuidv4(),
+            session_id: sessionId,
+            name: 'AI Chat Visitor',
+            phone: '0000000000',
+            city: '',
+            product_interest: 'AI chat failure',
+            message: `[AI CHAT FAILED:${result.reason || 'unknown'}] User asked: "${lastUserMsg.content}"`,
+            status: 'new',
+            category: 'Other',
+            demand_type: 'ai_failure',
+            created_at: nowIST(),
+          }]);
+        }
+      } catch (e) {
+        // never block the reply on logging failure
+      }
+
+      return json({ reply, debugReason: result.reason, sessionId }, 200);
     } catch (err) {
       console.error('Chat handler error:', err);
       return json({
