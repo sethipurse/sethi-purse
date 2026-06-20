@@ -1,43 +1,12 @@
 'use client';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import { MessageCircle, ShoppingBag, Check, Flame } from 'lucide-react';
+import { useState } from 'react';
+import { MessageCircle, ShoppingBag, Check } from 'lucide-react';
 import { buildBuyNowMessage, buildProductUrl, buildWhatsAppLink, resolveImage } from '@/lib/constants';
-
-// Module-level cache so every ProductCard on the page shares one fetch
-// instead of each card hitting /api/most-wanted separately.
-let mostWantedCache = null;
-let mostWantedPromise = null;
-
-function getMostWantedIds() {
-  if (mostWantedCache) return Promise.resolve(mostWantedCache);
-  if (!mostWantedPromise) {
-    mostWantedPromise = fetch('/api/most-wanted')
-      .then((r) => (r.ok ? r.json() : { productIds: [] }))
-      .then((data) => {
-        mostWantedCache = Array.isArray(data.productIds) ? data.productIds : [];
-        return mostWantedCache;
-      })
-      .catch(() => {
-        mostWantedCache = [];
-        return mostWantedCache;
-      });
-  }
-  return mostWantedPromise;
-}
 
 export default function ProductCard({ product, onAddToCart }) {
   const [imgErr, setImgErr] = useState(false);
   const [added, setAdded] = useState(false);
-  const [isMostWanted, setIsMostWanted] = useState(false);
-
-  useEffect(() => {
-    let live = true;
-    getMostWantedIds().then((ids) => {
-      if (live) setIsMostWanted(ids.includes(String(product.id)));
-    });
-    return () => { live = false; };
-  }, [product.id]);
 
   const salePrice = product.sale_price ?? product.salePrice ?? product.price ?? 0;
   const mrp = product.mrp ?? product.original_price ?? 0;
@@ -66,11 +35,6 @@ export default function ProductCard({ product, onAddToCart }) {
         {discount > 0 && <span className="badge-discount">{discount}% OFF</span>}
         {outOfStock && <span className="badge-out">Out of Stock</span>}
         {!outOfStock && lowStock && <span className="badge-stock-low">Only {product.stock} left!</span>}
-        {isMostWanted && !outOfStock && (
-          <span className="absolute top-2 right-2 z-10 inline-flex items-center gap-1 bg-[#2c1f14] text-[#c9a84c] text-[11px] font-bold px-2.5 py-1 rounded-full shadow-sm">
-            <Flame className="w-3 h-3 fill-[#c9a84c]" /> Most Wanted
-          </span>
-        )}
         {img && !imgErr ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
