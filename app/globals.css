@@ -48,9 +48,21 @@
     line-height: 1.7;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    animation: bodyFadeIn 0.4s ease both;
-    /* FIX: use clip instead of hidden — hidden creates scroll container blocking mobile scroll events */
+    /* FIX: removed `animation` from body — an animation property on body
+       creates a CSS containing block for any descendant using
+       position: fixed (same effect as transform/will-change/filter).
+       That silently broke WhatsAppFloat, BackToTop, and MobileStickyCTA —
+       they were positioning relative to body's box instead of the
+       viewport, which is why they appeared to jump/scroll with content
+       even with zero scroll-tied JS. The same fade-in effect is now
+       applied to the root wrapper div below instead. */
     overflow-x: clip;
+  }
+
+  /* Page-load fade-in — moved off <body> so position:fixed children
+     (FAB buttons) correctly anchor to the viewport, not to body. */
+  body > div:first-of-type {
+    animation: bodyFadeIn 0.4s ease both;
   }
 
   @media (max-width: 767px) {
