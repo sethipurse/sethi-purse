@@ -57,6 +57,8 @@ const QUICK_QUESTIONS = [
   '🕐 Timings?',
 ];
 
+const SCROLL_THRESHOLD = 150; // px user must scroll down before FAB can appear
+
 // ─── AI Chat Panel ────────────────────────────────────────────────────────────
 
 function AIChatPanel({ onClose }) {
@@ -342,38 +344,41 @@ function AIChatPanel({ onClose }) {
 }
 
 // ─── Main Float Component ─────────────────────────────────────────────────────
-// Single small round "Ask AI" icon button — no label, no popup menu.
-// Fixed to viewport bottom-right, position never changes. Hides while
-// scrolling, reappears ~250ms after scroll stops. Sits above the gold
-// back-to-top circle (which uses bottom:80px on mobile / similar on desktop)
-// so the two never overlap.
+// Small round "Ask AI" icon button. Fixed to viewport bottom-right, position
+// never changes. STAYS HIDDEN on initial load — only appears once the user
+// has scrolled down past SCROLL_THRESHOLD. Hides again while actively
+// scrolling, reappears ~150ms after scroll stops (as long as still past
+// threshold). Scrolling back up to the top hides it again.
 
 export default function WhatsAppFloat() {
   const pathname = usePathname() || '';
   const [chatOpen, setChatOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  const [visible, setVisible] = useState(true);
+  const [visible, setVisible] = useState(false); // hidden until user scrolls
   const scrollTimerRef = useRef(null);
 
-  useEffect(() => { setMounted(true); }, []);
-
-  // Hide while actively scrolling, reveal shortly after scrolling stops.
   useEffect(() => {
     const onScroll = () => {
+      if (window.scrollY < SCROLL_THRESHOLD) {
+        setVisible(false);
+        clearTimeout(scrollTimerRef.current);
+        return;
+      }
       setVisible(false);
-      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
-      scrollTimerRef.current = setTimeout(() => setVisible(true), 250);
+      clearTimeout(scrollTimerRef.current);
+      scrollTimerRef.current = setTimeout(() => {
+        if (window.scrollY >= SCROLL_THRESHOLD) setVisible(true);
+      }, 250);
     };
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => {
       window.removeEventListener('scroll', onScroll);
-      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+      clearTimeout(scrollTimerRef.current);
     };
   }, []);
 
   if (pathname.startsWith('/admin')) return null;
 
-  const isShown = mounted && visible && !chatOpen;
+  const isShown = visible && !chatOpen;
 
   return (
     <>
@@ -426,7 +431,6 @@ export default function WhatsAppFloat() {
           100% { transform: scale(1.6); opacity: 0; }
         }
 
-        /* Mobile: sit above MobileStickyCTA bar, slightly above/left of back-to-top */
         .wa-float-fab {
           bottom: 140px;
         }
@@ -434,7 +438,6 @@ export default function WhatsAppFloat() {
           bottom: 192px;
         }
 
-        /* Desktop: no sticky bar, sit just above back-to-top */
         @media (min-width: 768px) {
           .wa-float-fab {
             bottom: 80px;
