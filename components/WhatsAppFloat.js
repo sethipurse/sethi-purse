@@ -16,7 +16,7 @@ function WhatsAppIcon() {
 function BotIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-      style={{ width: 20, height: 20 }} aria-hidden="true">
+      style={{ width: 18, height: 18 }} aria-hidden="true">
       <rect x="3" y="11" width="18" height="10" rx="2" />
       <circle cx="12" cy="7" r="3" />
       <path d="M12 10v1" />
@@ -342,9 +342,11 @@ function AIChatPanel({ onClose }) {
 }
 
 // ─── Main Float Component ─────────────────────────────────────────────────────
-// Single "Ask AI" FAB only. Fixed to viewport bottom-right — position never
-// changes. Visibility toggles based on scroll: hides while scrolling, shows
-// ~250ms after scrolling stops. On mobile it sits above MobileStickyCTA.
+// Single small round "Ask AI" icon button — no label, no popup menu.
+// Fixed to viewport bottom-right, position never changes. Hides while
+// scrolling, reappears ~250ms after scroll stops. Sits above the gold
+// back-to-top circle (which uses bottom:80px on mobile / similar on desktop)
+// so the two never overlap.
 
 export default function WhatsAppFloat() {
   const pathname = usePathname() || '';
@@ -378,7 +380,7 @@ export default function WhatsAppFloat() {
       {/* AI Chat panel */}
       {chatOpen && <AIChatPanel onClose={() => setChatOpen(false)} />}
 
-      {/* Single FAB — "Ask AI" only, TRUE fixed position, never scroll-tied */}
+      {/* Small round icon-only FAB — TRUE fixed position, never scroll-tied */}
       <button
         onClick={() => setChatOpen(true)}
         aria-label="Ask AI Assistant"
@@ -387,75 +389,58 @@ export default function WhatsAppFloat() {
           position: 'fixed',
           right: 16,
           zIndex: 99991,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          flexDirection: 'row-reverse',
-          background: 'none',
+          width: 44,
+          height: 44,
+          borderRadius: '50%',
+          background: '#2c1f14',
           border: 'none',
           padding: 0,
           cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#c9a84c',
+          boxShadow: '0 4px 14px rgba(44,31,20,0.4)',
           WebkitTapHighlightColor: 'transparent',
           touchAction: 'manipulation',
           opacity: isShown ? 1 : 0,
-          transform: isShown ? 'scale(1) translateY(0)' : 'scale(0.85) translateY(8px)',
+          transform: isShown ? 'scale(1)' : 'scale(0.8)',
           pointerEvents: isShown ? 'auto' : 'none',
           transition: 'opacity 0.25s ease, transform 0.25s ease',
         }}
       >
-        {/* Pulse ring */}
-        <div style={{ position: 'relative', width: 52, height: 52, flexShrink: 0 }}>
-          <span style={{
-            position: 'absolute', inset: 0, borderRadius: '50%',
-            backgroundColor: '#2c1f14', opacity: 0.25,
-            animation: 'wa-pulse 2s ease-out infinite',
-          }} />
-          <span style={{
-            position: 'relative',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            width: 52, height: 52, borderRadius: '50%',
-            backgroundColor: '#2c1f14',
-            boxShadow: '0 4px 16px rgba(44,31,20,0.45)',
-            color: '#c9a84c',
-          }}>
-            <BotIcon />
-          </span>
-        </div>
-
-        {/* Label */}
         <span style={{
-          backgroundColor: '#2c1f14', color: '#c9a84c',
-          fontWeight: 700, fontSize: 13, padding: '6px 14px',
-          borderRadius: 20, whiteSpace: 'nowrap',
-          boxShadow: '0 4px 16px rgba(44,31,20,0.35)',
-          letterSpacing: '0.02em',
-        }}>
-          🤖 Ask AI
+          position: 'absolute', inset: 0, borderRadius: '50%',
+          backgroundColor: '#2c1f14', opacity: 0.25,
+          animation: 'wa-pulse 2s ease-out infinite',
+        }} />
+        <span style={{ position: 'relative', display: 'flex' }}>
+          <BotIcon />
         </span>
       </button>
 
       <style>{`
         @keyframes wa-pulse {
           0%   { transform: scale(1);   opacity: 0.25; }
-          70%  { transform: scale(1.7); opacity: 0; }
-          100% { transform: scale(1.7); opacity: 0; }
+          70%  { transform: scale(1.6); opacity: 0; }
+          100% { transform: scale(1.6); opacity: 0; }
         }
 
-        /* Mobile: clear the MobileStickyCTA bar (~64px tall) with a visible gap */
+        /* Mobile: sit above MobileStickyCTA bar, slightly above/left of back-to-top */
         .wa-float-fab {
-          bottom: 92px;
+          bottom: 140px;
         }
         .wa-chat-panel {
-          bottom: 154px; /* sits directly above the FAB on mobile */
+          bottom: 192px;
         }
 
-        /* Desktop: no sticky bar exists, sit lower */
+        /* Desktop: no sticky bar, sit just above back-to-top */
         @media (min-width: 768px) {
           .wa-float-fab {
-            bottom: 20px;
+            bottom: 80px;
           }
           .wa-chat-panel {
-            bottom: 84px; /* sits directly above the FAB on desktop */
+            bottom: 132px;
           }
         }
       `}</style>
