@@ -35,11 +35,37 @@ const BUY_INTENT_KEYWORDS = [
   'buy', 'order', 'purchase', 'book', 'reserve',
   'available', 'in stock', 'price', 'cost', 'kitne', 'kitna',
   'how much', 'discount', 'cash on delivery', 'cod', 'pay', 'interested',
+  'lena', 'chahiye', 'khareedna', 'mil jayega', 'khareed',
 ];
 
 function hasBuyIntent(text) {
   const lower = (text || '').toLowerCase();
   return BUY_INTENT_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
+// ── Language detection ──
+// Returns 'hindi', 'punjabi', or 'english'
+function detectLanguage(messages) {
+  const recentText = (messages || [])
+    .slice(-3)
+    .filter((m) => m.role === 'user')
+    .map((m) => m.content || '')
+    .join(' ');
+
+  // Devanagari script = Hindi
+  if (/[\u0900-\u097F]/.test(recentText)) return 'hindi';
+  // Gurmukhi script = Punjabi
+  if (/[\u0A00-\u0A7F]/.test(recentText)) return 'punjabi';
+
+  // Common Hinglish/Hindi romanized words
+  const hindiRomanized = ['kya', 'hai', 'nahi', 'kaise', 'kitna', 'kitne', 'chahiye', 'lena', 'dena',
+    'batao', 'bhai', 'yaar', 'agar', 'aur', 'mujhe', 'mere', 'mera', 'karo', 'kab', 'kahan',
+    'hoga', 'hain', 'toh', 'lekin', 'sahi', 'accha', 'theek', 'bilkul', 'zaroor'];
+  const lowerText = recentText.toLowerCase();
+  const hindiMatches = hindiRomanized.filter((w) => lowerText.includes(w)).length;
+  if (hindiMatches >= 2) return 'hindi';
+
+  return 'english';
 }
 
 // ── Extract phone number ──
@@ -52,13 +78,33 @@ function extractPhone(text) {
 function extractName(text) {
   const t = String(text || '').trim();
   const patterns = [
-    /(?:my name is|i am|i'm|naam)\s+([a-zA-Z\u0900-\u097F]{2,30})/i,
+    /(?:my name is|i am|i'm|naam|mera naam)\s+([a-zA-Z\u0900-\u097F]{2,30})/i,
   ];
   for (const p of patterns) {
     const m = t.match(p);
     if (m) return m[1].trim();
   }
   if (/^[a-zA-Z\u0900-\u097F\s]{2,30}$/.test(t) && t.split(' ').length <= 3) return t;
+  return null;
+}
+
+// ── Count user messages (for lead capture timing) ──
+function countUserMessages(messages) {
+  return (messages || []).filter((m) => m.role === 'user').length;
+}
+
+// ── Extract price range from user message ──
+function extractPriceRange(text) {
+  const lower = (text || '').toLowerCase();
+  // "under 2000", "below 3000", "2000 se kam"
+  const underMatch = lower.match(/(?:under|below|less than|upto|up to|se kam)\s*(?:rs\.?|₹)?\s*(\d{3,6})/);
+  if (underMatch) return { max: parseInt(underMatch[1]) };
+  // "between 1000 and 3000"
+  const betweenMatch = lower.match(/(?:between|from)?\s*(?:rs\.?|₹)?\s*(\d{3,6})\s*(?:to|and|-)\s*(?:rs\.?|₹)?\s*(\d{3,6})/);
+  if (betweenMatch) return { min: parseInt(betweenMatch[1]), max: parseInt(betweenMatch[2]) };
+  // "above 2000", "more than 1500"
+  const aboveMatch = lower.match(/(?:above|more than|over|se zyada)\s*(?:rs\.?|₹)?\s*(\d{3,6})/);
+  if (aboveMatch) return { min: parseInt(aboveMatch[1]) };
   return null;
 }
 
@@ -84,24 +130,55 @@ async function getCachedOffers() {
   return liveOffers;
 }
 
-// ── SMART PRODUCT MATCHER ──
-function matchProducts(query, products, limit = 10) {
-  if (!Array.isArray(products) || products.length === 0) return [];
+// ── SMART PRODUCT MATCHER with upsell awareness ──
+function matchProducts(query, products, priceRange, limit = 10) {
+  if (!Array.isArray(products) || products.length === 0) return { matched: [], upsells: [] };
   const lower = (query || '').toLowerCase();
+
   const scored = products.map((p) => {
     let score = 0;
+    const price = p.sale_price || p.salePrice || p.price || 0;
+
     if (p.name.toLowerCase() === lower) score += 100;
     if (p.name.toLowerCase().includes(lower)) score += 50;
     if ((p.brand || '').toLowerCase().includes(lower)) score += 30;
     if (detectCategory(lower) === p.category) score += 20;
     if (p.featured) score += 15;
     if (p.stock !== 0 && p.in_stock !== false) score += 10;
-    return { ...p, matchScore: score };
+
+    // Price range boost
+    if (priceRange) {
+      if (priceRange.max && price <= priceRange.max) score += 25;
+      if (priceRange.min && price >= priceRange.min) score += 15;
+      if (priceRange.max && price > priceRange.max && price <= priceRange.max * 1.4) score -= 5; // slight penalty for just over budget
+    }
+
+    return { ...p, matchScore: score, price };
   });
-  return scored
+
+  const matched = scored
     .filter((p) => p.matchScore > 0)
     .sort((a, b) => b.matchScore - a.matchScore)
     .slice(0, limit);
+
+  // Find upsell candidates: products 20-50% above the matched price range that are high quality
+  let upsells = [];
+  if (matched.length > 0 && priceRange?.max) {
+    const maxMatched = priceRange.max;
+    upsells = products
+      .filter((p) => {
+        const price = p.sale_price || p.salePrice || p.price || 0;
+        return price > maxMatched && price <= maxMatched * 1.5 && p.featured && p.stock !== 0;
+      })
+      .sort((a, b) => {
+        const ap = a.sale_price || a.salePrice || a.price || 0;
+        const bp = b.sale_price || b.salePrice || b.price || 0;
+        return ap - bp;
+      })
+      .slice(0, 2);
+  }
+
+  return { matched, upsells };
 }
 
 // ── DUAL AI CALLER (Qwen PRIMARY, Gemini FALLBACK) ──
@@ -161,8 +238,7 @@ async function callGeminiChat(messages, systemPrompt, apiKey) {
     const data = await res.json().catch(() => null);
     const text = data?.candidates?.[0]?.content?.parts?.map((p) => p?.text || '').join('').trim();
     if (text) return { ok: true, text };
-    const reason = data?.candidates?.[0]?.finishReason || 'gemini_empty';
-    return { ok: false, reason };
+    return { ok: false, reason: data?.candidates?.[0]?.finishReason || 'gemini_empty' };
   } catch (err) {
     clearTimeout(timer);
     return { ok: false, reason: err?.name === 'AbortError' ? 'gemini_timeout' : 'gemini_fetch_error' };
@@ -173,32 +249,21 @@ async function callAI(messages, systemPrompt) {
   const puterKey = process.env.PUTER_API_KEY;
   const geminiKey = process.env.GEMINI_API_KEY;
 
-  // Try Qwen first (free)
   if (puterKey) {
     try {
       const result = await callQwen(messages, systemPrompt, puterKey);
       if (result.ok) return { ...result, usedAPI: 'qwen' };
-    } catch (e) {
-      console.error('Qwen failed:', e);
-    }
+    } catch (e) { console.error('Qwen failed:', e); }
   }
 
-  // Fallback to Gemini
   if (geminiKey) {
     try {
       const result = await callGeminiChat(messages, systemPrompt, geminiKey);
       if (result.ok) return { ...result, usedAPI: 'gemini' };
-    } catch (e) {
-      console.error('Gemini failed:', e);
-    }
+    } catch (e) { console.error('Gemini failed:', e); }
   }
 
-  return {
-    ok: false,
-    reason: 'both_apis_failed',
-    text: "I'm having trouble connecting right now — please WhatsApp us at +91 7986161633!",
-    usedAPI: 'none',
-  };
+  return { ok: false, reason: 'both_apis_failed', usedAPI: 'none' };
 }
 
 // ── SMART CHAT HANDLER ──
@@ -207,30 +272,56 @@ async function handleChat(body) {
   const sessionId = incomingSessionId || uuidv4();
 
   const lastUserMsg = [...(messages || [])].reverse().find((m) => m.role === 'user');
+  const userMessageCount = countUserMessages(messages);
   const buyIntentNow = hasBuyIntent(lastUserMsg?.content);
   const phoneInThisMessage = extractPhone(lastUserMsg?.content);
   const nameInThisMessage = extractName(lastUserMsg?.content);
-  const shouldAskForContact = buyIntentNow && !contactCaptured && !phoneInThisMessage;
+  const priceRange = extractPriceRange(lastUserMsg?.content);
 
-  // Smart catalog with product matching
+  // ── Language detection ──
+  const language = detectLanguage(messages);
+
+  // ── Lead capture logic:
+  // Ask for contact after 2nd message if buy intent detected and no contact yet
+  // Or after 4th message regardless (engaged user)
+  const shouldAskForContact = !contactCaptured && !phoneInThisMessage && (
+    (buyIntentNow && userMessageCount >= 2) ||
+    (userMessageCount >= 4)
+  );
+
+  // ── Build smart catalog ──
   let catalogText = 'No products loaded.';
-  let matchedRecommendations = [];
+  let upsellProducts = [];
+
   if (Array.isArray(products) && products.length > 0) {
-    matchedRecommendations = matchProducts(lastUserMsg?.content || '', products, 10);
-    const topProducts = matchedRecommendations.length > 0 ? matchedRecommendations : products.slice(0, 60);
+    const { matched, upsells } = matchProducts(lastUserMsg?.content || '', products, priceRange, 10);
+    upsellProducts = upsells;
+
+    const topProducts = matched.length > 0 ? matched : products.slice(0, 60);
     catalogText = topProducts
       .map((p) => {
         const price = p.sale_price || p.salePrice || p.price || 0;
         const category = p.category_name || p.category || '';
         const brand = p.brand || '';
-        const stock = p.stock === 0 ? 'Out of Stock' : (p.in_stock === false || p.inStock === false ? 'Out of Stock' : 'In Stock');
+        const stock = p.stock === 0 ? 'Out of Stock' : (p.in_stock === false ? 'Out of Stock' : 'In Stock');
         const discount = p.discount_percent ? ` | ${p.discount_percent}% OFF` : '';
-        return `- ID:${p.id} | ${p.name} | Brand: ${brand} | Category: ${category} | Price: Rs.${price}${discount} | ${stock}`;
+        const featured = p.featured ? ' | ⭐ Best Seller' : '';
+        return `- ID:${p.id} | ${p.name} | Brand: ${brand} | Category: ${category} | Price: Rs.${price}${discount}${featured} | ${stock}`;
       })
       .join('\n');
   }
 
-  // Active offers
+  // ── Upsell catalog ──
+  let upsellText = '';
+  if (upsellProducts.length > 0) {
+    upsellText = `\n\n🔼 UPSELL OPTIONS (slightly above budget but much better value):\n` +
+      upsellProducts.map((p) => {
+        const price = p.sale_price || p.salePrice || p.price || 0;
+        return `- ID:${p.id} | ${p.name} | Rs.${price} | ⭐ Featured`;
+      }).join('\n');
+  }
+
+  // ── Active offers ──
   let offersText = 'No active offers right now.';
   try {
     const liveOffers = await getCachedOffers();
@@ -239,39 +330,64 @@ async function handleChat(body) {
         .map((o) => `- ${o.title}${o.description ? ': ' + o.description : ''}${o.expiry_date ? ' (expires ' + o.expiry_date + ')' : ''}`)
         .join('\n');
     }
-  } catch (e) { /* offers optional */ }
+  } catch (e) { /* optional */ }
 
-  const systemPrompt = `You are a FRIENDLY, EXPERT sales assistant for SETHI PURSE, Punjab's trusted premium luggage destination.
+  // ── Language instructions ──
+  const languageInstruction = language === 'hindi'
+    ? `🌐 LANGUAGE: Customer is writing in Hindi/Hinglish. Reply in friendly Hinglish (mix of Hindi + English). Use words like: bilkul, zaroor, bahut accha, sahi choice, ji haan, koi baat nahi. Keep it warm and local.`
+    : language === 'punjabi'
+    ? `🌐 LANGUAGE: Customer is writing in Punjabi. Reply in friendly Punjabi/Hinglish. Use words like: bilkul, zaroor, bahut wadiya, sahi choice, ji haan. Keep it warm and local.`
+    : `🌐 LANGUAGE: Reply in clear, friendly English. You can sprinkle in a few Hindi words naturally (bilkul, zaroor, bahut accha) to feel warm and local.`;
 
-🏪 STORE DETAILS:
-- Name: SETHI PURSE
-- Location: Mai Hiran Gate, Near Books Market, Jalandhar, Punjab 144001
-- Phone: +91 7986161633
-- Hours: 10 AM - 8 PM Daily
-- Website: https://sethi-purse.vercel.app
+  // ── Lead capture instruction ──
+  const leadCaptureInstruction = shouldAskForContact
+    ? language === 'hindi'
+      ? `📞 LEAD CAPTURE (IMPORTANT): Is customer engaged kar chuka hai. After answering their question, add ONE warm line: "Aapka naam aur number share karein — hamare team aapko personally help karenge! 😊" Be natural, not pushy. Ask only once.`
+      : `📞 LEAD CAPTURE (IMPORTANT): This customer is engaged. After answering their question, add ONE warm line asking for their name and WhatsApp number so your team can help them directly. Be warm and natural: "Could I get your name and number? Our team will personally assist you! 😊" Ask only once.`
+    : '';
+
+  // ── Upsell instruction ──
+  const upsellInstruction = upsellProducts.length > 0
+    ? language === 'hindi'
+      ? `💡 UPSELL: Agar customer ka budget thoda limited hai, toh upsell products bhi mention karo naturally: "Sirf thode zyada mein yeh bahut better option hai!" Show the upsell product ID in PRODUCTS line.`
+      : `💡 UPSELL: If the customer seems budget-focused, naturally mention 1 upsell option: "For just a little more, this is a much better value!" Include its ID in the PRODUCTS line.`
+    : '';
+
+  const systemPrompt = `You are a FRIENDLY, EXPERT sales assistant for SETHI PURSE, Punjab's trusted premium luggage destination in Jalandhar.
+
+🏪 STORE:
+- Name: SETHI PURSE | Location: Mai Hiran Gate, Near Books Market, Jalandhar, Punjab 144001
+- Phone: +91 7986161633 | Hours: 10 AM - 8 PM Daily
 - Brands: American Tourister, Safari, Genie, Arctic Fox
+- Categories: Luggage, Backpacks, Handbags, Slings, School Bags, Wallets
 
-📦 CATEGORIES: Luggage, Backpacks, Handbags, Slings, School Bags, Wallets
+${languageInstruction}
 
 🎯 PRODUCT CATALOG:
-${catalogText}
+${catalogText}${upsellText}
 
 🎁 ACTIVE OFFERS:
 ${offersText}
 
-💡 YOUR RULES:
-1. BE GENUINELY HELPFUL — Answer product questions accurately using the catalog.
-2. USE LOCAL WARMTH — Mix in Hindi words naturally (bilkul, zaroor, bilkul sahi, bahut accha).
-3. MATCH PRODUCTS SMARTLY — Show relevant products from catalog, never invent.
-4. IF OUT OF STOCK — Suggest 2-3 similar IN-STOCK alternatives.
-5. KEEP IT SHORT — 2-4 sentences max.
-6. FOR DELIVERY — "We offer in-store pickup. For special arrangements, WhatsApp us!"
-7. MENTION OFFERS NATURALLY if relevant to the customer's question.
-8. NEVER SHOW RAW IDs IN YOUR MESSAGE — Only in the PRODUCTS line below.
-9. SMART PRODUCT CARDS — End with this EXACT line IF you mention specific products:
+💡 YOUR SMART RULES:
+1. ANSWER ACCURATELY — Only use products from the catalog. Never invent prices or specs.
+2. KEEP IT SHORT — 2-4 sentences max. Customers are on mobile, scrolling fast.
+3. OUT OF STOCK — Always suggest 2-3 similar IN-STOCK alternatives. Never just say "not available."
+4. MENTION OFFERS — If the customer's interest matches an active offer, mention it naturally.
+5. DELIVERY — "We offer in-store pickup. For delivery arrangements, WhatsApp karein!"
+6. NEVER SHOW RAW IDs — Product IDs only go in the PRODUCTS line below, never in visible text.
+7. PRODUCT CARDS — When you mention specific products, end your reply with EXACTLY:
 PRODUCTS: [id1, id2, id3]
-(This line is hidden from customers, used only to show product cards. Max 3 IDs. Omit if not relevant.)
-${shouldAskForContact ? `10. CONTACT CAPTURE — After answering, warmly ask for name & number: "By the way, could I get your name and number so our team can assist you directly? 😊" Ask only once.` : ''}`;
+(Max 3 IDs. This line is hidden from the customer — only used to show product cards.)
+${upsellInstruction}
+${leadCaptureInstruction}
+
+💬 CONVERSATION STARTERS:
+- If customer says "hi/hello" → "Hey! Welcome to SETHI PURSE 👜 Luggage, bags, ya kuch aur dhundh rahe hain? Batao!"
+- If customer asks price without context → Ask what type of bag first before showing options.
+- If customer asks for "best" → Ask their budget first, then show top 2-3 options.
+
+Remember: You're their trusted friend who knows bags — not a formal chatbot! 😊`;
 
   const result = await callAI((messages || []).slice(-12), systemPrompt);
 
@@ -296,15 +412,14 @@ ${shouldAskForContact ? `10. CONTACT CAPTURE — After answering, warmly ask for
       ? products.filter((p) => productIds.includes(String(p.id)))
       : [];
 
-    const outOfStockMatches = matchedProducts.filter((p) => p.stock === 0 || p.in_stock === false || p.inStock === false);
+    const outOfStockMatches = matchedProducts.filter((p) => p.stock === 0 || p.in_stock === false);
 
-    // Save/update inquiry row
+    // ── Save/update inquiry ──
     try {
       if (lastUserMsg) {
         const detectedCategory = detectCategory(`${lastUserMsg.content} ${reply}`);
         const capturedPhone = phoneInThisMessage;
         const capturedName = nameInThisMessage;
-        let contactNowCaptured = !!contactCaptured || !!capturedPhone;
 
         const { data: existing } = await supabase
           .from('inquiries')
@@ -315,7 +430,7 @@ ${shouldAskForContact ? `10. CONTACT CAPTURE — After answering, warmly ask for
         const interestList = Array.from(new Set([
           ...(existing?.product_interest ? existing.product_interest.split(', ').filter(Boolean) : []),
           ...matchedProducts.map((p) => p.name),
-        ])).join(', ') || existing?.product_interest || 'General enquiry';
+        ])).join(', ') || 'General enquiry';
 
         const transcriptLine = `User: "${lastUserMsg.content}" | AI (${result.usedAPI}): "${reply.slice(0, 250)}"`;
 
@@ -353,23 +468,22 @@ ${shouldAskForContact ? `10. CONTACT CAPTURE — After answering, warmly ask for
       console.error('Inquiry logging failed:', e);
     }
 
-    return json({ reply, products: matchedProducts, sessionId, contactCaptured: !!contactCaptured || !!phoneInThisMessage, aiModel: result.usedAPI });
+    return json({
+      reply,
+      products: matchedProducts,
+      sessionId,
+      contactCaptured: !!contactCaptured || !!phoneInThisMessage,
+      aiModel: result.usedAPI,
+      language,
+    });
   }
 
   // Both AIs failed
-  const fallbacks = {
-    SAFETY: "I can't quite answer that — try rephrasing, or WhatsApp us at +91 7986161633!",
-    MAX_TOKENS: "That's a bigger question — WhatsApp us at +91 7986161633 for full details!",
-    gemini_timeout: "I'm a little slow right now — please try again or WhatsApp us at +91 7986161633!",
-    qwen_timeout: "I'm a little slow right now — please try again or WhatsApp us at +91 7986161633!",
-    both_apis_failed: "I'm having trouble connecting — please WhatsApp us at +91 7986161633!",
-  };
-  return json({
-    reply: fallbacks[result.reason] || "Sorry, I'm having trouble right now — please WhatsApp us at +91 7986161633!",
-    sessionId,
-    aiModel: 'none',
-    error: result.reason,
-  });
+  const fallbackMsg = language === 'hindi'
+    ? "Sorry, abhi thodi problem aa rahi hai — please WhatsApp karein: +91 7986161633!"
+    : "Sorry, having trouble right now — please WhatsApp us at +91 7986161633!";
+
+  return json({ reply: fallbackMsg, sessionId, aiModel: 'none', error: result.reason });
 }
 
 // ── MAIN ROUTE HANDLER ──
@@ -450,9 +564,7 @@ Focus on quality, style, and everyday usefulness. Do not invent specific measure
         }
       );
       const geminiData = await geminiRes.json().catch(() => ({}));
-      if (!geminiRes.ok) {
-        return json({ error: geminiData?.error?.message || `Gemini API error (status ${geminiRes.status})` }, 500);
-      }
+      if (!geminiRes.ok) return json({ error: geminiData?.error?.message || `Gemini error (${geminiRes.status})` }, 500);
       const description = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
       if (!description) return json({ error: 'Gemini returned an empty response' }, 502);
       return json({ description });
