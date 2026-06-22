@@ -545,11 +545,27 @@ Remember: You're their trusted friend who knows bags — not a formal chatbot! �
   if (result.ok) {
     let reply = result.text;
     let productIds = [];
-    const match = reply.match(/PRODUCTS:\s*\[([^\]]*)\]/i);
+
+    // ── ROBUST PRODUCTS EXTRACTION ──
+    // Works regardless of which AI tier answered (Groq/Gemini/OpenRouter/Cloudflare),
+    // since each model formats things slightly differently in practice:
+    //   "PRODUCTS: [id1, id2, id3]"   (correct, as instructed)
+    //   "PRODUCTS: id1, id2, id3"     (brackets dropped)
+    //   "PRODUCTS: [id1, id2"         (unclosed bracket)
+    //   "Products:[id1,id2]"          (different casing/spacing)
+    // This single regex matches the PRODUCTS line in ANY of those shapes,
+    // captures just the ID list, and is removed from the visible reply.
+    const productsLineRegex = /products:\s*\[?\s*([0-9a-f-]+(?:\s*,\s*[0-9a-f-]+)*)\s*\]?/i;
+    const match = reply.match(productsLineRegex);
     if (match) {
       productIds = match[1].split(',').map((s) => s.trim().replace(/['"]/g, '')).filter(Boolean).slice(0, 3);
-      reply = reply.replace(/PRODUCTS:\s*\[([^\]]*)\]/i, '').trim();
     }
+    // Strip the PRODUCTS line itself from the visible reply (any format)
+    reply = reply.replace(productsLineRegex, '').trim();
+
+    // Extra safety net: in case any tier echoes a raw UUID inline in the
+    // sentence itself (outside the PRODUCTS line), strip those too so the
+    // customer never sees a bare ID in the chat bubble.
     reply = reply
       .replace(/\(?\s*ID:?\s*[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\s*\)?/gi, '')
       .replace(/\s{2,}/g, ' ')
