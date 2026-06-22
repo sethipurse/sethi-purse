@@ -12,7 +12,6 @@ const LOCAL_CATEGORIES = categoriesJson.map((c) => ({
 
 const VALID_STATUSES = ['new', 'contacted', 'converted', 'closed'];
 
-// ── Category keyword map ──
 const CATEGORY_KEYWORDS = {
   'Backpacks': ['backpack', 'bag pack', 'rucksack'],
   'Handbags': ['handbag', 'hand bag', 'ladies bag', 'purse'],
@@ -30,7 +29,6 @@ function detectCategory(text) {
   return 'Other';
 }
 
-// ── Buy-intent detection ──
 const BUY_INTENT_KEYWORDS = [
   'buy', 'order', 'purchase', 'book', 'reserve',
   'available', 'in stock', 'price', 'cost', 'kitne', 'kitna',
@@ -43,38 +41,28 @@ function hasBuyIntent(text) {
   return BUY_INTENT_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
-// ── Language detection ──
-// Returns 'hindi', 'punjabi', or 'english'
 function detectLanguage(messages) {
   const recentText = (messages || [])
     .slice(-3)
     .filter((m) => m.role === 'user')
     .map((m) => m.content || '')
     .join(' ');
-
-  // Devanagari script = Hindi
   if (/[\u0900-\u097F]/.test(recentText)) return 'hindi';
-  // Gurmukhi script = Punjabi
   if (/[\u0A00-\u0A7F]/.test(recentText)) return 'punjabi';
-
-  // Common Hinglish/Hindi romanized words
   const hindiRomanized = ['kya', 'hai', 'nahi', 'kaise', 'kitna', 'kitne', 'chahiye', 'lena', 'dena',
     'batao', 'bhai', 'yaar', 'agar', 'aur', 'mujhe', 'mere', 'mera', 'karo', 'kab', 'kahan',
     'hoga', 'hain', 'toh', 'lekin', 'sahi', 'accha', 'theek', 'bilkul', 'zaroor'];
   const lowerText = recentText.toLowerCase();
   const hindiMatches = hindiRomanized.filter((w) => lowerText.includes(w)).length;
   if (hindiMatches >= 2) return 'hindi';
-
   return 'english';
 }
 
-// ── Extract phone number ──
 function extractPhone(text) {
   const match = String(text || '').match(/(?:\+?91[\s-]?)?([6-9]\d{9})\b/);
   return match ? match[1] : null;
 }
 
-// ── Extract name ──
 function extractName(text) {
   const t = String(text || '').trim();
   const patterns = [
@@ -88,21 +76,16 @@ function extractName(text) {
   return null;
 }
 
-// ── Count user messages (for lead capture timing) ──
 function countUserMessages(messages) {
   return (messages || []).filter((m) => m.role === 'user').length;
 }
 
-// ── Extract price range from user message ──
 function extractPriceRange(text) {
   const lower = (text || '').toLowerCase();
-  // "under 2000", "below 3000", "2000 se kam"
   const underMatch = lower.match(/(?:under|below|less than|upto|up to|se kam)\s*(?:rs\.?|₹)?\s*(\d{3,6})/);
   if (underMatch) return { max: parseInt(underMatch[1]) };
-  // "between 1000 and 3000"
   const betweenMatch = lower.match(/(?:between|from)?\s*(?:rs\.?|₹)?\s*(\d{3,6})\s*(?:to|and|-)\s*(?:rs\.?|₹)?\s*(\d{3,6})/);
   if (betweenMatch) return { min: parseInt(betweenMatch[1]), max: parseInt(betweenMatch[2]) };
-  // "above 2000", "more than 1500"
   const aboveMatch = lower.match(/(?:above|more than|over|se zyada)\s*(?:rs\.?|₹)?\s*(\d{3,6})/);
   if (aboveMatch) return { min: parseInt(aboveMatch[1]) };
   return null;
@@ -112,7 +95,6 @@ function json(data, status = 200) {
   return NextResponse.json(data, { status });
 }
 
-// ── Offers cache (3 minutes) ──
 let offersCache = { data: null, expiresAt: 0 };
 async function getCachedOffers() {
   if (offersCache.data && Date.now() < offersCache.expiresAt) return offersCache.data;
@@ -130,38 +112,29 @@ async function getCachedOffers() {
   return liveOffers;
 }
 
-// ── SMART PRODUCT MATCHER with upsell awareness ──
 function matchProducts(query, products, priceRange, limit = 10) {
   if (!Array.isArray(products) || products.length === 0) return { matched: [], upsells: [] };
   const lower = (query || '').toLowerCase();
-
   const scored = products.map((p) => {
     let score = 0;
     const price = p.sale_price || p.salePrice || p.price || 0;
-
     if (p.name.toLowerCase() === lower) score += 100;
     if (p.name.toLowerCase().includes(lower)) score += 50;
     if ((p.brand || '').toLowerCase().includes(lower)) score += 30;
     if (detectCategory(lower) === p.category) score += 20;
     if (p.featured) score += 15;
     if (p.stock !== 0 && p.in_stock !== false) score += 10;
-
-    // Price range boost
     if (priceRange) {
       if (priceRange.max && price <= priceRange.max) score += 25;
       if (priceRange.min && price >= priceRange.min) score += 15;
-      if (priceRange.max && price > priceRange.max && price <= priceRange.max * 1.4) score -= 5; // slight penalty for just over budget
+      if (priceRange.max && price > priceRange.max && price <= priceRange.max * 1.4) score -= 5;
     }
-
     return { ...p, matchScore: score, price };
   });
-
   const matched = scored
     .filter((p) => p.matchScore > 0)
     .sort((a, b) => b.matchScore - a.matchScore)
     .slice(0, limit);
-
-  // Find upsell candidates: products 20-50% above the matched price range that are high quality
   let upsells = [];
   if (matched.length > 0 && priceRange?.max) {
     const maxMatched = priceRange.max;
@@ -177,11 +150,10 @@ function matchProducts(query, products, priceRange, limit = 10) {
       })
       .slice(0, 2);
   }
-
   return { matched, upsells };
 }
 
-// ── DUAL AI CALLER (Qwen PRIMARY, Gemini FALLBACK) ──
+// ── DUAL AI CALLER (gpt-4o-mini via Puter PRIMARY, Gemini FALLBACK) ──
 async function callQwen(messages, systemPrompt, apiKey) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12000);
@@ -194,7 +166,7 @@ async function callQwen(messages, systemPrompt, apiKey) {
           { role: 'system', content: systemPrompt },
           ...messages.map((m) => ({ role: m.role, content: String(m.content || '').slice(0, 800) })),
         ],
-        model: 'qwen/qwen3.6-plus',
+        model: 'gpt-4o-mini',
         temperature: 0.7,
         max_tokens: 500,
       }),
@@ -221,7 +193,7 @@ async function callGeminiChat(messages, systemPrompt, apiKey) {
       parts: [{ text: String(m.content || '').slice(0, 800) }],
     }));
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -248,70 +220,54 @@ async function callGeminiChat(messages, systemPrompt, apiKey) {
 async function callAI(messages, systemPrompt) {
   const puterKey = process.env.PUTER_API_KEY;
   const geminiKey = process.env.GEMINI_API_KEY;
-
   if (puterKey) {
     try {
       const result = await callQwen(messages, systemPrompt, puterKey);
-      if (result.ok) return { ...result, usedAPI: 'qwen' };
-    } catch (e) { console.error('Qwen failed:', e); }
+      if (result.ok) return { ...result, usedAPI: 'gpt-4o-mini' };
+    } catch (e) { console.error('Puter failed:', e); }
   }
-
   if (geminiKey) {
     try {
       const result = await callGeminiChat(messages, systemPrompt, geminiKey);
       if (result.ok) return { ...result, usedAPI: 'gemini' };
     } catch (e) { console.error('Gemini failed:', e); }
   }
-
   return { ok: false, reason: 'both_apis_failed', usedAPI: 'none' };
 }
 
-// ── SMART CHAT HANDLER ──
 async function handleChat(body) {
   const { messages, products, sessionId: incomingSessionId, contactCaptured } = body || {};
   const sessionId = incomingSessionId || uuidv4();
-
   const lastUserMsg = [...(messages || [])].reverse().find((m) => m.role === 'user');
   const userMessageCount = countUserMessages(messages);
   const buyIntentNow = hasBuyIntent(lastUserMsg?.content);
   const phoneInThisMessage = extractPhone(lastUserMsg?.content);
   const nameInThisMessage = extractName(lastUserMsg?.content);
   const priceRange = extractPriceRange(lastUserMsg?.content);
-
-  // ── Language detection ──
   const language = detectLanguage(messages);
 
-  // ── Lead capture logic:
-  // Ask for contact after 2nd message if buy intent detected and no contact yet
-  // Or after 4th message regardless (engaged user)
   const shouldAskForContact = !contactCaptured && !phoneInThisMessage && (
     (buyIntentNow && userMessageCount >= 2) ||
     (userMessageCount >= 4)
   );
 
-  // ── Build smart catalog ──
   let catalogText = 'No products loaded.';
   let upsellProducts = [];
-
   if (Array.isArray(products) && products.length > 0) {
     const { matched, upsells } = matchProducts(lastUserMsg?.content || '', products, priceRange, 10);
     upsellProducts = upsells;
-
     const topProducts = matched.length > 0 ? matched : products.slice(0, 60);
-    catalogText = topProducts
-      .map((p) => {
-        const price = p.sale_price || p.salePrice || p.price || 0;
-        const category = p.category_name || p.category || '';
-        const brand = p.brand || '';
-        const stock = p.stock === 0 ? 'Out of Stock' : (p.in_stock === false ? 'Out of Stock' : 'In Stock');
-        const discount = p.discount_percent ? ` | ${p.discount_percent}% OFF` : '';
-        const featured = p.featured ? ' | ⭐ Best Seller' : '';
-        return `- ID:${p.id} | ${p.name} | Brand: ${brand} | Category: ${category} | Price: Rs.${price}${discount}${featured} | ${stock}`;
-      })
-      .join('\n');
+    catalogText = topProducts.map((p) => {
+      const price = p.sale_price || p.salePrice || p.price || 0;
+      const category = p.category_name || p.category || '';
+      const brand = p.brand || '';
+      const stock = p.stock === 0 ? 'Out of Stock' : (p.in_stock === false ? 'Out of Stock' : 'In Stock');
+      const discount = p.discount_percent ? ` | ${p.discount_percent}% OFF` : '';
+      const featured = p.featured ? ' | ⭐ Best Seller' : '';
+      return `- ID:${p.id} | ${p.name} | Brand: ${brand} | Category: ${category} | Price: Rs.${price}${discount}${featured} | ${stock}`;
+    }).join('\n');
   }
 
-  // ── Upsell catalog ──
   let upsellText = '';
   if (upsellProducts.length > 0) {
     upsellText = `\n\n🔼 UPSELL OPTIONS (slightly above budget but much better value):\n` +
@@ -321,36 +277,30 @@ async function handleChat(body) {
       }).join('\n');
   }
 
-  // ── Active offers ──
   let offersText = 'No active offers right now.';
   try {
     const liveOffers = await getCachedOffers();
     if (liveOffers.length > 0) {
-      offersText = liveOffers
-        .map((o) => `- ${o.title}${o.description ? ': ' + o.description : ''}${o.expiry_date ? ' (expires ' + o.expiry_date + ')' : ''}`)
-        .join('\n');
+      offersText = liveOffers.map((o) =>
+        `- ${o.title}${o.description ? ': ' + o.description : ''}${o.expiry_date ? ' (expires ' + o.expiry_date + ')' : ''}`
+      ).join('\n');
     }
   } catch (e) { /* optional */ }
 
-  // ── Language instructions ──
   const languageInstruction = language === 'hindi'
-    ? `🌐 LANGUAGE: Customer is writing in Hindi/Hinglish. Reply in friendly Hinglish (mix of Hindi + English). Use words like: bilkul, zaroor, bahut accha, sahi choice, ji haan, koi baat nahi. Keep it warm and local.`
+    ? `🌐 LANGUAGE: Customer is writing in Hindi/Hinglish. Reply in friendly Hinglish. Use words like: bilkul, zaroor, bahut accha, sahi choice, ji haan.`
     : language === 'punjabi'
-    ? `🌐 LANGUAGE: Customer is writing in Punjabi. Reply in friendly Punjabi/Hinglish. Use words like: bilkul, zaroor, bahut wadiya, sahi choice, ji haan. Keep it warm and local.`
-    : `🌐 LANGUAGE: Reply in clear, friendly English. You can sprinkle in a few Hindi words naturally (bilkul, zaroor, bahut accha) to feel warm and local.`;
+    ? `🌐 LANGUAGE: Customer is writing in Punjabi. Reply in friendly Punjabi/Hinglish. Use words like: bilkul, zaroor, bahut wadiya, sahi choice.`
+    : `🌐 LANGUAGE: Reply in clear, friendly English. Sprinkle Hindi words naturally (bilkul, zaroor, bahut accha).`;
 
-  // ── Lead capture instruction ──
   const leadCaptureInstruction = shouldAskForContact
     ? language === 'hindi'
-      ? `📞 LEAD CAPTURE (IMPORTANT): Is customer engaged kar chuka hai. After answering their question, add ONE warm line: "Aapka naam aur number share karein — hamare team aapko personally help karenge! 😊" Be natural, not pushy. Ask only once.`
-      : `📞 LEAD CAPTURE (IMPORTANT): This customer is engaged. After answering their question, add ONE warm line asking for their name and WhatsApp number so your team can help them directly. Be warm and natural: "Could I get your name and number? Our team will personally assist you! 😊" Ask only once.`
+      ? `📞 LEAD CAPTURE: After answering, add ONE warm line: "Aapka naam aur number share karein — hamare team aapko personally help karenge! 😊"`
+      : `📞 LEAD CAPTURE: After answering, add ONE warm line: "Could I get your name and number? Our team will personally assist you! 😊"`
     : '';
 
-  // ── Upsell instruction ──
   const upsellInstruction = upsellProducts.length > 0
-    ? language === 'hindi'
-      ? `💡 UPSELL: Agar customer ka budget thoda limited hai, toh upsell products bhi mention karo naturally: "Sirf thode zyada mein yeh bahut better option hai!" Show the upsell product ID in PRODUCTS line.`
-      : `💡 UPSELL: If the customer seems budget-focused, naturally mention 1 upsell option: "For just a little more, this is a much better value!" Include its ID in the PRODUCTS line.`
+    ? `💡 UPSELL: Naturally mention 1 upsell option if customer seems budget-focused. Include its ID in PRODUCTS line.`
     : '';
 
   const systemPrompt = `You are a FRIENDLY, EXPERT sales assistant for SETHI PURSE, Punjab's trusted premium luggage destination in Jalandhar.
@@ -372,20 +322,20 @@ ${offersText}
 💡 YOUR SMART RULES:
 1. ANSWER ACCURATELY — Only use products from the catalog. Never invent prices or specs.
 2. KEEP IT SHORT — 2-4 sentences max. Customers are on mobile, scrolling fast.
-3. OUT OF STOCK — Always suggest 2-3 similar IN-STOCK alternatives. Never just say "not available."
-4. MENTION OFFERS — If the customer's interest matches an active offer, mention it naturally.
+3. OUT OF STOCK — Always suggest 2-3 similar IN-STOCK alternatives.
+4. MENTION OFFERS — If customer interest matches an active offer, mention it naturally.
 5. DELIVERY — "We offer in-store pickup. For delivery arrangements, WhatsApp karein!"
-6. NEVER SHOW RAW IDs — Product IDs only go in the PRODUCTS line below, never in visible text.
-7. PRODUCT CARDS — When you mention specific products, end your reply with EXACTLY:
+6. NEVER SHOW RAW IDs — Product IDs only go in the PRODUCTS line, never in visible text.
+7. PRODUCT CARDS — When mentioning specific products, end reply with EXACTLY:
 PRODUCTS: [id1, id2, id3]
-(Max 3 IDs. This line is hidden from the customer — only used to show product cards.)
+(Max 3 IDs. Hidden from customer — used to show product cards.)
 ${upsellInstruction}
 ${leadCaptureInstruction}
 
 💬 CONVERSATION STARTERS:
-- If customer says "hi/hello" → "Hey! Welcome to SETHI PURSE 👜 Luggage, bags, ya kuch aur dhundh rahe hain? Batao!"
-- If customer asks price without context → Ask what type of bag first before showing options.
-- If customer asks for "best" → Ask their budget first, then show top 2-3 options.
+- If customer says hi/hello → "Hey! Welcome to SETHI PURSE 👜 Luggage, bags, ya kuch aur dhundh rahe hain? Batao!"
+- If customer asks price without context → Ask what type of bag first.
+- If customer asks for "best" → Ask budget first, then show top 2-3 options.
 
 Remember: You're their trusted friend who knows bags — not a formal chatbot! 😊`;
 
@@ -393,16 +343,12 @@ Remember: You're their trusted friend who knows bags — not a formal chatbot! �
 
   if (result.ok) {
     let reply = result.text;
-
-    // Extract product IDs
     let productIds = [];
     const match = reply.match(/PRODUCTS:\s*\[([^\]]*)\]/i);
     if (match) {
       productIds = match[1].split(',').map((s) => s.trim().replace(/['"]/g, '')).filter(Boolean).slice(0, 3);
       reply = reply.replace(/PRODUCTS:\s*\[([^\]]*)\]/i, '').trim();
     }
-
-    // Clean any raw IDs from visible text
     reply = reply
       .replace(/\(?\s*ID:?\s*[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\s*\)?/gi, '')
       .replace(/\s{2,}/g, ' ')
@@ -411,29 +357,21 @@ Remember: You're their trusted friend who knows bags — not a formal chatbot! �
     const matchedProducts = Array.isArray(products)
       ? products.filter((p) => productIds.includes(String(p.id)))
       : [];
-
     const outOfStockMatches = matchedProducts.filter((p) => p.stock === 0 || p.in_stock === false);
 
-    // ── Save/update inquiry ──
     try {
       if (lastUserMsg) {
         const detectedCategory = detectCategory(`${lastUserMsg.content} ${reply}`);
-        const capturedPhone = phoneInThisMessage;
-        const capturedName = nameInThisMessage;
-
         const { data: existing } = await supabase
           .from('inquiries')
           .select('id, message, name, phone, product_interest')
           .eq('session_id', sessionId)
           .maybeSingle();
-
         const interestList = Array.from(new Set([
           ...(existing?.product_interest ? existing.product_interest.split(', ').filter(Boolean) : []),
           ...matchedProducts.map((p) => p.name),
         ])).join(', ') || 'General enquiry';
-
         const transcriptLine = `User: "${lastUserMsg.content}" | AI (${result.usedAPI}): "${reply.slice(0, 250)}"`;
-
         if (existing) {
           const updates = {
             message: `[AI CHAT] ${transcriptLine}`,
@@ -443,16 +381,16 @@ Remember: You're their trusted friend who knows bags — not a formal chatbot! �
             updated_at: nowIST(),
             ai_model: result.usedAPI,
           };
-          if (capturedName && (!existing.name || existing.name === 'AI Chat Visitor')) updates.name = capturedName;
-          if (capturedPhone && (!existing.phone || existing.phone === '0000000000')) updates.phone = capturedPhone;
+          if (nameInThisMessage && (!existing.name || existing.name === 'AI Chat Visitor')) updates.name = nameInThisMessage;
+          if (phoneInThisMessage && (!existing.phone || existing.phone === '0000000000')) updates.phone = phoneInThisMessage;
           if (buyIntentNow) updates.status = 'new';
           await supabase.from('inquiries').update(updates).eq('id', existing.id);
         } else {
           await supabase.from('inquiries').insert([{
             id: uuidv4(),
             session_id: sessionId,
-            name: capturedName || 'AI Chat Visitor',
-            phone: capturedPhone || '0000000000',
+            name: nameInThisMessage || 'AI Chat Visitor',
+            phone: phoneInThisMessage || '0000000000',
             city: 'Jalandhar',
             product_interest: interestList,
             message: `[AI CHAT] ${transcriptLine}`,
@@ -478,22 +416,18 @@ Remember: You're their trusted friend who knows bags — not a formal chatbot! �
     });
   }
 
-  // Both AIs failed
   const fallbackMsg = language === 'hindi'
     ? "Sorry, abhi thodi problem aa rahi hai — please WhatsApp karein: +91 7986161633!"
     : "Sorry, having trouble right now — please WhatsApp us at +91 7986161633!";
-
   return json({ reply: fallbackMsg, sessionId, aiModel: 'none', error: result.reason });
 }
 
-// ── MAIN ROUTE HANDLER ──
 async function handle(request, { params }) {
   const segments = (params?.path || []);
   const method = request.method;
 
   const globalLimited = rateLimit(request, 'global', 60);
   if (globalLimited) return globalLimited;
-
   const limited = rateLimit(request, `${method}:${segments[0] || 'root'}`, method === 'GET' ? 180 : 45);
   if (limited) return limited;
 
@@ -505,7 +439,6 @@ async function handle(request, { params }) {
     segments[0] === 'push' ||
     segments[0] === 'chat';
 
-  // ===== Uploads =====
   if (segments[0] === 'upload' && method === 'POST') {
     const authError = requireAdmin(request);
     if (authError) return authError;
@@ -556,7 +489,7 @@ ${category ? `Category: ${category}` : ''}
 Focus on quality, style, and everyday usefulness. Do not invent specific measurements, materials, or prices. Return only the description text, nothing else.`;
     try {
       const geminiRes = await fetch(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent',
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
@@ -573,7 +506,7 @@ Focus on quality, style, and everyday usefulness. Do not invent specific measure
     }
   }
 
-  // ===== AI Chat (Qwen PRIMARY + Gemini FALLBACK) =====
+  // ===== AI Chat =====
   if (segments[0] === 'chat' && method === 'POST') {
     try {
       return await handleChat(body);
@@ -816,8 +749,7 @@ Focus on quality, style, and everyday usefulness. Do not invent specific measure
         const phone = String(i.phone || '').replace(/\D/g, '');
         if (!i.name || !phone || !i.city || !i.productInterest || !i.message)
           return json({ error: 'All fields are required' }, 400);
-        if (phone.length !== 10)
-          return json({ error: 'Phone must be 10 digits' }, 400);
+        if (phone.length !== 10) return json({ error: 'Phone must be 10 digits' }, 400);
         const detectedCategory = detectCategory(`${i.productInterest} ${i.message}`);
         const inquiry = {
           id: uuidv4(),
