@@ -191,7 +191,7 @@ function AIChatPanel({ onClose }) {
             <div style={{ color: '#c9a84c', fontWeight: 700, fontSize: 14 }}>SETHI PURSE — Live Chat</div>
             <div style={{ color: 'rgba(201,168,76,0.6)', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
               <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#4ade80', display: 'inline-block' }} />
-              Online · Powered by Gemini
+              Online · Powered by AI
             </div>
           </div>
         </div>
