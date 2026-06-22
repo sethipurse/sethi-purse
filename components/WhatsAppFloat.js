@@ -3,8 +3,6 @@ import { useEffect, useState, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { buildWhatsAppLink } from '@/lib/constants';
 
-// ─── Icons ───────────────────────────────────────────────────────────────────
-
 function WhatsAppIcon() {
   return (
     <svg viewBox="0 0 32 32" fill="currentColor" style={{ width: 22, height: 22 }} aria-hidden="true">
@@ -46,8 +44,6 @@ function CloseIcon({ size = 18 }) {
   );
 }
 
-// ─── Quick questions ──────────────────────────────────────────────────────────
-
 const QUICK_QUESTIONS = [
   '💼 Show luggage options',
   '👜 What handbags do you have?',
@@ -57,11 +53,14 @@ const QUICK_QUESTIONS = [
   '🕐 Timings?',
 ];
 
-const SCROLL_THRESHOLD = 150; // px user must scroll down before FAB can appear
+const SCROLL_THRESHOLD = 150;
 
-// ─── AI Chat Panel ────────────────────────────────────────────────────────────
+// ─── AI Chat Panel ─────────────────────────────────────────────────────────────
+// FIX: products now passed as a prop (pre-loaded by parent) instead of fetched
+// inside this component. This ensures products are always ready when user sends
+// their first message, even if they open the chat immediately.
 
-function AIChatPanel({ onClose }) {
+function AIChatPanel({ onClose, products }) {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
@@ -70,7 +69,6 @@ function AIChatPanel({ onClose }) {
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [products, setProducts] = useState([]);
   const [contactCaptured, setContactCaptured] = useState(false);
   const sessionIdRef = useRef(null);
   if (!sessionIdRef.current) {
@@ -82,13 +80,6 @@ function AIChatPanel({ onClose }) {
   const inputRef = useRef(null);
 
   useEffect(() => {
-    fetch('/api/products')
-      .then((r) => r.json())
-      .then((data) => {
-        const list = Array.isArray(data) ? data : data?.products || data?.data || [];
-        setProducts(list);
-      })
-      .catch(() => {});
     setTimeout(() => inputRef.current?.focus(), 300);
   }, []);
 
@@ -110,18 +101,24 @@ function AIChatPanel({ onClose }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: newMessages,
-          products,
+          products, // ← now always populated (passed from parent)
           sessionId: sessionIdRef.current,
           contactCaptured,
         }),
       });
       const data = await res.json();
       if (data.contactCaptured) setContactCaptured(true);
+
+      // FIX: strip any leaked "PRODUCTS: [...]" text the AI accidentally put in reply
+      const cleanReply = (data.reply || 'Sorry, please try again!')
+        .replace(/PRODUCTS?:\s*\[.*?\]/gi, '')
+        .trim();
+
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
-          content: data.reply || 'Sorry, please try again!',
+          content: cleanReply,
           products: Array.isArray(data.products) ? data.products : [],
         },
       ]);
@@ -190,8 +187,8 @@ function AIChatPanel({ onClose }) {
           <div>
             <div style={{ color: '#c9a84c', fontWeight: 700, fontSize: 14 }}>SETHI PURSE — Live Chat</div>
             <div style={{ color: 'rgba(201,168,76,0.6)', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#4ade80', display: 'inline-block' }} />
-              Online · Powered by AI
+              <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: products.length > 0 ? '#4ade80' : '#facc15', display: 'inline-block' }} />
+              {products.length > 0 ? 'Online · Powered by AI' : 'Loading catalog…'}
             </div>
           </div>
         </div>
@@ -344,21 +341,29 @@ function AIChatPanel({ onClose }) {
 }
 
 // ─── Main Float Component ─────────────────────────────────────────────────────
-// "Live Chat" FAB — now RED (#e53935) per request, with a visible text label
-// pill next to the round icon button (matches the original two-piece layout:
-// icon circle + separate label pill). Fixed to viewport bottom-right.
-// Hidden on initial load — only appears once the user scrolls past
-// SCROLL_THRESHOLD. Hides while actively scrolling, reappears ~250ms after
-// scroll stops. Pulse ring + gentle bounce kept for visibility.
+// FIX: Products are fetched HERE in the parent, immediately on page load.
+// This means by the time the user opens the chat and sends their first message,
+// the product catalog is already loaded — no more empty products array!
 
 const FAB_RED = '#e53935';
-const FAB_RED_DARK = '#c62828';
 
 export default function WhatsAppFloat() {
   const pathname = usePathname() || '';
   const [chatOpen, setChatOpen] = useState(false);
-  const [visible, setVisible] = useState(false); // hidden until user scrolls
+  const [visible, setVisible] = useState(false);
+  const [products, setProducts] = useState([]); // ← MOVED HERE: loads on page mount
   const scrollTimerRef = useRef(null);
+
+  // Load product catalog immediately when the page loads (not when chat opens)
+  useEffect(() => {
+    fetch('/api/products')
+      .then((r) => r.json())
+      .then((data) => {
+        const list = Array.isArray(data) ? data : data?.products || data?.data || [];
+        setProducts(list.filter((p) => p.is_active !== false));
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const onScroll = () => {
@@ -386,10 +391,10 @@ export default function WhatsAppFloat() {
 
   return (
     <>
-      {/* AI Chat panel */}
-      {chatOpen && <AIChatPanel onClose={() => setChatOpen(false)} />}
+      {/* AI Chat panel — receives pre-loaded products as prop */}
+      {chatOpen && <AIChatPanel onClose={() => setChatOpen(false)} products={products} />}
 
-      {/* FAB — icon circle + "Live Chat" text label, red, fixed bottom-right */}
+      {/* FAB */}
       <button
         onClick={() => setChatOpen(true)}
         aria-label="Live Chat"
@@ -414,7 +419,6 @@ export default function WhatsAppFloat() {
           transition: 'opacity 0.25s ease, transform 0.25s ease',
         }}
       >
-        {/* Text label pill */}
         <span style={{
           backgroundColor: FAB_RED,
           color: '#fff',
@@ -430,15 +434,12 @@ export default function WhatsAppFloat() {
           Live Chat
         </span>
 
-        {/* Round icon button */}
         <span style={{ position: 'relative', width: 48, height: 48, flexShrink: 0 }}>
-          {/* Outer pulse ring */}
           <span style={{
             position: 'absolute', inset: -4, borderRadius: '50%',
             backgroundColor: FAB_RED, opacity: 0.45,
             animation: 'wa-pulse 1.6s ease-out infinite',
           }} />
-          {/* Secondary offset pulse for extra liveliness */}
           <span style={{
             position: 'absolute', inset: -4, borderRadius: '50%',
             backgroundColor: FAB_RED, opacity: 0.3,
@@ -463,23 +464,19 @@ export default function WhatsAppFloat() {
           70%  { transform: scale(1.9);  opacity: 0; }
           100% { transform: scale(1.9);  opacity: 0; }
         }
-
         @keyframes wa-bounce {
           0%, 100% { transform: scale(1) translateY(0); }
           50%      { transform: scale(1.07) translateY(-3px); }
         }
-
         .wa-float-fab--bounce {
           animation: wa-bounce 1.8s ease-in-out infinite;
         }
-
         .wa-float-fab {
           bottom: 140px;
         }
         .wa-chat-panel {
           bottom: 192px;
         }
-
         @media (min-width: 768px) {
           .wa-float-fab {
             bottom: 80px;
