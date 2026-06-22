@@ -95,6 +95,35 @@ function json(data, status = 200) {
   return NextResponse.json(data, { status });
 }
 
+// ── IMPROVEMENT #8: lightweight repetition / frustration detector ──
+// If the customer's last 3 user messages are highly similar, they're likely
+// stuck getting the same unhelpful answer. Skip the AI and hand off directly.
+function normalizeForSimilarity(text) {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[^\w\s]/g, '')
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function wordOverlapRatio(a, b) {
+  const wordsA = new Set(normalizeForSimilarity(a));
+  const wordsB = new Set(normalizeForSimilarity(b));
+  if (wordsA.size === 0 || wordsB.size === 0) return 0;
+  let shared = 0;
+  for (const w of wordsA) if (wordsB.has(w)) shared++;
+  return shared / Math.max(wordsA.size, wordsB.size);
+}
+
+function detectRepeatedFrustration(messages) {
+  const userMsgs = (messages || []).filter((m) => m.role === 'user').map((m) => m.content || '');
+  if (userMsgs.length < 3) return false;
+  const lastThree = userMsgs.slice(-3);
+  const sim1 = wordOverlapRatio(lastThree[0], lastThree[1]);
+  const sim2 = wordOverlapRatio(lastThree[1], lastThree[2]);
+  return sim1 >= 0.5 && sim2 >= 0.5;
+}
+
 let offersCache = { data: null, expiresAt: 0 };
 async function getCachedOffers() {
   if (offersCache.data && Date.now() < offersCache.expiresAt) return offersCache.data;
@@ -110,6 +139,19 @@ async function getCachedOffers() {
   });
   offersCache = { data: liveOffers, expiresAt: Date.now() + 3 * 60 * 1000 };
   return liveOffers;
+}
+
+// ── IMPROVEMENT #5: short-lived per-session catalog cache ──
+// Avoids rebuilding/re-sending the full catalog text on every single turn of
+// the same conversation when the topic hasn't changed.
+const catalogCache = new Map(); // sessionId -> { key, catalogText, upsellText, topProductIds, expiresAt }
+const CATALOG_CACHE_TTL_MS = 60 * 1000;
+
+function pruneCatalogCache() {
+  const now = Date.now();
+  for (const [key, val] of catalogCache.entries()) {
+    if (val.expiresAt < now) catalogCache.delete(key);
+  }
 }
 
 function matchProducts(query, products, priceRange, limit = 10) {
@@ -153,47 +195,57 @@ function matchProducts(query, products, priceRange, limit = 10) {
   return { matched, upsells };
 }
 
-// ── DUAL AI CALLER (gpt-4o-mini via Puter PRIMARY, Gemini FALLBACK) ──
-async function callQwen(messages, systemPrompt, apiKey) {
+// ── 4-TIER AI FALLBACK CHAIN: Groq -> Gemini -> OpenRouter -> Cloudflare Workers AI ──
+// Each tier only runs if the previous one fails (timeout/error/rate-limit).
+// Timeouts kept short (~7s) since up to 4 may run back-to-back in a worst case.
+const TIER_TIMEOUT_MS = 7000;
+
+function toOpenAIFormat(messages) {
+  return messages.map((m) => ({ role: m.role, content: String(m.content || '').slice(0, 800) }));
+}
+
+async function callGroq(messages, systemPrompt, apiKey) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 12000);
+  const timer = setTimeout(() => controller.abort(), TIER_TIMEOUT_MS);
   try {
-    const res = await fetch('https://api.puter.com/llm/chat', {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...messages.map((m) => ({ role: m.role, content: String(m.content || '').slice(0, 800) })),
-        ],
-        model: 'gpt-4o-mini',
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'system', content: systemPrompt }, ...toOpenAIFormat(messages)],
         temperature: 0.7,
         max_tokens: 500,
       }),
       signal: controller.signal,
     });
     clearTimeout(timer);
-    if (!res.ok) return { ok: false, reason: 'qwen_http_error', status: res.status };
+    if (!res.ok) {
+      console.error('Groq HTTP error', res.status, (await res.text().catch(() => '')).slice(0, 300));
+      return { ok: false, reason: 'groq_http_error', status: res.status };
+    }
     const data = await res.json().catch(() => null);
     const text = data?.choices?.[0]?.message?.content?.trim();
     if (text) return { ok: true, text };
-    return { ok: false, reason: 'qwen_empty' };
+    return { ok: false, reason: 'groq_empty' };
   } catch (err) {
     clearTimeout(timer);
-    return { ok: false, reason: err?.name === 'AbortError' ? 'qwen_timeout' : 'qwen_fetch_error' };
+    return { ok: false, reason: err?.name === 'AbortError' ? 'groq_timeout' : 'groq_fetch_error' };
   }
 }
 
+const GEMINI_MODEL = 'gemini-2.5-flash-lite'; // gemini-1.5-flash / 2.0-flash are retired (404)
+
 async function callGeminiChat(messages, systemPrompt, apiKey) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 12000);
+  const timer = setTimeout(() => controller.abort(), TIER_TIMEOUT_MS);
   try {
     const geminiMessages = messages.map((m) => ({
       role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: String(m.content || '').slice(0, 800) }],
     }));
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -206,7 +258,10 @@ async function callGeminiChat(messages, systemPrompt, apiKey) {
       }
     );
     clearTimeout(timer);
-    if (!res.ok) return { ok: false, reason: 'gemini_http_error', status: res.status };
+    if (!res.ok) {
+      console.error('Gemini HTTP error', res.status, (await res.text().catch(() => '')).slice(0, 300));
+      return { ok: false, reason: 'gemini_http_error', status: res.status };
+    }
     const data = await res.json().catch(() => null);
     const text = data?.candidates?.[0]?.content?.parts?.map((p) => p?.text || '').join('').trim();
     if (text) return { ok: true, text };
@@ -217,27 +272,107 @@ async function callGeminiChat(messages, systemPrompt, apiKey) {
   }
 }
 
-async function callAI(messages, systemPrompt) {
-  const puterKey = process.env.PUTER_API_KEY;
-  const geminiKey = process.env.GEMINI_API_KEY;
-  if (puterKey) {
-    try {
-      const result = await callQwen(messages, systemPrompt, puterKey);
-      if (result.ok) return { ...result, usedAPI: 'gpt-4o-mini' };
-    } catch (e) { console.error('Puter failed:', e); }
+async function callOpenRouter(messages, systemPrompt, apiKey) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIER_TIMEOUT_MS);
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+        'HTTP-Referer': 'https://sethi-purse.vercel.app',
+        'X-Title': 'Sethi Purse Chatbot',
+      },
+      body: JSON.stringify({
+        model: 'meta-llama/llama-3.3-70b-instruct:free',
+        messages: [{ role: 'system', content: systemPrompt }, ...toOpenAIFormat(messages)],
+        temperature: 0.7,
+        max_tokens: 500,
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) {
+      console.error('OpenRouter HTTP error', res.status, (await res.text().catch(() => '')).slice(0, 300));
+      return { ok: false, reason: 'openrouter_http_error', status: res.status };
+    }
+    const data = await res.json().catch(() => null);
+    const text = data?.choices?.[0]?.message?.content?.trim();
+    if (text) return { ok: true, text };
+    return { ok: false, reason: 'openrouter_empty' };
+  } catch (err) {
+    clearTimeout(timer);
+    return { ok: false, reason: err?.name === 'AbortError' ? 'openrouter_timeout' : 'openrouter_fetch_error' };
   }
-  if (geminiKey) {
-    try {
-      const result = await callGeminiChat(messages, systemPrompt, geminiKey);
-      if (result.ok) return { ...result, usedAPI: 'gemini' };
-    } catch (e) { console.error('Gemini failed:', e); }
-  }
-  return { ok: false, reason: 'both_apis_failed', usedAPI: 'none' };
 }
 
-async function handleChat(body) {
+async function callCloudflare(messages, systemPrompt, accountId, apiToken) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIER_TIMEOUT_MS);
+  try {
+    const res = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/@cf/meta/llama-3.1-8b-instruct`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiToken}` },
+        body: JSON.stringify({
+          messages: [{ role: 'system', content: systemPrompt }, ...toOpenAIFormat(messages)],
+          max_tokens: 500,
+        }),
+        signal: controller.signal,
+      }
+    );
+    clearTimeout(timer);
+    if (!res.ok) {
+      console.error('Cloudflare HTTP error', res.status, (await res.text().catch(() => '')).slice(0, 300));
+      return { ok: false, reason: 'cloudflare_http_error', status: res.status };
+    }
+    const data = await res.json().catch(() => null);
+    const text = data?.result?.response?.trim();
+    if (text) return { ok: true, text };
+    return { ok: false, reason: 'cloudflare_empty' };
+  } catch (err) {
+    clearTimeout(timer);
+    return { ok: false, reason: err?.name === 'AbortError' ? 'cloudflare_timeout' : 'cloudflare_fetch_error' };
+  }
+}
+
+async function callAI(messages, systemPrompt) {
+  const groqKey = process.env.GROQ_API_KEY;
+  const geminiKey = process.env.GEMINI_API_KEY;
+  const openrouterKey = process.env.OPENROUTER_API_KEY;
+  const cfAccountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+  const cfApiToken = process.env.CLOUDFLARE_API_TOKEN;
+
+  if (groqKey) {
+    const result = await callGroq(messages, systemPrompt, groqKey);
+    if (result.ok) return { ...result, usedAPI: 'groq' };
+    console.warn('Groq failed, trying Gemini:', result.reason);
+  }
+  if (geminiKey) {
+    const result = await callGeminiChat(messages, systemPrompt, geminiKey);
+    if (result.ok) return { ...result, usedAPI: 'gemini' };
+    console.warn('Gemini failed, trying OpenRouter:', result.reason);
+  }
+  if (openrouterKey) {
+    const result = await callOpenRouter(messages, systemPrompt, openrouterKey);
+    if (result.ok) return { ...result, usedAPI: 'openrouter' };
+    console.warn('OpenRouter failed, trying Cloudflare:', result.reason);
+  }
+  if (cfAccountId && cfApiToken) {
+    const result = await callCloudflare(messages, systemPrompt, cfAccountId, cfApiToken);
+    if (result.ok) return { ...result, usedAPI: 'cloudflare' };
+    console.error('Cloudflare failed, all tiers exhausted:', result.reason);
+  }
+  return { ok: false, reason: 'all_providers_failed', usedAPI: 'none' };
+}
+
+async function handleChat(body, incomingCookieSessionId) {
   const { messages, products, sessionId: incomingSessionId, contactCaptured } = body || {};
-  const sessionId = incomingSessionId || uuidv4();
+  // IMPROVEMENT #8 (partial): fall back to a cookie-based session id so a page
+  // refresh doesn't fragment the same customer into a new "AI Chat Visitor" lead.
+  const sessionId = incomingSessionId || incomingCookieSessionId || uuidv4();
   const lastUserMsg = [...(messages || [])].reverse().find((m) => m.role === 'user');
   const userMessageCount = countUserMessages(messages);
   const buyIntentNow = hasBuyIntent(lastUserMsg?.content);
@@ -246,35 +381,100 @@ async function handleChat(body) {
   const priceRange = extractPriceRange(lastUserMsg?.content);
   const language = detectLanguage(messages);
 
+  // ── IMPROVEMENT #6: frustration / repetition detector ──
+  // If the customer is clearly stuck (3 very similar messages in a row), skip
+  // the AI entirely and hand off to a human instead of trying a 4th time.
+  if (detectRepeatedFrustration(messages)) {
+    const handoffMsg = language === 'hindi'
+      ? "Lagta hai aapko sahi jawab nahi mil pa raha — sorry! Hamari team se seedha baat karein: +91 7986161633 (call/WhatsApp), hum turant help karenge! 🙏"
+      : "Looks like I'm not getting this quite right for you — sorry about that! Please call or WhatsApp our team directly at +91 7986161633, they'll help you right away. 🙏";
+    try {
+      if (lastUserMsg) {
+        const { data: existing } = await supabase
+          .from('inquiries')
+          .select('id')
+          .eq('session_id', sessionId)
+          .maybeSingle();
+        if (existing) {
+          await supabase.from('inquiries').update({
+            demand_type: 'priority_followup',
+            message: `[AI CHAT - ESCALATED] User repeated similar queries without resolution. Last: "${lastUserMsg.content}"`,
+            updated_at: nowIST(),
+          }).eq('id', existing.id);
+        }
+      }
+    } catch (e) { console.error('Escalation logging failed:', e); }
+    const resp = json({ reply: handoffMsg, sessionId, contactCaptured: !!contactCaptured, aiModel: 'none', language, escalated: true });
+    resp.cookies.set('sethi_chat_session', sessionId, { maxAge: 60 * 60 * 24 * 30, httpOnly: true, sameSite: 'lax' });
+    return resp;
+  }
+
   const shouldAskForContact = !contactCaptured && !phoneInThisMessage && (
     (buyIntentNow && userMessageCount >= 2) ||
     (userMessageCount >= 4)
   );
 
+  // ── IMPROVEMENT #5: short-lived per-session catalog cache ──
+  pruneCatalogCache();
+  const detectedCategoryForCache = detectCategory(lastUserMsg?.content || '');
+  const cacheKey = `${detectedCategoryForCache}|${priceRange?.min || ''}|${priceRange?.max || ''}`;
+  const cached = catalogCache.get(sessionId);
+
   let catalogText = 'No products loaded.';
+  let upsellText = '';
   let upsellProducts = [];
-  if (Array.isArray(products) && products.length > 0) {
+  let topProductIds = new Set();
+  let noDirectMatch = false;
+
+  if (cached && cached.key === cacheKey && cached.expiresAt > Date.now()) {
+    catalogText = cached.catalogText;
+    upsellText = cached.upsellText;
+    topProductIds = cached.topProductIds;
+  } else if (Array.isArray(products) && products.length > 0) {
     const { matched, upsells } = matchProducts(lastUserMsg?.content || '', products, priceRange, 10);
     upsellProducts = upsells;
-    const topProducts = matched.length > 0 ? matched : products.slice(0, 60);
-    catalogText = topProducts.map((p) => {
-      const price = p.sale_price || p.salePrice || p.price || 0;
-      const category = p.category_name || p.category || '';
-      const brand = p.brand || '';
-      const stock = p.stock === 0 ? 'Out of Stock' : (p.in_stock === false ? 'Out of Stock' : 'In Stock');
-      const discount = p.discount_percent ? ` | ${p.discount_percent}% OFF` : '';
-      const featured = p.featured ? ' | ⭐ Best Seller' : '';
-      return `- ID:${p.id} | ${p.name} | Brand: ${brand} | Category: ${category} | Price: Rs.${price}${discount}${featured} | ${stock}`;
-    }).join('\n');
-  }
 
-  let upsellText = '';
-  if (upsellProducts.length > 0) {
-    upsellText = `\n\n🔼 UPSELL OPTIONS (slightly above budget but much better value):\n` +
-      upsellProducts.map((p) => {
+    // ── IMPROVEMENT #2: explicit no-match signal instead of a random 60-item dump ──
+    if (matched.length === 0) {
+      noDirectMatch = true;
+      const featured = products.filter((p) => p.featured && p.stock !== 0 && p.in_stock !== false).slice(0, 5);
+      topProductIds = new Set(featured.map((p) => String(p.id)));
+      catalogText = `NO DIRECT MATCH FOUND for this query in the catalog.\n` +
+        `Do NOT invent a product. Ask the customer a short clarifying question (e.g. budget, category, or use-case) instead.\n` +
+        (featured.length > 0
+          ? `If genuinely relevant, you may mention these popular items as alternatives (verify name/price before stating them):\n` +
+            featured.map((p) => {
+              const price = p.sale_price || p.salePrice || p.price || 0;
+              return `- ID:${p.id} | ${p.name} | Rs.${price}`;
+            }).join('\n')
+          : '');
+    } else {
+      const topProducts = matched;
+      topProductIds = new Set(topProducts.map((p) => String(p.id)));
+      // ── IMPROVEMENT #7: include sizes/colors so the AI can answer accurately instead of guessing ──
+      catalogText = topProducts.map((p) => {
         const price = p.sale_price || p.salePrice || p.price || 0;
-        return `- ID:${p.id} | ${p.name} | Rs.${price} | ⭐ Featured`;
+        const category = p.category_name || p.category || '';
+        const brand = p.brand || '';
+        const stock = p.stock === 0 ? 'Out of Stock' : (p.in_stock === false ? 'Out of Stock' : 'In Stock');
+        const discount = p.discount_percent ? ` | ${p.discount_percent}% OFF` : '';
+        const featured = p.featured ? ' | ⭐ Best Seller' : '';
+        const sizes = Array.isArray(p.sizes) && p.sizes.length > 0 ? ` | Sizes: ${p.sizes.join(', ')}` : '';
+        const colors = Array.isArray(p.colors) && p.colors.length > 0 ? ` | Colors: ${p.colors.join(', ')}` : '';
+        return `- ID:${p.id} | ${p.name} | Brand: ${brand} | Category: ${category} | Price: Rs.${price}${discount}${featured} | ${stock}${sizes}${colors}`;
       }).join('\n');
+    }
+
+    if (upsellProducts.length > 0) {
+      upsellText = `\n\n🔼 UPSELL OPTIONS (slightly above budget but much better value):\n` +
+        upsellProducts.map((p) => {
+          const price = p.sale_price || p.salePrice || p.price || 0;
+          return `- ID:${p.id} | ${p.name} | Rs.${price} | ⭐ Featured`;
+        }).join('\n');
+      for (const p of upsellProducts) topProductIds.add(String(p.id));
+    }
+
+    catalogCache.set(sessionId, { key: cacheKey, catalogText, upsellText, topProductIds, expiresAt: Date.now() + CATALOG_CACHE_TTL_MS });
   }
 
   let offersText = 'No active offers right now.';
@@ -320,15 +520,16 @@ ${catalogText}${upsellText}
 ${offersText}
 
 💡 YOUR SMART RULES:
-1. ANSWER ACCURATELY — Only use products from the catalog. Never invent prices or specs.
+1. ANSWER ACCURATELY — Only use products from the catalog above. Never invent prices, specs, sizes, or colors that aren't listed.
 2. KEEP IT SHORT — 2-4 sentences max. Customers are on mobile, scrolling fast.
-3. OUT OF STOCK — Always suggest 2-3 similar IN-STOCK alternatives.
+3. OUT OF STOCK — Always suggest 2-3 similar IN-STOCK alternatives from the catalog above only.
 4. MENTION OFFERS — If customer interest matches an active offer, mention it naturally.
 5. DELIVERY — "We offer in-store pickup. For delivery arrangements, WhatsApp karein!"
 6. NEVER SHOW RAW IDs — Product IDs only go in the PRODUCTS line, never in visible text.
 7. PRODUCT CARDS — When mentioning specific products, end reply with EXACTLY:
 PRODUCTS: [id1, id2, id3]
-(Max 3 IDs. Hidden from customer — used to show product cards.)
+(Max 3 IDs, and ONLY IDs that appear in the catalog above. Hidden from customer — used to show product cards.)
+8. SIZE/COLOR — If the customer asks about a specific size or color, check the Sizes/Colors fields above before answering. If not listed, say you'll confirm with the team rather than guessing.
 ${upsellInstruction}
 ${leadCaptureInstruction}
 
@@ -354,8 +555,12 @@ Remember: You're their trusted friend who knows bags — not a formal chatbot! �
       .replace(/\s{2,}/g, ' ')
       .trim();
 
+    // ── IMPROVEMENT #1 (anti-hallucination guard): only trust product IDs that
+    // were actually shown to the model in this turn's catalog text. Drops any
+    // ID the AI invented or pulled from outside what it was given. ──
+    const verifiedProductIds = productIds.filter((id) => topProductIds.has(String(id)));
     const matchedProducts = Array.isArray(products)
-      ? products.filter((p) => productIds.includes(String(p.id)))
+      ? products.filter((p) => verifiedProductIds.includes(String(p.id)))
       : [];
     const outOfStockMatches = matchedProducts.filter((p) => p.stock === 0 || p.in_stock === false);
 
@@ -372,12 +577,19 @@ Remember: You're their trusted friend who knows bags — not a formal chatbot! �
           ...matchedProducts.map((p) => p.name),
         ])).join(', ') || 'General enquiry';
         const transcriptLine = `User: "${lastUserMsg.content}" | AI (${result.usedAPI}): "${reply.slice(0, 250)}"`;
+
+        // ── IMPROVEMENT #4: flag high-intent leads that still haven't converted ──
+        const isPriorityLead = buyIntentNow && (phoneInThisMessage || contactCaptured) && userMessageCount >= 3;
+        let demandType = outOfStockMatches.length > 0 ? 'out_of_stock_interest' : null;
+        if (noDirectMatch) demandType = demandType || 'no_catalog_match';
+        if (isPriorityLead) demandType = 'priority_followup';
+
         if (existing) {
           const updates = {
             message: `[AI CHAT] ${transcriptLine}`,
             product_interest: interestList,
             category: detectedCategory,
-            demand_type: outOfStockMatches.length > 0 ? 'out_of_stock_interest' : null,
+            demand_type: demandType,
             updated_at: nowIST(),
             ai_model: result.usedAPI,
           };
@@ -396,7 +608,7 @@ Remember: You're their trusted friend who knows bags — not a formal chatbot! �
             message: `[AI CHAT] ${transcriptLine}`,
             status: 'new',
             category: detectedCategory,
-            demand_type: outOfStockMatches.length > 0 ? 'out_of_stock_interest' : null,
+            demand_type: demandType,
             ai_model: result.usedAPI,
             created_at: nowIST(),
           }]);
@@ -406,7 +618,7 @@ Remember: You're their trusted friend who knows bags — not a formal chatbot! �
       console.error('Inquiry logging failed:', e);
     }
 
-    return json({
+    const resp = json({
       reply,
       products: matchedProducts,
       sessionId,
@@ -414,12 +626,18 @@ Remember: You're their trusted friend who knows bags — not a formal chatbot! �
       aiModel: result.usedAPI,
       language,
     });
+    // IMPROVEMENT #8 (partial): persist sessionId in a cookie so a refresh
+    // doesn't create a brand-new lead for the same returning customer.
+    resp.cookies.set('sethi_chat_session', sessionId, { maxAge: 60 * 60 * 24 * 30, httpOnly: true, sameSite: 'lax' });
+    return resp;
   }
 
   const fallbackMsg = language === 'hindi'
     ? "Sorry, abhi thodi problem aa rahi hai — please WhatsApp karein: +91 7986161633!"
     : "Sorry, having trouble right now — please WhatsApp us at +91 7986161633!";
-  return json({ reply: fallbackMsg, sessionId, aiModel: 'none', error: result.reason });
+  const resp = json({ reply: fallbackMsg, sessionId, aiModel: 'none', error: result.reason });
+  resp.cookies.set('sethi_chat_session', sessionId, { maxAge: 60 * 60 * 24 * 30, httpOnly: true, sameSite: 'lax' });
+  return resp;
 }
 
 async function handle(request, { params }) {
@@ -489,7 +707,7 @@ ${category ? `Category: ${category}` : ''}
 Focus on quality, style, and everyday usefulness. Do not invent specific measurements, materials, or prices. Return only the description text, nothing else.`;
     try {
       const geminiRes = await fetch(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
@@ -509,7 +727,8 @@ Focus on quality, style, and everyday usefulness. Do not invent specific measure
   // ===== AI Chat =====
   if (segments[0] === 'chat' && method === 'POST') {
     try {
-      return await handleChat(body);
+      const cookieSessionId = request.cookies.get('sethi_chat_session')?.value || null;
+      return await handleChat(body, cookieSessionId);
     } catch (err) {
       console.error('Chat error:', err);
       return json({ reply: "Sorry, something went wrong — please WhatsApp us at +91 7986161633!", error: 'unhandled_error' });
