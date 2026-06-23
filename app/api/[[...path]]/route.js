@@ -52,23 +52,36 @@ const CATEGORY_KEYWORDS = {
   ],
 };
 
-// ✅ FIXED: Better category detection with exact matching first
-function detectCategory(text) {
+// ✅ FIXED: Category detection now checks ADMIN-CREATED categories from the DB first,
+// then falls back to the hardcoded keyword map for older/common terms.
+// dbCategories = array of category name strings, e.g. ['Luggage', 'Party Wear Purse', ...]
+function detectCategory(text, dbCategories = []) {
   const lower = (text || '').toLowerCase().trim();
-  
-  // Priority 1: Exact phrase matches (highest priority)
+  if (!lower) return 'Other';
+
+  // Priority 1: match against categories the admin actually created in the DB.
+  // Sort longest-first so "Party Wear Purse" matches before a shorter overlapping word would.
+  const sortedDbCats = [...new Set((dbCategories || []).filter(Boolean))].sort((a, b) => b.length - a.length);
+  for (const catName of sortedDbCats) {
+    const escaped = catName.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`\\b${escaped}\\b`, 'i');
+    if (regex.test(lower)) {
+      console.log(`✅ detectCategory: "${lower}" → "${catName}" (database category match)`);
+      return catName; // return with the exact casing stored in the DB / on products
+    }
+  }
+
+  // Priority 2: hardcoded keyword fallback (covers common terms even if no exact category name matches)
   for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
     for (const kw of keywords) {
-      const kwLower = kw.toLowerCase();
-      // Check for word boundaries - match whole words, not substrings
       const regex = new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
       if (regex.test(lower)) {
-        console.log(`✅ detectCategory: "${lower}" → "${category}" (keyword: "${kw}")`);
+        console.log(`✅ detectCategory: "${lower}" → "${category}" (keyword fallback: "${kw}")`);
         return category;
       }
     }
   }
-  
+
   console.log(`⚠️ detectCategory: "${lower}" → "Other" (no match found)`);
   return 'Other';
 }
@@ -162,6 +175,25 @@ async function getCachedReviews() {
   return reviewsCache.data;
 }
 
+// ✅ NEW: Loads category NAMES from the `categories` table so detectCategory() knows
+// about every category the admin has created, not just the hardcoded ones.
+let categoriesCache = { data: null, expiresAt: 0 };
+async function getCachedCategoryNames() {
+  if (categoriesCache.data && Date.now() < categoriesCache.expiresAt) return categoriesCache.data;
+  try {
+    const { data, error } = await supabase.from('categories').select('name');
+    const names = !error && Array.isArray(data) ? data.map((c) => c.name).filter(Boolean) : [];
+    categoriesCache = {
+      data: names.length > 0 ? names : LOCAL_CATEGORIES.map((c) => c.name).filter(Boolean),
+      expiresAt: Date.now() + 5 * 60 * 1000, // refresh every 5 min so new admin categories show up fast
+    };
+  } catch (e) {
+    console.error('getCachedCategoryNames failed:', e);
+    categoriesCache = { data: LOCAL_CATEGORIES.map((c) => c.name).filter(Boolean), expiresAt: Date.now() + 60 * 1000 };
+  }
+  return categoriesCache.data;
+}
+
 const catalogCache = new Map();
 const CATALOG_TTL = 60 * 1000;
 function pruneCatalogCache() {
@@ -169,12 +201,12 @@ function pruneCatalogCache() {
   for (const [k, v] of catalogCache.entries()) { if (v.expiresAt < now) catalogCache.delete(k); }
 }
 
-// ✅ FIXED: matchProducts now filters by DETECTED CATEGORY FIRST
-function matchProducts(query, products, priceRange, limit = 10) {
+// ✅ FIXED: matchProducts now filters by DETECTED CATEGORY FIRST (admin DB categories included)
+function matchProducts(query, products, priceRange, limit = 10, dbCategories = []) {
   if (!Array.isArray(products) || products.length === 0) return { matched: [], upsells: [] };
   
   const lower = (query || '').toLowerCase();
-  const detectedCat = detectCategory(query); // Get what category user is asking for
+  const detectedCat = detectCategory(query, dbCategories); // Get what category user is asking for
   
   console.log(`📦 matchProducts: query="${lower}" | detectedCategory="${detectedCat}" | totalProducts=${products.length}`);
   
@@ -364,8 +396,10 @@ async function handleChat(body, cookieSessionId) {
 
   const shouldAskContact = !contactCaptured && !phoneFound && ((buyIntentNow && userMsgCount >= 2) || userMsgCount >= 4);
 
+  const dbCategories = await getCachedCategoryNames();
+
   pruneCatalogCache();
-  const cacheKey = `${detectCategory(lastUserMsg?.content || '')}|${priceRange?.min || ''}|${priceRange?.max || ''}`;
+  const cacheKey = `${detectCategory(lastUserMsg?.content || '', dbCategories)}|${priceRange?.min || ''}|${priceRange?.max || ''}`;
   const cached = catalogCache.get(sessionId);
   let catalogText = 'No products loaded.';
   let upsellText = '';
@@ -377,7 +411,7 @@ async function handleChat(body, cookieSessionId) {
   if (cached && cached.key === cacheKey && cached.expiresAt > Date.now()) {
     catalogText = cached.catalogText; upsellText = cached.upsellText; topProductIds = cached.topProductIds;
   } else if (Array.isArray(products) && products.length > 0) {
-    const { matched, upsells } = matchProducts(lastUserMsg?.content || '', products, priceRange, 10);
+    const { matched, upsells } = matchProducts(lastUserMsg?.content || '', products, priceRange, 10, dbCategories);
     upsellProducts = upsells;
     if (matched.length === 0) {
       noDirectMatch = true;
@@ -487,7 +521,7 @@ Be their trusted friend who knows bags — warm, helpful, local! 😊`;
 
     try {
       if (lastUserMsg) {
-        const detCat = detectCategory(`${lastUserMsg.content} ${reply}`);
+        const detCat = detectCategory(`${lastUserMsg.content} ${reply}`, dbCategories);
         const { data: ex } = await supabase.from('inquiries').select('id, product_interest, name, phone').eq('session_id', sessionId).maybeSingle();
         const interest = Array.from(new Set([...(ex?.product_interest ? ex.product_interest.split(', ').filter(Boolean) : []), ...matchedProducts.map((p) => p.name)])).join(', ') || 'General enquiry';
         const transcript = `User: "${lastUserMsg.content}" | AI (${result.usedAPI}): "${reply.slice(0, 250)}"`;
@@ -724,7 +758,8 @@ async function handle(request, { params }) {
         const i = body || {}; const phone = String(i.phone || '').replace(/\D/g, '');
         if (!i.name || !phone || !i.city || !i.productInterest || !i.message) return json({ error: 'All fields are required' }, 400);
         if (phone.length !== 10) return json({ error: 'Phone must be 10 digits' }, 400);
-        const detCat = detectCategory(`${i.productInterest} ${i.message}`);
+        const dbCats = await getCachedCategoryNames();
+        const detCat = detectCategory(`${i.productInterest} ${i.message}`, dbCats);
         const inquiry = { id: uuidv4(), name: String(i.name).trim(), phone, city: String(i.city).trim(), product_interest: String(i.productInterest).trim(), message: String(i.message).trim(), status: 'new', category: detCat, whatsapp_consent: !!i.whatsappConsent, created_at: nowIST() };
         const { data, error } = await supabase.from('inquiries').insert([inquiry]).select().single();
         if (error) return json({ error: error.message }, 500); return json(data, 201);
