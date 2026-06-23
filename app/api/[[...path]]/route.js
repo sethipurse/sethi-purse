@@ -12,20 +12,64 @@ const LOCAL_CATEGORIES = categoriesJson.map((c) => ({
 
 const VALID_STATUSES = ['new', 'contacted', 'converted', 'closed'];
 
+// ✅ FIXED: COMPREHENSIVE category keywords (English + Hindi + Punjabi)
 const CATEGORY_KEYWORDS = {
-  'Backpacks': ['backpack', 'bag pack', 'rucksack'],
-  'Handbags': ['handbag', 'hand bag', 'ladies bag', 'purse'],
-  'Luggage': ['luggage', 'trolley', 'suitcase', 'travel bag'],
-  'Wallets': ['wallet', 'purse for cash'],
-  'Slings': ['sling'],
-  'School Bags': ['school bag'],
+  'Luggage': [
+    'luggage', 'trolley', 'suitcase', 'travel bag', 'travel luggage',
+    'cabin bag', 'check-in', 'bag on wheels', 'roller bag',
+    'samaan', 'suitcase', 'trolley bag', 'samaan ki bag',
+    'yatra bag', 'journey bag'
+  ],
+  'Backpacks': [
+    'backpack', 'bag pack', 'rucksack', 'school bag', 'college bag',
+    'laptop bag', 'hiking bag', 'trek bag',
+    'backpack', 'pith pe pehna', 'school bag',
+    'college bag', 'daypack', 'casual backpack'
+  ],
+  'Handbags': [
+    'handbag', 'hand bag', 'ladies bag', 'purse', 'shoulder bag',
+    'tote bag', 'hobo bag', 'clutch', 'satchel',
+    'mahila bag', 'purse', 'shoulder bag',
+    'ladies purse', 'woman bag'
+  ],
+  'Wallets': [
+    'wallet', 'purse for cash', 'card holder', 'bifold', 'clutch wallet',
+    'leather wallet', 'slim wallet', 'RFID wallet',
+    'purse', 'wallet', 'cash holder',
+    'card case'
+  ],
+  'Slings': [
+    'sling', 'sling bag', 'cross body bag', 'messenger bag',
+    'shoulder sling', 'cross sling',
+    'sling bag', 'ek strap bag',
+    'shoulder strap bag'
+  ],
+  'School Bags': [
+    'school bag', 'school backpack', 'student bag', 'class bag',
+    'child bag', 'kids bag', 'student backpack',
+    'skool bag', 'study bag',
+    'vidyalaya bag', 'student bag'
+  ],
 };
 
+// ✅ FIXED: Better category detection with exact matching first
 function detectCategory(text) {
-  const lower = (text || '').toLowerCase();
+  const lower = (text || '').toLowerCase().trim();
+  
+  // Priority 1: Exact phrase matches (highest priority)
   for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
-    if (keywords.some((kw) => lower.includes(kw))) return category;
+    for (const kw of keywords) {
+      const kwLower = kw.toLowerCase();
+      // Check for word boundaries - match whole words, not substrings
+      const regex = new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+      if (regex.test(lower)) {
+        console.log(`✅ detectCategory: "${lower}" → "${category}" (keyword: "${kw}")`);
+        return category;
+      }
+    }
   }
+  
+  console.log(`⚠️ detectCategory: "${lower}" → "Other" (no match found)`);
   return 'Other';
 }
 
@@ -125,32 +169,78 @@ function pruneCatalogCache() {
   for (const [k, v] of catalogCache.entries()) { if (v.expiresAt < now) catalogCache.delete(k); }
 }
 
+// ✅ FIXED: matchProducts now filters by DETECTED CATEGORY FIRST
 function matchProducts(query, products, priceRange, limit = 10) {
   if (!Array.isArray(products) || products.length === 0) return { matched: [], upsells: [] };
+  
   const lower = (query || '').toLowerCase();
-  const scored = products.map((p) => {
-    let score = 0;
+  const detectedCat = detectCategory(query); // Get what category user is asking for
+  
+  console.log(`📦 matchProducts: query="${lower}" | detectedCategory="${detectedCat}" | totalProducts=${products.length}`);
+  
+  // ✅ STEP 1: Filter products by DETECTED CATEGORY (strict)
+  let categoryFiltered = products;
+  if (detectedCat !== 'Other') {
+    categoryFiltered = products.filter((p) => {
+      const productCat = (p.category || '').trim();
+      const match = productCat.toLowerCase() === detectedCat.toLowerCase();
+      if (!match) {
+        console.log(`  ❌ Skip: "${p.name}" (category: "${productCat}" ≠ "${detectedCat}")`);
+      }
+      return match;
+    });
+    console.log(`  ✅ Category filtered: ${categoryFiltered.length}/${products.length} products match "${detectedCat}"`);
+  } else {
+    console.log(`  ⚠️ No category detected, using all products`);
+  }
+  
+  if (categoryFiltered.length === 0) {
+    console.log(`  ⚠️ No products in category "${detectedCat}", falling back to featured products`);
+    const featured = products.filter((p) => p.featured && p.stock !== 0).slice(0, 5);
+    return {
+      matched: featured.map((p) => ({ ...p, matchScore: 10 })),
+      upsells: []
+    };
+  }
+  
+  // ✅ STEP 2: Score within the filtered category
+  const scored = categoryFiltered.map((p) => {
+    let score = 50; // Base score for being in correct category
     const price = p.sale_price || p.salePrice || p.price || 0;
+    
     if (p.name.toLowerCase() === lower) score += 100;
-    if (p.name.toLowerCase().includes(lower)) score += 50;
-    if ((p.brand || '').toLowerCase().includes(lower)) score += 30;
-    if (detectCategory(lower) === p.category) score += 20;
-    if (p.featured) score += 15;
-    if (p.stock !== 0 && p.in_stock !== false) score += 10;
+    if (p.name.toLowerCase().includes(lower)) score += 40;
+    if ((p.brand || '').toLowerCase().includes(lower)) score += 25;
+    if (p.featured) score += 30;
+    if (p.stock !== 0 && p.in_stock !== false) score += 20;
+    
     if (priceRange) {
       if (priceRange.max && price <= priceRange.max) score += 25;
       if (priceRange.min && price >= priceRange.min) score += 15;
     }
+    
     return { ...p, matchScore: score, price };
   });
-  const matched = scored.filter((p) => p.matchScore > 0).sort((a, b) => b.matchScore - a.matchScore).slice(0, limit);
+  
+  const matched = scored
+    .filter((p) => p.matchScore > 0)
+    .sort((a, b) => b.matchScore - a.matchScore)
+    .slice(0, limit);
+  
+  console.log(`  ✅ Matched ${matched.length} products after scoring`);
+  
   let upsells = [];
   if (matched.length > 0 && priceRange?.max) {
-    upsells = products.filter((p) => {
-      const price = p.sale_price || p.salePrice || p.price || 0;
-      return price > priceRange.max && price <= priceRange.max * 1.5 && p.featured && p.stock !== 0;
-    }).sort((a, b) => (a.sale_price || 0) - (b.sale_price || 0)).slice(0, 2);
+    upsells = categoryFiltered
+      .filter((p) => {
+        const price = p.sale_price || p.salePrice || p.price || 0;
+        return price > priceRange.max && price <= priceRange.max * 1.5 && p.featured && p.stock !== 0;
+      })
+      .sort((a, b) => (a.sale_price || 0) - (b.sale_price || 0))
+      .slice(0, 2);
+    console.log(`  🔼 Found ${upsells.length} upsell opportunities`);
   }
+  
   return { matched, upsells };
 }
 
