@@ -12,72 +12,95 @@ const LOCAL_CATEGORIES = categoriesJson.map((c) => ({
 
 const VALID_STATUSES = ['new', 'contacted', 'converted', 'closed'];
 
-// ✅ FIXED: COMPREHENSIVE category keywords (English + Hindi + Punjabi)
+// ✅ Keywords mapped to YOUR exact category names (case must match DB exactly)
 const CATEGORY_KEYWORDS = {
-  'Luggage': [
+  'LUGGAGE': [
     'luggage', 'trolley', 'suitcase', 'travel bag', 'travel luggage',
-    'cabin bag', 'check-in', 'bag on wheels', 'roller bag',
-    'samaan', 'suitcase', 'trolley bag', 'samaan ki bag',
-    'yatra bag', 'journey bag'
+    'cabin bag', 'check-in', 'checkin', 'bag on wheels', 'roller bag',
+    'hard case', 'soft case', 'spinner', 'wheeled bag',
+    'cabin luggage', 'check in bag', '20 inch', '24 inch', '28 inch',
+    'samaan', 'trolley bag', 'samaan ki bag', 'yatra bag', 'journey bag',
+    'safar', 'safar bag', 'airport bag', 'flight bag', 'travel', 'trip bag',
   ],
   'Backpacks': [
-    'backpack', 'bag pack', 'rucksack', 'school bag', 'college bag',
-    'laptop bag', 'hiking bag', 'trek bag',
-    'backpack', 'pith pe pehna', 'school bag',
-    'college bag', 'daypack', 'casual backpack'
+    'backpack', 'bag pack', 'bagpack', 'rucksack', 'school bag',
+    'college bag', 'laptop bag', 'hiking bag', 'trek bag',
+    'trekking bag', 'camping bag', 'travel backpack', 'daypack',
+    'casual backpack', 'office bag', 'gym bag', 'sports bag',
+    'anti theft bag', 'usb charging bag', 'student bag', 'study bag',
+    'pithu', 'pithhu', 'peethu', 'pitu', 'pith wali bag', 'pith pe pehna',
+    'basta', 'bacha bag', 'kids backpack', 'children bag', 'child bag', 'kids bag',
   ],
   'Handbags': [
-    'handbag', 'hand bag', 'ladies bag', 'purse', 'shoulder bag',
-    'tote bag', 'hobo bag', 'clutch', 'satchel',
-    'mahila bag', 'purse', 'shoulder bag',
-    'ladies purse', 'woman bag'
+    'handbag', 'hand bag', 'ladies bag', 'shoulder bag',
+    'tote bag', 'hobo bag', 'satchel', 'top handle bag',
+    'bucket bag', 'structured bag', 'everyday bag', 'work bag',
+    'office handbag', 'ladies handbag', 'woman bag', 'women bag',
+    'mahila bag', 'ladies purse', 'hand purse',
+    'big purse', 'large bag', 'shopping bag', 'daily use bag',
+    'casual bag', 'regular bag', 'normal bag', 'purse',
+  ],
+  'Party Wear Purse': [
+    'party wear purse', 'party purse', 'party bag', 'party wear bag',
+    'fancy purse', 'fancy bag', 'fancy clutch', 'evening bag',
+    'evening purse', 'bridal purse', 'bridal bag', 'wedding bag',
+    'wedding purse', 'shaadi bag', 'shaadi purse', 'function bag',
+    'function purse', 'designer purse', 'designer bag', 'stylish purse',
+    'stylish bag', 'glitter bag', 'glitter purse', 'sequin bag',
+    'embroidered bag', 'embroidered purse', 'clutch purse', 'clutch',
+    'potli', 'potli bag', 'potli purse', 'ethnic bag', 'ethnic purse',
+    'sangeet bag', 'reception bag', 'cocktail bag', 'formal purse',
+    'fancy', 'party wear', 'shiny bag', 'embellished bag',
+  ],
+  'Slings': [
+    'sling', 'sling bag', 'cross body bag', 'crossbody bag',
+    'messenger bag', 'shoulder sling', 'cross sling', 'side bag',
+    'side purse', 'ek strap bag', 'single strap bag', 'body bag',
+    'mini bag', 'small bag', 'compact bag', 'belt bag', 'waist bag',
+    'fanny pack', 'chest bag', 'mobile bag', 'phone bag',
+    'shoulder strap bag',
   ],
   'Wallets': [
     'wallet', 'purse for cash', 'card holder', 'bifold', 'clutch wallet',
-    'leather wallet', 'slim wallet', 'RFID wallet',
-    'purse', 'wallet', 'cash holder',
-    'card case'
-  ],
-  'Slings': [
-    'sling', 'sling bag', 'cross body bag', 'messenger bag',
-    'shoulder sling', 'cross sling',
-    'sling bag', 'ek strap bag',
-    'shoulder strap bag'
+    'leather wallet', 'slim wallet', 'rfid wallet', 'mens wallet',
+    'ladies wallet', 'zip wallet', 'coin purse', 'cash holder',
+    'card case', 'card wallet', 'money clip', 'travel wallet',
+    'passport wallet', 'document wallet',
   ],
   'School Bags': [
     'school bag', 'school backpack', 'student bag', 'class bag',
-    'child bag', 'kids bag', 'student backpack',
-    'skool bag', 'study bag',
-    'vidyalaya bag', 'student bag'
+    'child bag', 'kids bag', 'student backpack', 'skool bag',
+    'vidyalaya bag', 'basta', 'bacha bag', 'primary bag',
+    'cartoon bag', 'kids backpack', 'children bag',
   ],
 };
 
-// ✅ FIXED: Category detection now checks ADMIN-CREATED categories from the DB first,
-// then falls back to the hardcoded keyword map for older/common terms.
-// dbCategories = array of category name strings, e.g. ['Luggage', 'Party Wear Purse', ...]
+// ✅ Category detection: DB-first (so any new admin-added category works automatically),
+// then keyword fallback for common terms.
 function detectCategory(text, dbCategories = []) {
   const lower = (text || '').toLowerCase().trim();
   if (!lower) return 'Other';
 
-  // Priority 1: match against categories the admin actually created in the DB.
-  // Sort longest-first so "Party Wear Purse" matches before a shorter overlapping word would.
+  // Priority 1: exact match against DB category names (longest first to avoid partial matches)
   const sortedDbCats = [...new Set((dbCategories || []).filter(Boolean))].sort((a, b) => b.length - a.length);
   for (const catName of sortedDbCats) {
     const escaped = catName.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(`\\b${escaped}\\b`, 'i');
     if (regex.test(lower)) {
       console.log(`✅ detectCategory: "${lower}" → "${catName}" (database category match)`);
-      return catName; // return with the exact casing stored in the DB / on products
+      return catName;
     }
   }
 
-  // Priority 2: hardcoded keyword fallback (covers common terms even if no exact category name matches)
-  for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+  // Priority 2: keyword fallback — tries to find the DB category name that matches the keyword bucket
+  for (const [keywordCat, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
     for (const kw of keywords) {
       const regex = new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
       if (regex.test(lower)) {
-        console.log(`✅ detectCategory: "${lower}" → "${category}" (keyword fallback: "${kw}")`);
-        return category;
+        // Try to find the real DB category name (handles case differences like LUGGAGE vs Luggage)
+        const dbMatch = sortedDbCats.find((c) => c.toLowerCase() === keywordCat.toLowerCase()) || keywordCat;
+        console.log(`✅ detectCategory: "${lower}" → "${dbMatch}" (keyword fallback: "${kw}")`);
+        return dbMatch;
       }
     }
   }
@@ -175,8 +198,7 @@ async function getCachedReviews() {
   return reviewsCache.data;
 }
 
-// ✅ NEW: Loads category NAMES from the `categories` table so detectCategory() knows
-// about every category the admin has created, not just the hardcoded ones.
+// Loads category names from DB — so any new admin-added category is auto-detected
 let categoriesCache = { data: null, expiresAt: 0 };
 async function getCachedCategoryNames() {
   if (categoriesCache.data && Date.now() < categoriesCache.expiresAt) return categoriesCache.data;
@@ -185,7 +207,7 @@ async function getCachedCategoryNames() {
     const names = !error && Array.isArray(data) ? data.map((c) => c.name).filter(Boolean) : [];
     categoriesCache = {
       data: names.length > 0 ? names : LOCAL_CATEGORIES.map((c) => c.name).filter(Boolean),
-      expiresAt: Date.now() + 5 * 60 * 1000, // refresh every 5 min so new admin categories show up fast
+      expiresAt: Date.now() + 5 * 60 * 1000,
     };
   } catch (e) {
     console.error('getCachedCategoryNames failed:', e);
@@ -201,66 +223,51 @@ function pruneCatalogCache() {
   for (const [k, v] of catalogCache.entries()) { if (v.expiresAt < now) catalogCache.delete(k); }
 }
 
-// ✅ FIXED: matchProducts now filters by DETECTED CATEGORY FIRST (admin DB categories included)
 function matchProducts(query, products, priceRange, limit = 10, dbCategories = []) {
   if (!Array.isArray(products) || products.length === 0) return { matched: [], upsells: [] };
-  
+
   const lower = (query || '').toLowerCase();
-  const detectedCat = detectCategory(query, dbCategories); // Get what category user is asking for
-  
+  const detectedCat = detectCategory(query, dbCategories);
+
   console.log(`📦 matchProducts: query="${lower}" | detectedCategory="${detectedCat}" | totalProducts=${products.length}`);
-  
-  // ✅ STEP 1: Filter products by DETECTED CATEGORY (strict)
+
   let categoryFiltered = products;
   if (detectedCat !== 'Other') {
     categoryFiltered = products.filter((p) => {
       const productCat = (p.category || '').trim();
       const match = productCat.toLowerCase() === detectedCat.toLowerCase();
-      if (!match) {
-        console.log(`  ❌ Skip: "${p.name}" (category: "${productCat}" ≠ "${detectedCat}")`);
-      }
+      if (!match) console.log(`  ❌ Skip: "${p.name}" (category: "${productCat}" ≠ "${detectedCat}")`);
       return match;
     });
     console.log(`  ✅ Category filtered: ${categoryFiltered.length}/${products.length} products match "${detectedCat}"`);
   } else {
     console.log(`  ⚠️ No category detected, using all products`);
   }
-  
+
   if (categoryFiltered.length === 0) {
     console.log(`  ⚠️ No products in category "${detectedCat}", falling back to featured products`);
     const featured = products.filter((p) => p.featured && p.stock !== 0).slice(0, 5);
-    return {
-      matched: featured.map((p) => ({ ...p, matchScore: 10 })),
-      upsells: []
-    };
+    return { matched: featured.map((p) => ({ ...p, matchScore: 10 })), upsells: [] };
   }
-  
-  // ✅ STEP 2: Score within the filtered category
+
   const scored = categoryFiltered.map((p) => {
-    let score = 50; // Base score for being in correct category
+    let score = 50;
     const price = p.sale_price || p.salePrice || p.price || 0;
-    
     if (p.name.toLowerCase() === lower) score += 100;
     if (p.name.toLowerCase().includes(lower)) score += 40;
     if ((p.brand || '').toLowerCase().includes(lower)) score += 25;
     if (p.featured) score += 30;
     if (p.stock !== 0 && p.in_stock !== false) score += 20;
-    
     if (priceRange) {
       if (priceRange.max && price <= priceRange.max) score += 25;
       if (priceRange.min && price >= priceRange.min) score += 15;
     }
-    
     return { ...p, matchScore: score, price };
   });
-  
-  const matched = scored
-    .filter((p) => p.matchScore > 0)
-    .sort((a, b) => b.matchScore - a.matchScore)
-    .slice(0, limit);
-  
+
+  const matched = scored.filter((p) => p.matchScore > 0).sort((a, b) => b.matchScore - a.matchScore).slice(0, limit);
   console.log(`  ✅ Matched ${matched.length} products after scoring`);
-  
+
   let upsells = [];
   if (matched.length > 0 && priceRange?.max) {
     upsells = categoryFiltered
@@ -272,7 +279,7 @@ function matchProducts(query, products, priceRange, limit = 10, dbCategories = [
       .slice(0, 2);
     console.log(`  🔼 Found ${upsells.length} upsell opportunities`);
   }
-  
+
   return { matched, upsells };
 }
 
@@ -364,7 +371,8 @@ async function callAI(messages, sys) {
   if (groqKey) { const r = await callGroq(messages, sys, groqKey); if (r.ok) return { ...r, usedAPI: 'groq' }; console.warn('Groq failed:', r.reason); }
   if (geminiKey) { const r = await callGemini(messages, sys, geminiKey); if (r.ok) return { ...r, usedAPI: 'gemini' }; console.warn('Gemini failed:', r.reason); }
   if (orKey) { const r = await callOpenRouter(messages, sys, orKey); if (r.ok) return { ...r, usedAPI: 'openrouter' }; console.warn('OpenRouter failed:', r.reason); }
-  if (cfId && cfToken) { const r = await callCloudflare(messages, sys, cfId, cfToken); if (r.ok) return { ...r, usedAPI: 'cloudflare' }; console.error('All AI tiers failed'); }
+  if (cfId && cfToken) { const r = await callCloudflare(messages, sys, cfId, cfToken); if (r.ok) return { ...r, usedAPI: 'cloudflare' }; }
+  console.error('❌ All AI tiers failed');
   return { ok: false, reason: 'all_failed', usedAPI: 'none' };
 }
 
@@ -407,7 +415,7 @@ async function handleChat(body, cookieSessionId) {
   let topProductIds = new Set();
   let noDirectMatch = false;
   let outOfStockAsked = [];
-  let fallbackProducts = []; // ordered top matches, used if the AI forgets to list PRODUCTS: [...]
+  let fallbackProducts = [];
 
   if (cached && cached.key === cacheKey && cached.expiresAt > Date.now()) {
     catalogText = cached.catalogText; upsellText = cached.upsellText; topProductIds = cached.topProductIds; fallbackProducts = cached.fallbackProducts || [];
@@ -520,9 +528,6 @@ Be their trusted friend who knows bags — warm, helpful, local! 😊`;
 
     const verifiedIds = productIds.filter((id) => topProductIds.has(String(id)));
     let matchedProducts = Array.isArray(products) ? products.filter((p) => verifiedIds.includes(String(p.id))) : [];
-    // ✅ FIX: if the AI's reply didn't include a PRODUCTS: [...] line (or none of its IDs were valid),
-    // still show the top matched products we already found — don't show an empty result just because
-    // the AI forgot to list IDs.
     if (matchedProducts.length === 0 && fallbackProducts.length > 0) {
       matchedProducts = fallbackProducts.slice(0, 3);
       console.log(`ℹ️ AI reply had no valid PRODUCTS: line — falling back to top ${matchedProducts.length} matched products`);
@@ -732,13 +737,30 @@ async function handle(request, { params }) {
         const cat = { id: uuidv4(), name: String(c.name).trim(), image_url: String(c.imageUrl || '').trim(), created_at: nowIST() };
         const { data, error } = await supabase.from('categories').insert([cat]).select().single();
         if (error) { if (error.code === '23505') return json({ error: 'Category already exists' }, 400); return json({ error: error.message }, 500); }
+        // ✅ Clear categories cache so new category is detected immediately
+        categoriesCache = { data: null, expiresAt: 0 };
         return json(data, 201);
       }
     }
     if (segments.length === 2) {
       const id = segments[1];
-      if (method === 'PUT') { const c = body || {}; const updates = {}; if (c.name !== undefined) updates.name = String(c.name).trim(); if (c.imageUrl !== undefined) updates.image_url = String(c.imageUrl).trim(); const { data, error } = await supabase.from('categories').update(updates).eq('id', id).select().single(); if (error) return json({ error: error.message }, 500); return json(data); }
-      if (method === 'DELETE') { const { data, error } = await supabase.from('categories').delete().eq('id', id).select().single(); if (error) return json({ error: 'Not found' }, 404); return json({ success: true, removed: data }); }
+      if (method === 'PUT') {
+        const c = body || {}; const updates = {};
+        if (c.name !== undefined) updates.name = String(c.name).trim();
+        if (c.imageUrl !== undefined) updates.image_url = String(c.imageUrl).trim();
+        const { data, error } = await supabase.from('categories').update(updates).eq('id', id).select().single();
+        if (error) return json({ error: error.message }, 500);
+        // ✅ Clear categories cache so renamed category is detected immediately
+        categoriesCache = { data: null, expiresAt: 0 };
+        return json(data);
+      }
+      if (method === 'DELETE') {
+        const { data, error } = await supabase.from('categories').delete().eq('id', id).select().single();
+        if (error) return json({ error: 'Not found' }, 404);
+        // ✅ Clear categories cache so deleted category stops being detected
+        categoriesCache = { data: null, expiresAt: 0 };
+        return json({ success: true, removed: data });
+      }
     }
   }
 
