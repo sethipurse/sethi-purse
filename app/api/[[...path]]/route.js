@@ -407,9 +407,10 @@ async function handleChat(body, cookieSessionId) {
   let topProductIds = new Set();
   let noDirectMatch = false;
   let outOfStockAsked = [];
+  let fallbackProducts = []; // ordered top matches, used if the AI forgets to list PRODUCTS: [...]
 
   if (cached && cached.key === cacheKey && cached.expiresAt > Date.now()) {
-    catalogText = cached.catalogText; upsellText = cached.upsellText; topProductIds = cached.topProductIds;
+    catalogText = cached.catalogText; upsellText = cached.upsellText; topProductIds = cached.topProductIds; fallbackProducts = cached.fallbackProducts || [];
   } else if (Array.isArray(products) && products.length > 0) {
     const { matched, upsells } = matchProducts(lastUserMsg?.content || '', products, priceRange, 10, dbCategories);
     upsellProducts = upsells;
@@ -417,11 +418,13 @@ async function handleChat(body, cookieSessionId) {
       noDirectMatch = true;
       const featured = products.filter((p) => p.featured && p.stock !== 0).slice(0, 5);
       topProductIds = new Set(featured.map((p) => String(p.id)));
+      fallbackProducts = featured.slice(0, 5);
       catalogText = `NO DIRECT MATCH. Ask a clarifying question.\n` +
         (featured.length > 0 ? `Popular alternatives:\n` + featured.map((p) => `- ID:${p.id} | ${p.name} | Rs.${p.sale_price || p.price || 0}`).join('\n') : '');
     } else {
       outOfStockAsked = matched.filter((p) => p.stock === 0 || p.in_stock === false);
       topProductIds = new Set(matched.map((p) => String(p.id)));
+      fallbackProducts = matched.slice(0, 5);
       catalogText = matched.map((p) => {
         const price = p.sale_price || p.salePrice || p.price || 0;
         const stock = p.stock === 0 || p.in_stock === false ? 'Out of Stock' : 'In Stock';
@@ -437,7 +440,7 @@ async function handleChat(body, cookieSessionId) {
         upsells.map((p) => `- ID:${p.id} | ${p.name} | Rs.${p.sale_price || p.price || 0} | ⭐`).join('\n');
       for (const p of upsells) topProductIds.add(String(p.id));
     }
-    catalogCache.set(sessionId, { key: cacheKey, catalogText, upsellText, topProductIds, expiresAt: Date.now() + CATALOG_TTL });
+    catalogCache.set(sessionId, { key: cacheKey, catalogText, upsellText, topProductIds, fallbackProducts, expiresAt: Date.now() + CATALOG_TTL });
   }
 
   let offersText = 'No active offers.';
@@ -516,7 +519,14 @@ Be their trusted friend who knows bags — warm, helpful, local! 😊`;
     reply = reply.replace(/\(?\s*ID:?\s*[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\s*\)?/gi, '').replace(/\s{2,}/g, ' ').trim();
 
     const verifiedIds = productIds.filter((id) => topProductIds.has(String(id)));
-    const matchedProducts = Array.isArray(products) ? products.filter((p) => verifiedIds.includes(String(p.id))) : [];
+    let matchedProducts = Array.isArray(products) ? products.filter((p) => verifiedIds.includes(String(p.id))) : [];
+    // ✅ FIX: if the AI's reply didn't include a PRODUCTS: [...] line (or none of its IDs were valid),
+    // still show the top matched products we already found — don't show an empty result just because
+    // the AI forgot to list IDs.
+    if (matchedProducts.length === 0 && fallbackProducts.length > 0) {
+      matchedProducts = fallbackProducts.slice(0, 3);
+      console.log(`ℹ️ AI reply had no valid PRODUCTS: line — falling back to top ${matchedProducts.length} matched products`);
+    }
     const outOfStockMatches = matchedProducts.filter((p) => p.stock === 0 || p.in_stock === false);
 
     try {
