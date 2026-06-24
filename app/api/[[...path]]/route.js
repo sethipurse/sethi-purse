@@ -12,7 +12,6 @@ const LOCAL_CATEGORIES = categoriesJson.map((c) => ({
 
 const VALID_STATUSES = ['new', 'contacted', 'converted', 'closed'];
 
-// ✅ Keywords mapped to YOUR exact category names (case must match DB exactly)
 const CATEGORY_KEYWORDS = {
   'LUGGAGE': [
     'luggage', 'trolley', 'suitcase', 'travel bag', 'travel luggage',
@@ -75,13 +74,10 @@ const CATEGORY_KEYWORDS = {
   ],
 };
 
-// ✅ Category detection: DB-first (so any new admin-added category works automatically),
-// then keyword fallback for common terms.
 function detectCategory(text, dbCategories = []) {
   const lower = (text || '').toLowerCase().trim();
   if (!lower) return 'Other';
 
-  // Priority 1: exact match against DB category names (longest first to avoid partial matches)
   const sortedDbCats = [...new Set((dbCategories || []).filter(Boolean))].sort((a, b) => b.length - a.length);
   for (const catName of sortedDbCats) {
     const escaped = catName.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -92,12 +88,10 @@ function detectCategory(text, dbCategories = []) {
     }
   }
 
-  // Priority 2: keyword fallback — tries to find the DB category name that matches the keyword bucket
   for (const [keywordCat, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
     for (const kw of keywords) {
       const regex = new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
       if (regex.test(lower)) {
-        // Try to find the real DB category name (handles case differences like LUGGAGE vs Luggage)
         const dbMatch = sortedDbCats.find((c) => c.toLowerCase() === keywordCat.toLowerCase()) || keywordCat;
         console.log(`✅ detectCategory: "${lower}" → "${dbMatch}" (keyword fallback: "${kw}")`);
         return dbMatch;
@@ -198,7 +192,6 @@ async function getCachedReviews() {
   return reviewsCache.data;
 }
 
-// Loads category names from DB — so any new admin-added category is auto-detected
 let categoriesCache = { data: null, expiresAt: 0 };
 async function getCachedCategoryNames() {
   if (categoriesCache.data && Date.now() < categoriesCache.expiresAt) return categoriesCache.data;
@@ -300,7 +293,11 @@ async function callGroq(messages, sys, key) {
       body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: [{ role: 'system', content: sys }, ...toOpenAI(messages)], temperature: 0.7, max_tokens: 500 }),
     });
     clearTimeout(t);
-    if (!res.ok) return { ok: false, reason: 'groq_http' };
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      console.error('Groq HTTP error:', res.status, errText.slice(0, 500));
+      return { ok: false, reason: `groq_http_${res.status}` };
+    }
     const data = await res.json().catch(() => null);
     const text = data?.choices?.[0]?.message?.content?.trim();
     return text ? { ok: true, text } : { ok: false, reason: 'groq_empty' };
@@ -321,7 +318,11 @@ async function callGemini(messages, sys, key) {
       }),
     });
     clearTimeout(t);
-    if (!res.ok) return { ok: false, reason: 'gemini_http' };
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      console.error('Gemini HTTP error:', res.status, errText.slice(0, 500));
+      return { ok: false, reason: `gemini_http_${res.status}` };
+    }
     const data = await res.json().catch(() => null);
     const text = data?.candidates?.[0]?.content?.parts?.map((p) => p?.text || '').join('').trim();
     return text ? { ok: true, text } : { ok: false, reason: data?.candidates?.[0]?.finishReason || 'gemini_empty' };
@@ -338,7 +339,11 @@ async function callOpenRouter(messages, sys, key) {
       body: JSON.stringify({ model: 'meta-llama/llama-3.3-70b-instruct:free', messages: [{ role: 'system', content: sys }, ...toOpenAI(messages)], temperature: 0.7, max_tokens: 500 }),
     });
     clearTimeout(t);
-    if (!res.ok) return { ok: false, reason: 'openrouter_http' };
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      console.error('OpenRouter HTTP error:', res.status, errText.slice(0, 500));
+      return { ok: false, reason: `openrouter_http_${res.status}` };
+    }
     const data = await res.json().catch(() => null);
     const text = data?.choices?.[0]?.message?.content?.trim();
     return text ? { ok: true, text } : { ok: false, reason: 'openrouter_empty' };
@@ -607,7 +612,6 @@ async function handle(request, { params }) {
     try { body = await request.json(); } catch (e) { body = null; }
   }
 
-  // ===== Waitlist =====
   if (segments[0] === 'waitlist') {
     if (method === 'POST') {
       const w = body || {};
@@ -627,7 +631,6 @@ async function handle(request, { params }) {
     }
   }
 
-  // ===== AI Description Generation =====
   if (segments[0] === 'generate-description' && method === 'POST') {
     const authError = requireAdmin(request);
     if (authError) return authError;
@@ -646,7 +649,6 @@ async function handle(request, { params }) {
     } catch (error) { return json({ error: error.message || 'Failed to reach Gemini' }, 500); }
   }
 
-  // ===== AI Chat =====
   if (segments[0] === 'chat' && method === 'POST') {
     try {
       const cookieSessionId = request.cookies.get('sethi_chat_session')?.value || null;
@@ -657,7 +659,6 @@ async function handle(request, { params }) {
     }
   }
 
-  // ===== Slider Images =====
   if (segments[0] === 'slider-images' || segments[0] === 'slider_images') {
     if (segments.length === 1) {
       if (method === 'GET') { const { data, error } = await supabase.from('slider_images').select('*').order('sort_order', { ascending: true }); if (error) return json([]); return json(data || []); }
@@ -687,7 +688,6 @@ async function handle(request, { params }) {
     }
   }
 
-  // ===== Products =====
   if (segments[0] === 'products') {
     if (segments.length === 1) {
       if (method === 'GET') { const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false }); if (error) return json([]); return json(data || []); }
@@ -728,7 +728,6 @@ async function handle(request, { params }) {
     }
   }
 
-  // ===== Categories =====
   if (segments[0] === 'categories') {
     if (segments.length === 1) {
       if (method === 'GET') { const { data, error } = await supabase.from('categories').select('*').order('created_at', { ascending: true }); if (error) return json(LOCAL_CATEGORIES); return json(data && data.length > 0 ? data : LOCAL_CATEGORIES); }
@@ -737,7 +736,6 @@ async function handle(request, { params }) {
         const cat = { id: uuidv4(), name: String(c.name).trim(), image_url: String(c.imageUrl || '').trim(), created_at: nowIST() };
         const { data, error } = await supabase.from('categories').insert([cat]).select().single();
         if (error) { if (error.code === '23505') return json({ error: 'Category already exists' }, 400); return json({ error: error.message }, 500); }
-        // ✅ Clear categories cache so new category is detected immediately
         categoriesCache = { data: null, expiresAt: 0 };
         return json(data, 201);
       }
@@ -750,21 +748,18 @@ async function handle(request, { params }) {
         if (c.imageUrl !== undefined) updates.image_url = String(c.imageUrl).trim();
         const { data, error } = await supabase.from('categories').update(updates).eq('id', id).select().single();
         if (error) return json({ error: error.message }, 500);
-        // ✅ Clear categories cache so renamed category is detected immediately
         categoriesCache = { data: null, expiresAt: 0 };
         return json(data);
       }
       if (method === 'DELETE') {
         const { data, error } = await supabase.from('categories').delete().eq('id', id).select().single();
         if (error) return json({ error: 'Not found' }, 404);
-        // ✅ Clear categories cache so deleted category stops being detected
         categoriesCache = { data: null, expiresAt: 0 };
         return json({ success: true, removed: data });
       }
     }
   }
 
-  // ===== Offers =====
   if (segments[0] === 'offers') {
     if (segments.length === 1) {
       if (method === 'GET') { const { data, error } = await supabase.from('offers').select('*').order('created_at', { ascending: false }); if (error) return json({ error: error.message }, 500); return json(data || []); }
@@ -782,7 +777,6 @@ async function handle(request, { params }) {
     }
   }
 
-  // ===== Inquiries =====
   if (segments[0] === 'inquiries') {
     if (segments.length === 1) {
       if (method === 'GET') { const { data, error } = await supabase.from('inquiries').select('*').order('created_at', { ascending: false }); if (error) return json({ error: error.message }, 500); return json(data || []); }
@@ -804,7 +798,6 @@ async function handle(request, { params }) {
     }
   }
 
-  // ===== Reviews =====
   if (segments[0] === 'reviews') {
     if (segments.length === 1) {
       if (method === 'GET') { const { data, error } = await supabase.from('reviews').select('*').order('created_at', { ascending: false }); if (error) return json({ error: error.message }, 500); return json(data || []); }
@@ -823,7 +816,6 @@ async function handle(request, { params }) {
     }
   }
 
-  // ===== Auth =====
   if (segments[0] === 'auth') {
     if (segments[1] === 'session' && method === 'GET') return json({ authenticated: !!request.cookies.get('sethi_admin_session')?.value });
     if (segments[1] === 'login' && method === 'POST') {
@@ -837,7 +829,6 @@ async function handle(request, { params }) {
     if (segments[1] === 'logout' && method === 'POST') return clearAdminCookie(json({ success: true }));
   }
 
-  // ===== Push Notifications =====
   if (segments[0] === 'push') {
     if (segments[1] === 'subscribe' && method === 'POST') {
       const subscription = body?.subscription; if (!subscription?.endpoint) return json({ error: 'Subscription required' }, 400);
@@ -862,7 +853,6 @@ async function handle(request, { params }) {
     }
   }
 
-  // ===== Settings =====
   if (segments[0] === 'settings') {
     if (method === 'GET') { const { data: settings } = await supabase.from('settings').select('username').single(); return json({ username: settings?.username || 'admin' }); }
     if (method === 'PUT') {
