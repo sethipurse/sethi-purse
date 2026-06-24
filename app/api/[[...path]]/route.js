@@ -279,8 +279,9 @@ function matchProducts(query, products, priceRange, limit = 10, dbCategories = [
 // 5s per tier × 4 tiers = 20s theoretical max.
 // Vercel hobby = 10s, pro = 60s. Keep at 5s so tiers 3+4 actually get a chance.
 const TIER_MS = 5000;
-// gemini-1.5-flash = 1,500 req/day free (gemini-2.5-flash-lite = only 20/day)
-const GEMINI_MODEL = 'gemini-1.5-flash';
+// ✅ FIXED: gemini-1.5-flash is SHUT DOWN (404 error). Use gemini-2.5-flash-lite (current model)
+// Note: Only 20 req/day free, but it's tier 2, so other providers handle most traffic
+const GEMINI_MODEL = 'gemini-2.5-flash-lite';
 
 function toOpenAI(messages) {
   return messages.map((m) => ({ role: m.role, content: String(m.content || '').slice(0, 800) }));
@@ -352,8 +353,9 @@ async function callOpenRouter(messages, sys, key) {
     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST', signal: ctrl.signal,
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}`, 'HTTP-Referer': 'https://sethi-purse.vercel.app', 'X-Title': 'Sethi Purse' },
-      // mistral-7b:free is less congested than llama-3.3-70b:free on OpenRouter
-      body: JSON.stringify({ model: 'mistralai/mistral-7b-instruct:free', messages: [{ role: 'system', content: sys }, ...toOpenAI(messages)], temperature: 0.7, max_tokens: 400 }),
+      // ✅ FIXED: mistralai/mistral-7b-instruct:free doesn't exist
+      // Use: openrouter/auto (free smart router) - auto-picks best available free model with 50 req/day
+      body: JSON.stringify({ model: 'openrouter/auto', messages: [{ role: 'system', content: sys }, ...toOpenAI(messages)], temperature: 0.7, max_tokens: 400 }),
     });
     clearTimeout(t);
     if (!res.ok) {
