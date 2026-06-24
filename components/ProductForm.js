@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ImageOff, Loader2, Upload, Plus, Trash2, X } from 'lucide-react';
+import { ImageOff, Loader2, Upload, Plus, Trash2, X, Sparkles } from 'lucide-react';
 import { BRANDS, resolveImage } from '@/lib/constants';
 
 // ── Helpers for color variants ────────────────────────────────────────────────
@@ -11,7 +11,6 @@ import { BRANDS, resolveImage } from '@/lib/constants';
 function normalizeColorVariants(initial) {
   const raw = initial?.colors;
   if (!raw) return [];
-  // New format: array of objects
   if (Array.isArray(raw) && raw.length > 0 && typeof raw[0] === 'object') {
     return raw.map((c) => ({
       name: c.name || '',
@@ -19,7 +18,6 @@ function normalizeColorVariants(initial) {
       inStock: c.inStock !== false,
     }));
   }
-  // Old format: array of plain strings — migrate to objects with no photos yet
   if (Array.isArray(raw)) {
     return raw.map((name) => ({ name: String(name), images: [], inStock: true }));
   }
@@ -43,12 +41,13 @@ export default function ProductForm({ initial, productId, onSaved }) {
     sizes: '',
     featured: false,
   });
-  // ✅ NEW: color variants with per-color photos + stock toggle
   const [colorVariants, setColorVariants] = useState([]);
   const [newColorName, setNewColorName] = useState('');
   const [busy, setBusy] = useState(false);
-  const [uploadingColor, setUploadingColor] = useState(null); // which color index is uploading
+  const [uploadingColor, setUploadingColor] = useState(null);
   const [imgErr, setImgErr] = useState(false);
+  // ✅ NEW: AI description generation state
+  const [generatingDesc, setGeneratingDesc] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -93,7 +92,6 @@ export default function ProductForm({ initial, productId, onSaved }) {
 
   const update = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
-  // ✅ Compress for WhatsApp — JPEG, max 1200px wide, under 300KB
   const compressImage = (file, forOG = false) =>
     new Promise((resolve, reject) => {
       const img = new Image();
@@ -173,6 +171,45 @@ export default function ProductForm({ initial, productId, onSaved }) {
     }
   };
 
+  // ✅ Generate description using the main product image (vision) + name/brand/category
+  // for context. Matches the updated /api/generate-description endpoint, which now
+  // fetches the image and sends it to Gemini's vision model alongside the text context.
+  const generateDescription = async () => {
+    if (!form.name.trim()) {
+      toast.error('Enter the product name first');
+      return;
+    }
+    if (!form.imageUrl) {
+      toast.error('Upload the main product image first');
+      return;
+    }
+    setGeneratingDesc(true);
+    try {
+      const res = await fetch('/api/generate-description', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: form.name,
+          brand: form.brand,
+          category: form.category,
+          imageUrl: form.imageUrl,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error || 'Could not generate description');
+        return;
+      }
+      update('description', data.description);
+      toast.success('Description generated ✨ — feel free to edit it');
+    } catch (err) {
+      console.error('Generate description failed:', err);
+      toast.error('Network error. Please try again.');
+    } finally {
+      setGeneratingDesc(false);
+    }
+  };
+
   // ── Color variant handlers ──────────────────────────────────────────────────
   const addColorVariant = () => {
     const name = newColorName.trim();
@@ -234,7 +271,6 @@ export default function ProductForm({ initial, productId, onSaved }) {
         .map((v) => v.trim())
         .filter(Boolean),
       sizes: form.sizes.split(',').map((v) => v.trim()).filter(Boolean),
-      // ✅ NEW: colors now saved as objects with images + stock status
       colors: colorVariants,
       stock: form.stock === '' ? null : Number(form.stock),
     };
@@ -443,7 +479,7 @@ export default function ProductForm({ initial, productId, onSaved }) {
         />
       </div>
 
-      {/* ── ✅ NEW: Color Variants section ── */}
+      {/* ── Color Variants section ── */}
       <div className="md:col-span-2 border-t border-sethi-gray200 pt-5">
         <label className="block text-sm font-bold mb-1.5 text-sethi-black">
           Color Variants{' '}
@@ -452,7 +488,6 @@ export default function ProductForm({ initial, productId, onSaved }) {
           </span>
         </label>
 
-        {/* Add new color */}
         <div className="flex gap-2 mt-2">
           <input
             value={newColorName}
@@ -470,7 +505,6 @@ export default function ProductForm({ initial, productId, onSaved }) {
           </button>
         </div>
 
-        {/* Color variant cards */}
         <div className="mt-4 grid gap-3">
           {colorVariants.map((color, index) => (
             <div
@@ -488,7 +522,6 @@ export default function ProductForm({ initial, productId, onSaved }) {
                 </div>
 
                 <div className="flex items-center gap-3">
-                  {/* In Stock toggle */}
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
@@ -508,7 +541,6 @@ export default function ProductForm({ initial, productId, onSaved }) {
                     </span>
                   </div>
 
-                  {/* Remove color */}
                   <button
                     type="button"
                     onClick={() => removeColorVariant(index)}
@@ -520,7 +552,6 @@ export default function ProductForm({ initial, productId, onSaved }) {
                 </div>
               </div>
 
-              {/* Photos for this color */}
               <div className="mt-3 flex flex-wrap gap-2">
                 {color.images.map((img, photoIndex) => (
                   <div key={photoIndex} className="relative w-16 h-16 rounded-sm overflow-hidden border border-sethi-gray200 group">
@@ -536,7 +567,6 @@ export default function ProductForm({ initial, productId, onSaved }) {
                   </div>
                 ))}
 
-                {/* Upload button for this color */}
                 <label className={`w-16 h-16 rounded-sm border-2 border-dashed border-sethi-gold flex items-center justify-center cursor-pointer hover:bg-sethi-gold/10 ${uploadingColor === index ? 'opacity-50 pointer-events-none' : ''}`}>
                   {uploadingColor === index ? (
                     <Loader2 className="h-5 w-5 text-sethi-gold animate-spin" />
@@ -562,13 +592,35 @@ export default function ProductForm({ initial, productId, onSaved }) {
         </div>
       </div>
 
+      {/* ── Description with AI generate button ── */}
       <div className="md:col-span-2">
-        <label className="block text-sm font-medium mb-1.5">Short Description</label>
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-1.5">
+          <label className="block text-sm font-medium">Short Description</label>
+          <button
+            type="button"
+            onClick={generateDescription}
+            disabled={generatingDesc || !form.name.trim() || !form.imageUrl}
+            title={!form.name.trim() ? 'Enter the product name first' : !form.imageUrl ? 'Upload the main product image first' : 'Generate description from the image'}
+            className="inline-flex items-center gap-1.5 rounded-full border border-sethi-gold px-3 py-1.5 text-xs font-semibold text-sethi-gold hover:bg-sethi-gold hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-sethi-gold"
+          >
+            {generatingDesc ? (
+              <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating...</>
+            ) : (
+              <><Sparkles className="h-3.5 w-3.5" /> Generate Description</>
+            )}
+          </button>
+        </div>
+        {!form.name.trim() ? (
+          <p className="text-xs text-sethi-gray500 mb-1.5">Enter the product name above to enable AI description generation.</p>
+        ) : !form.imageUrl ? (
+          <p className="text-xs text-sethi-gray500 mb-1.5">Upload the main product image above so AI can describe it.</p>
+        ) : null}
         <textarea
           value={form.description}
           onChange={(e) => update('description', e.target.value)}
           className="input-sethi !min-h-[110px] py-3"
           rows={4}
+          placeholder="Write a description, or click 'Generate Description' above."
         />
       </div>
 
