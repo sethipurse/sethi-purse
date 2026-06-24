@@ -276,10 +276,7 @@ function matchProducts(query, products, priceRange, limit = 10, dbCategories = [
   return { matched, upsells };
 }
 
-// 5s per tier × 3 tiers (Groq → OpenRouter → Cloudflare) = 15s theoretical max.
-// Vercel hobby = 10s, pro = 60s. Keep at 5s so all tiers get a fair chance.
 const TIER_MS = 5000;
-// Used ONLY by generate-description (admin tool) — chat no longer uses Gemini.
 const GEMINI_MODEL = 'gemini-2.5-flash-lite';
 
 function toOpenAI(messages) {
@@ -358,11 +355,6 @@ async function callCloudflare(messages, sys, accountId, token) {
     return text ? { ok: true, text } : { ok: false, reason: 'cf_empty' };
   } catch (e) { clearTimeout(t); return { ok: false, reason: e?.name === 'AbortError' ? 'cf_timeout' : 'cf_error' }; }
 }
-
-// ✅ CHAT FALLBACK CHAIN — Groq → OpenRouter → Cloudflare (3 AIs).
-// Gemini intentionally removed from chat per request — it is now used
-// ONLY by the separate generate-description admin endpoint below, which
-// is untouched. Removing Gemini here has NO effect on that feature.
 
 async function callAI(messages, sys) {
   const groqKey = (process.env.GROQ_API_KEY || '').trim();
@@ -640,7 +632,6 @@ async function handle(request, { params }) {
     }
   }
 
-  // ===== Generate Description (admin-only — uses Gemini VISION + product image) =====
   if (segments[0] === 'generate-description' && method === 'POST') {
     const authError = requireAdmin(request);
     if (authError) return authError;
@@ -655,8 +646,6 @@ async function handle(request, { params }) {
     try {
       const parts = [{ text: textPrompt }];
 
-      // If an image URL was provided, fetch it and attach as inline image data
-      // so Gemini's vision capability actually looks at the photo.
       if (imageUrl) {
         try {
           const imgRes = await fetch(imageUrl);
@@ -729,18 +718,51 @@ async function handle(request, { params }) {
     if (segments.length === 1) {
       if (method === 'GET') { const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false }); if (error) return json([]); return json(data || []); }
       if (method === 'POST') {
-        const p = body || {}; const saleValue = p.salePrice ?? p.sale_price ?? p.price;
+        const p = body || {}; 
+        const saleValue = p.salePrice ?? p.sale_price ?? p.price;
         if (!p.name || !(p.category || p.category_id) || !saleValue) return json({ error: 'Missing required fields' }, 400);
-        const newProduct = { id: uuidv4(), name: String(p.name).trim(), brand: String(p.brand || '').trim(), category: String(p.category || p.category_id).trim(), category_id: p.category_id || null, mrp: Number(p.mrp ?? p.original_price) || 0, original_price: Number(p.original_price ?? p.mrp) || 0, sale_price: Number(saleValue), discount_percent: Number(p.discount_percent) || 0, description: String(p.description || '').trim(), image_url: String(p.imageUrl || p.image_url || '').trim(), image_type: p.imageType || 'url', gallery_images: Array.isArray(p.gallery_images || p.galleryImages) ? (p.gallery_images || p.galleryImages) : [], sizes: Array.isArray(p.sizes) ? p.sizes : [], colors: Array.isArray(p.colors) ? p.colors : [], stock: p.stock === '' || p.stock === null || p.stock === undefined ? null : Number(p.stock), featured: !!p.featured, is_active: p.isActive === undefined && p.is_active === undefined ? true : !!(p.isActive ?? p.is_active), created_at: nowIST() };
+        
+        const newProduct = { 
+          id: uuidv4(), 
+          name: String(p.name).trim(), 
+          brand: String(p.brand || '').trim(), 
+          category: String(p.category || p.category_id).trim(), 
+          category_id: p.category_id || null, 
+          mrp: Number(p.mrp ?? p.original_price) || 0, 
+          original_price: Number(p.original_price ?? p.mrp) || 0, 
+          sale_price: Number(saleValue), 
+          discount_percent: Number(p.discount_percent) || 0, 
+          description: String(p.description || '').trim(), 
+          image_url: String(p.imageUrl || p.image_url || '').trim(), 
+          image_type: p.imageType || 'url', 
+          gallery_images: Array.isArray(p.gallery_images || p.galleryImages) ? (p.gallery_images || p.galleryImages) : [], 
+          sizes: Array.isArray(p.sizes) ? p.sizes : [], 
+          colors: Array.isArray(p.colors) ? p.colors : [], 
+          stock: p.stock === '' || p.stock === null || p.stock === undefined ? null : Number(p.stock), 
+          featured: !!p.featured, 
+          is_active: p.isActive === undefined && p.is_active === undefined ? true : !!(p.isActive ?? p.is_active),
+          // ✅ SCARCITY FIELDS
+          scarcity_mode: String(p.scarcity_mode || 'off').trim(),
+          display_stock: p.display_stock === '' || p.display_stock === null ? null : Number(p.display_stock),
+          stock_decay_speed: Number(p.stock_decay_speed) || 0,
+          viewing_min: Number(p.viewing_min) || 3,
+          viewing_max: Number(p.viewing_max) || 12,
+          price_lock_hours: Number(p.price_lock_hours) || 0,
+          local_scarcity: !!p.local_scarcity,
+          scarcity_label: String(p.scarcity_label || '').trim() || null,
+          created_at: nowIST() 
+        };
         const { data, error } = await supabase.from('products').insert([newProduct]).select().single();
-        if (error) return json({ error: error.message }, 500); return json(data, 201);
+        if (error) return json({ error: error.message }, 500); 
+        return json(data, 201);
       }
     }
     if (segments.length === 2) {
       const id = segments[1];
       if (method === 'GET') { const { data, error } = await supabase.from('products').select('*').eq('id', id).single(); if (error) return json({ error: 'Not found' }, 404); return json(data); }
       if (method === 'PUT') {
-        const p = body || {}; const updates = {};
+        const p = body || {}; 
+        const updates = {};
         if (p.name !== undefined) updates.name = String(p.name).trim();
         if (p.brand !== undefined) updates.brand = String(p.brand).trim();
         if (p.category !== undefined) updates.category = String(p.category).trim();
@@ -758,8 +780,19 @@ async function handle(request, { params }) {
         if (p.stock !== undefined) updates.stock = p.stock === '' || p.stock === null ? null : Number(p.stock);
         if (p.featured !== undefined) updates.featured = !!p.featured;
         if (p.isActive !== undefined || p.is_active !== undefined) updates.is_active = !!(p.isActive ?? p.is_active);
+        // ✅ SCARCITY FIELDS IN PUT
+        if (p.scarcity_mode !== undefined) updates.scarcity_mode = String(p.scarcity_mode || 'off').trim();
+        if (p.display_stock !== undefined) updates.display_stock = p.display_stock === '' || p.display_stock === null ? null : Number(p.display_stock);
+        if (p.stock_decay_speed !== undefined) updates.stock_decay_speed = Number(p.stock_decay_speed) || 0;
+        if (p.viewing_min !== undefined) updates.viewing_min = Number(p.viewing_min) || 3;
+        if (p.viewing_max !== undefined) updates.viewing_max = Number(p.viewing_max) || 12;
+        if (p.price_lock_hours !== undefined) updates.price_lock_hours = Number(p.price_lock_hours) || 0;
+        if (p.local_scarcity !== undefined) updates.local_scarcity = !!p.local_scarcity;
+        if (p.scarcity_label !== undefined) updates.scarcity_label = String(p.scarcity_label || '').trim() || null;
+        
         const { data, error } = await supabase.from('products').update(updates).eq('id', id).select().single();
-        if (error) return json({ error: error.message }, 500); return json(data);
+        if (error) return json({ error: error.message }, 500); 
+        return json(data);
       }
       if (method === 'DELETE') { const { data, error } = await supabase.from('products').delete().eq('id', id).select().single(); if (error) return json({ error: 'Not found' }, 404); return json({ success: true, removed: data }); }
     }
