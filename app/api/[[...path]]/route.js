@@ -276,32 +276,48 @@ function matchProducts(query, products, priceRange, limit = 10, dbCategories = [
   return { matched, upsells };
 }
 
-const TIER_MS = 7000;
-const GEMINI_MODEL = 'gemini-2.5-flash-lite';
+// 5s per tier × 4 tiers = 20s theoretical max.
+// Vercel hobby = 10s, pro = 60s. Keep at 5s so tiers 3+4 actually get a chance.
+const TIER_MS = 5000;
+// gemini-1.5-flash = 1,500 req/day free (gemini-2.5-flash-lite = only 20/day)
+const GEMINI_MODEL = 'gemini-1.5-flash';
 
 function toOpenAI(messages) {
   return messages.map((m) => ({ role: m.role, content: String(m.content || '').slice(0, 800) }));
 }
 
 async function callGroq(messages, sys, key) {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), TIER_MS);
-  try {
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST', signal: ctrl.signal,
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: [{ role: 'system', content: sys }, ...toOpenAI(messages)], temperature: 0.7, max_tokens: 500 }),
-    });
-    clearTimeout(t);
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '');
-      console.error('Groq HTTP error:', res.status, errText.slice(0, 500));
-      return { ok: false, reason: `groq_http_${res.status}` };
+  // Try primary model first, fall back to smaller/faster model on failure
+  const models = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
+  for (const model of models) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), TIER_MS);
+    try {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST', signal: ctrl.signal,
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+        body: JSON.stringify({ model, messages: [{ role: 'system', content: sys }, ...toOpenAI(messages)], temperature: 0.7, max_tokens: 400 }),
+      });
+      clearTimeout(t);
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        console.error(`Groq HTTP error (${model}):`, res.status, errText.slice(0, 300));
+        // 401 = bad key, no point trying backup model
+        if (res.status === 401) return { ok: false, reason: `groq_http_${res.status}` };
+        // 429 = rate limit, try next model
+        continue;
+      }
+      const data = await res.json().catch(() => null);
+      const text = data?.choices?.[0]?.message?.content?.trim();
+      if (text) { console.log(`✅ Groq success with model: ${model}`); return { ok: true, text }; }
+      continue;
+    } catch (e) {
+      clearTimeout(t);
+      if (e?.name === 'AbortError') { console.warn(`Groq timeout (${model})`); continue; }
+      return { ok: false, reason: 'groq_error' };
     }
-    const data = await res.json().catch(() => null);
-    const text = data?.choices?.[0]?.message?.content?.trim();
-    return text ? { ok: true, text } : { ok: false, reason: 'groq_empty' };
-  } catch (e) { clearTimeout(t); return { ok: false, reason: e?.name === 'AbortError' ? 'groq_timeout' : 'groq_error' }; }
+  }
+  return { ok: false, reason: 'groq_all_models_failed' };
 }
 
 async function callGemini(messages, sys, key) {
@@ -336,7 +352,8 @@ async function callOpenRouter(messages, sys, key) {
     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST', signal: ctrl.signal,
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}`, 'HTTP-Referer': 'https://sethi-purse.vercel.app', 'X-Title': 'Sethi Purse' },
-      body: JSON.stringify({ model: 'meta-llama/llama-3.3-70b-instruct:free', messages: [{ role: 'system', content: sys }, ...toOpenAI(messages)], temperature: 0.7, max_tokens: 500 }),
+      // mistral-7b:free is less congested than llama-3.3-70b:free on OpenRouter
+      body: JSON.stringify({ model: 'mistralai/mistral-7b-instruct:free', messages: [{ role: 'system', content: sys }, ...toOpenAI(messages)], temperature: 0.7, max_tokens: 400 }),
     });
     clearTimeout(t);
     if (!res.ok) {
@@ -360,7 +377,11 @@ async function callCloudflare(messages, sys, accountId, token) {
       body: JSON.stringify({ messages: [{ role: 'system', content: sys }, ...toOpenAI(messages)], max_tokens: 500 }),
     });
     clearTimeout(t);
-    if (!res.ok) return { ok: false, reason: 'cf_http' };
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      console.error('Cloudflare HTTP error:', res.status, errText.slice(0, 300));
+      return { ok: false, reason: `cf_http_${res.status}` };
+    }
     const data = await res.json().catch(() => null);
     const text = data?.result?.response?.trim();
     return text ? { ok: true, text } : { ok: false, reason: 'cf_empty' };
@@ -450,7 +471,7 @@ async function handleChat(body, cookieSessionId) {
   if (cached && cached.key === cacheKey && cached.expiresAt > Date.now()) {
     catalogText = cached.catalogText; upsellText = cached.upsellText; topProductIds = cached.topProductIds; fallbackProducts = cached.fallbackProducts || [];
   } else if (Array.isArray(products) && products.length > 0) {
-    const { matched, upsells } = matchProducts(lastUserMsg?.content || '', products, priceRange, 10, dbCategories);
+    const { matched, upsells } = matchProducts(lastUserMsg?.content || '', products, priceRange, 8, dbCategories);
     upsellProducts = upsells;
     if (matched.length === 0) {
       noDirectMatch = true;
