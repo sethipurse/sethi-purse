@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, MessageCircle, Minus, Plus, Share2, ShoppingBag, Star } from 'lucide-react';
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, Clock, Eye, Flame, MapPin, MessageCircle, Minus, Plus, Share2, ShoppingBag, Star } from 'lucide-react';
 import { toast } from 'sonner';
 import ProductCard from '@/components/ProductCard';
 import ReviewCard from '@/components/ReviewCard';
@@ -31,6 +31,57 @@ function getDefaultImages(product) {
   const parsed = Array.isArray(gallery) ? gallery : String(gallery || '').split(',').map((v) => v.trim()).filter(Boolean);
   const all = [resolveImage(product), ...parsed].filter(Boolean);
   return [...new Set(all)];
+}
+
+function useScarcity(product) {
+  const [viewers, setViewers] = useState(null);
+  const [displayStock, setDisplayStock] = useState(null);
+  const [timeLeft, setTimeLeft] = useState(null);
+
+  useEffect(() => {
+    const mode = product.scarcity_mode || 'off';
+    if (mode === 'off') return;
+
+    const min = product.viewing_min ?? 3;
+    const max = product.viewing_max ?? 12;
+    setViewers(Math.floor(Math.random() * (max - min + 1)) + min);
+
+    // Simulate viewers fluctuating every 20-40s
+    const interval = setInterval(() => {
+      const delta = Math.random() > 0.5 ? 1 : -1;
+      setViewers((v) => Math.max(min, Math.min(max + 3, (v || min) + delta)));
+    }, (20 + Math.random() * 20) * 1000);
+
+    if (product.display_stock != null) {
+      const decay = product.stock_decay_speed || 0;
+      const decayed = Math.max(1, product.display_stock - Math.floor(Math.random() * decay));
+      setDisplayStock(decayed);
+    }
+
+    if (product.price_lock_hours > 0) {
+      const key = `price_lock_${product.id}`;
+      let expiry = localStorage.getItem(key);
+      if (!expiry) {
+        expiry = Date.now() + product.price_lock_hours * 60 * 60 * 1000;
+        localStorage.setItem(key, expiry);
+      }
+      const tick = () => {
+        const remaining = parseInt(expiry) - Date.now();
+        if (remaining <= 0) { setTimeLeft(null); return; }
+        const h = Math.floor(remaining / 3600000);
+        const m = Math.floor((remaining % 3600000) / 60000);
+        const s = Math.floor((remaining % 60000) / 1000);
+        setTimeLeft(`${h > 0 ? h + 'h ' : ''}${m}m ${s}s`);
+      };
+      tick();
+      const timerInterval = setInterval(tick, 1000);
+      return () => { clearInterval(interval); clearInterval(timerInterval); };
+    }
+
+    return () => clearInterval(interval);
+  }, [product]);
+
+  return { viewers, displayStock, timeLeft };
 }
 
 function ZoomImage({ src, alt }) {
@@ -92,59 +143,28 @@ function FullscreenViewer({ src, alt, onClose }) {
     <div
       onClick={onClose}
       style={{
-        position: 'fixed',
-        top: 0, left: 0, right: 0, bottom: 0,
-        width: '100vw', height: '100vh',
-        zIndex: 999999,
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+        width: '100vw', height: '100vh', zIndex: 999999,
         backgroundColor: 'rgba(0,0,0,0.95)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        margin: 0,
-        padding: 0,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        margin: 0, padding: 0,
       }}
     >
       <button
         onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
         style={{
-          position: 'absolute',
-          top: 20, right: 20,
-          zIndex: 1000000,
-          width: 52, height: 52,
-          borderRadius: '50%',
-          backgroundColor: '#c9a84c',
-          border: 'none',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: 22,
-          color: '#fff',
-          fontWeight: 'bold',
+          position: 'absolute', top: 20, right: 20, zIndex: 1000000,
+          width: 52, height: 52, borderRadius: '50%', backgroundColor: '#c9a84c',
+          border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center',
+          justifyContent: 'center', fontSize: 22, color: '#fff', fontWeight: 'bold',
           WebkitTapHighlightColor: 'transparent',
         }}
-      >
-        ✕
-      </button>
+      >✕</button>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={src}
-        alt={alt}
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          display: 'block',
-          maxWidth: '95vw',
-          maxHeight: '90vh',
-          width: 'auto',
-          height: 'auto',
-          objectFit: 'contain',
-        }}
-      />
-      <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, marginTop: 12 }}>
-        Tap outside or ✕ to close
-      </p>
+      <img src={src} alt={alt} onClick={(e) => e.stopPropagation()}
+        style={{ display: 'block', maxWidth: '95vw', maxHeight: '90vh', width: 'auto', height: 'auto', objectFit: 'contain' }} />
+      <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, marginTop: 12 }}>Tap outside or ✕ to close</p>
     </div>
   );
 }
@@ -157,17 +177,12 @@ function ImageGallery({ images, alt }) {
   const touchStartRef = useRef(null);
   const autoSlideRef = useRef(null);
 
-  useEffect(() => {
-    setIsMobile('ontouchstart' in window || navigator.maxTouchPoints > 0);
-  }, []);
-
+  useEffect(() => { setIsMobile('ontouchstart' in window || navigator.maxTouchPoints > 0); }, []);
   useEffect(() => { setCurrent(0); }, [images]);
 
   useEffect(() => {
     if (images.length <= 1) return;
-    autoSlideRef.current = setInterval(() => {
-      setCurrent((c) => (c + 1) % images.length);
-    }, 3000);
+    autoSlideRef.current = setInterval(() => { setCurrent((c) => (c + 1) % images.length); }, 3000);
     return () => clearInterval(autoSlideRef.current);
   }, [images.length, images]);
 
@@ -175,9 +190,7 @@ function ImageGallery({ images, alt }) {
     clearInterval(autoSlideRef.current);
     setCurrent(index);
     if (images.length > 1) {
-      autoSlideRef.current = setInterval(() => {
-        setCurrent((c) => (c + 1) % images.length);
-      }, 3000);
+      autoSlideRef.current = setInterval(() => { setCurrent((c) => (c + 1) % images.length); }, 3000);
     }
   };
 
@@ -187,15 +200,10 @@ function ImageGallery({ images, alt }) {
   const openFullscreen = (src) => {
     const preloader = new window.Image();
     const open = () => { setPreloadedSrc(src); setMobileOpen(true); };
-    preloader.onload = open;
-    preloader.onerror = open;
-    preloader.src = src;
+    preloader.onload = open; preloader.onerror = open; preloader.src = src;
   };
 
-  const handleTouchStart = (e) => {
-    touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-  };
-
+  const handleTouchStart = (e) => { touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; };
   const handleTouchEnd = (e) => {
     if (!touchStartRef.current) return;
     const dx = Math.abs(e.changedTouches[0].clientX - touchStartRef.current.x);
@@ -204,18 +212,13 @@ function ImageGallery({ images, alt }) {
     if (dx < 10 && dy < 10) openFullscreen(images[current]);
   };
 
-  const handleDesktopClick = () => {
-    if (isMobile) return;
-    openFullscreen(images[current]);
-  };
-
   return (
     <div className="space-y-3">
       <div className="relative">
         <div
           onTouchStart={isMobile ? handleTouchStart : undefined}
           onTouchEnd={isMobile ? handleTouchEnd : undefined}
-          onClick={handleDesktopClick}
+          onClick={!isMobile ? () => openFullscreen(images[current]) : undefined}
           style={{ cursor: 'zoom-in' }}
         >
           <ZoomImage src={images[current] || ''} alt={alt} />
@@ -277,6 +280,7 @@ function ImageGallery({ images, alt }) {
 export default function ProductDetailClient({ product, related = [], reviews = [] }) {
   const colorVariants = useMemo(() => normalizeColors(product), [product]);
   const defaultImages = useMemo(() => getDefaultImages(product), [product]);
+  const { viewers, displayStock, timeLeft } = useScarcity(product);
 
   const [qty, setQty] = useState(1);
   const [selectedSize, setSelectedSize] = useState('');
@@ -299,18 +303,15 @@ export default function ProductDetailClient({ product, related = [], reviews = [
   const discount = product.discount_percent || (mrp > salePrice ? Math.round(((mrp - salePrice) / mrp) * 100) : 0);
   const category = product.category || product.category_id || 'Collection';
   const sizes = Array.isArray(product.sizes) ? product.sizes : ['Standard'];
+  const scarcityMode = product.scarcity_mode || 'off';
+  const isScarcityOn = scarcityMode !== 'off';
 
-  // ── FIX 1: Use color-level stock when colorVariants exist ──────────────────
-  // Previously: product.stock===0 was blocking in-stock color variants
   const outOfStock = colorVariants.length > 0
-    ? colorVariants.every((c) => !c.inStock)   // true only if ALL colors are out of stock
+    ? colorVariants.every((c) => !c.inStock)
     : product.stock === 0;
 
   const selectedColorData = colorVariants.find((c) => c.name === selectedColor);
   const colorOutOfStock = selectedColorData ? !selectedColorData.inStock : false;
-
-  // ── FIX 2: Block purchase when all colors are out of stock ─────────────────
-  // Previously: all colors OOS → selectedColor='' → colorOutOfStock=false → Add to Cart enabled
   const noInStockColorSelected = colorVariants.length > 0 && !selectedColor;
   const cannotPurchase = outOfStock || colorOutOfStock || noInStockColorSelected;
 
@@ -357,6 +358,7 @@ export default function ProductDetailClient({ product, related = [], reviews = [
             <div className="mt-6 text-sm font-bold uppercase tracking-[0.18em] text-[#c9a84c]">{category}</div>
             <h1 className="mt-2 text-5xl font-bold leading-none text-[#2c1f14] md:text-6xl">{product.name}</h1>
             {product.brand && <p className="mt-3 text-xl text-[#6b5544]">by <span className="font-bold text-[#2c1f14]">{product.brand}</span></p>}
+
             <div className="mt-6 flex flex-wrap items-end gap-4">
               <span className="text-4xl font-bold text-[#2c1f14]">{rupee(salePrice)}</span>
               {mrp > salePrice && <span className="pb-1 text-xl text-[#8a7060] line-through">{rupee(mrp)}</span>}
@@ -364,6 +366,38 @@ export default function ProductDetailClient({ product, related = [], reviews = [
             {discount > 0 && (
               <span className="mt-2 inline-block rounded bg-[#c9a84c] px-3 py-1 text-sm font-bold text-white">{discount}% OFF</span>
             )}
+
+            {/* Scarcity signals block */}
+            {isScarcityOn && !outOfStock && (
+              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 flex flex-col gap-2">
+                {product.scarcity_label && (
+                  <div className="flex items-center gap-2 text-sm font-bold text-red-700">
+                    <Flame className="w-4 h-4" /> {product.scarcity_label}
+                  </div>
+                )}
+                {displayStock != null && (
+                  <div className="flex items-center gap-2 text-sm font-semibold text-red-600">
+                    <Flame className="w-4 h-4" /> Only {displayStock} left in stock — order soon!
+                  </div>
+                )}
+                {viewers != null && (
+                  <div className="flex items-center gap-2 text-sm text-[#6b5544]">
+                    <Eye className="w-4 h-4" /> {viewers} people are viewing this right now
+                  </div>
+                )}
+                {product.local_scarcity && (
+                  <div className="flex items-center gap-2 text-sm text-[#6b5544]">
+                    <MapPin className="w-4 h-4" /> High demand in your area
+                  </div>
+                )}
+                {timeLeft && (
+                  <div className="flex items-center gap-2 text-sm font-bold text-orange-600">
+                    <Clock className="w-4 h-4" /> Price locked for: {timeLeft}
+                  </div>
+                )}
+              </div>
+            )}
+
             <p className="mt-6 text-xl leading-8 text-[#6b5544]">
               {product.description || 'Premium quality product from SETHI PURSE, Jalandhar. Message us for availability, latest images, and best store price.'}
             </p>
@@ -391,10 +425,7 @@ export default function ProductDetailClient({ product, related = [], reviews = [
                       const isSelected = selectedColor === color.name;
                       const isOut = !color.inStock;
                       return (
-                        <button
-                          key={color.name}
-                          type="button"
-                          disabled={isOut}
+                        <button key={color.name} type="button" disabled={isOut}
                           onClick={() => !isOut && setSelectedColor(color.name)}
                           className={`relative rounded border px-4 py-2 text-base font-semibold transition ${
                             isOut
@@ -402,28 +433,15 @@ export default function ProductDetailClient({ product, related = [], reviews = [
                               : isSelected
                                 ? 'border-[#c9a84c] bg-[#c9a84c] text-white'
                                 : 'border-[#ede8df] text-[#6b5544] hover:border-[#c9a84c]'
-                          }`}
-                        >
+                          }`}>
                           {color.name}
-                          {isOut && (
-                            <span className="ml-1.5 text-[10px] font-bold not-italic no-underline align-middle text-red-500">
-                              (Out of Stock)
-                            </span>
-                          )}
+                          {isOut && <span className="ml-1.5 text-[10px] font-bold not-italic no-underline align-middle text-red-500">(Out of Stock)</span>}
                         </button>
                       );
                     })}
                   </div>
-                  {colorOutOfStock && (
-                    <p className="mt-2 text-sm text-red-600 font-semibold">
-                      This color is currently out of stock. Message us on WhatsApp to know when it&apos;s restocked.
-                    </p>
-                  )}
-                  {outOfStock && colorVariants.length > 0 && (
-                    <p className="mt-2 text-sm text-red-600 font-semibold">
-                      All colors are currently out of stock. Message us on WhatsApp to know when they&apos;re restocked.
-                    </p>
-                  )}
+                  {colorOutOfStock && <p className="mt-2 text-sm text-red-600 font-semibold">This color is currently out of stock. Message us on WhatsApp to know when it&apos;s restocked.</p>}
+                  {outOfStock && colorVariants.length > 0 && <p className="mt-2 text-sm text-red-600 font-semibold">All colors are currently out of stock. Message us on WhatsApp to know when they&apos;re restocked.</p>}
                 </div>
               )}
 
