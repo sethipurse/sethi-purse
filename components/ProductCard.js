@@ -1,12 +1,59 @@
 'use client';
 import Link from 'next/link';
-import { useState } from 'react';
-import { MessageCircle, ShoppingBag, Check } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { MessageCircle, ShoppingBag, Check, Flame, Clock, Eye, MapPin } from 'lucide-react';
 import { buildBuyNowMessage, buildProductUrl, buildWhatsAppLink, resolveImage } from '@/lib/constants';
+
+function useScarcity(product) {
+  const [viewers, setViewers] = useState(null);
+  const [displayStock, setDisplayStock] = useState(null);
+  const [timeLeft, setTimeLeft] = useState(null);
+
+  useEffect(() => {
+    const mode = product.scarcity_mode || 'off';
+    if (mode === 'off') return;
+
+    // Viewing count
+    const min = product.viewing_min ?? 3;
+    const max = product.viewing_max ?? 12;
+    setViewers(Math.floor(Math.random() * (max - min + 1)) + min);
+
+    // Display stock with decay
+    if (product.display_stock != null) {
+      const decay = product.stock_decay_speed || 0;
+      const decayed = Math.max(1, product.display_stock - Math.floor(Math.random() * decay));
+      setDisplayStock(decayed);
+    }
+
+    // Price lock timer
+    if (product.price_lock_hours > 0) {
+      const key = `price_lock_${product.id}`;
+      let expiry = localStorage.getItem(key);
+      if (!expiry) {
+        expiry = Date.now() + product.price_lock_hours * 60 * 60 * 1000;
+        localStorage.setItem(key, expiry);
+      }
+      const tick = () => {
+        const remaining = parseInt(expiry) - Date.now();
+        if (remaining <= 0) { setTimeLeft(null); return; }
+        const h = Math.floor(remaining / 3600000);
+        const m = Math.floor((remaining % 3600000) / 60000);
+        const s = Math.floor((remaining % 60000) / 1000);
+        setTimeLeft(`${h > 0 ? h + 'h ' : ''}${m}m ${s}s`);
+      };
+      tick();
+      const interval = setInterval(tick, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [product]);
+
+  return { viewers, displayStock, timeLeft };
+}
 
 export default function ProductCard({ product, onAddToCart }) {
   const [imgErr, setImgErr] = useState(false);
   const [added, setAdded] = useState(false);
+  const { viewers, displayStock, timeLeft } = useScarcity(product);
 
   const salePrice = product.sale_price ?? product.salePrice ?? product.price ?? 0;
   const mrp = product.mrp ?? product.original_price ?? 0;
@@ -20,6 +67,8 @@ export default function ProductCard({ product, onAddToCart }) {
   const img = resolveImage(normalizedProduct);
   const productUrl = buildProductUrl(product.id);
   const buyNowMessage = buildBuyNowMessage(product, { quantity: 1, productUrl });
+  const scarcityMode = product.scarcity_mode || 'off';
+  const isScarcityOn = scarcityMode !== 'off';
 
   const handleAddToCart = () => {
     if (outOfStock || !onAddToCart) return;
@@ -35,6 +84,14 @@ export default function ProductCard({ product, onAddToCart }) {
         {discount > 0 && <span className="badge-discount">{discount}% OFF</span>}
         {outOfStock && <span className="badge-out">Out of Stock</span>}
         {!outOfStock && lowStock && <span className="badge-stock-low">Only {product.stock} left!</span>}
+
+        {/* Scarcity label badge */}
+        {isScarcityOn && product.scarcity_label && !outOfStock && (
+          <span className="absolute top-2 left-2 z-10 flex items-center gap-1 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-full shadow">
+            <Flame className="w-3 h-3" /> {product.scarcity_label}
+          </span>
+        )}
+
         {img && !imgErr ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -50,12 +107,14 @@ export default function ProductCard({ product, onAddToCart }) {
           </div>
         )}
       </Link>
+
       <div className="p-4 md:p-5 flex flex-col flex-1">
         <span className="badge-cat">{product.category || product.category_id}</span>
         <Link href={`/product/${product.id}`} className="mt-1.5 block hover:text-sethi-gold transition-colors">
           <h3 className="font-serif text-lg md:text-xl font-semibold leading-snug line-clamp-2">{product.name}</h3>
         </Link>
         <p className="text-sm text-sethi-gray500 mt-0.5">{product.brand}</p>
+
         <div className="mt-3 flex items-end gap-3">
           {mrp > salePrice && (
             <span className="text-sm text-sethi-gray500 line-through">Rs.{mrp.toLocaleString('en-IN')}</span>
@@ -67,6 +126,33 @@ export default function ProductCard({ product, onAddToCart }) {
             <span className="badge-save">Save Rs.{save.toLocaleString('en-IN')}</span>
           </div>
         )}
+
+        {/* Scarcity signals */}
+        {isScarcityOn && !outOfStock && (
+          <div className="mt-2 flex flex-col gap-1">
+            {displayStock != null && (
+              <div className="flex items-center gap-1 text-xs font-semibold text-red-600">
+                <Flame className="w-3 h-3" /> Only {displayStock} left in stock!
+              </div>
+            )}
+            {viewers != null && (
+              <div className="flex items-center gap-1 text-xs text-[#8a7060]">
+                <Eye className="w-3 h-3" /> {viewers} people viewing this
+              </div>
+            )}
+            {product.local_scarcity && (
+              <div className="flex items-center gap-1 text-xs text-[#8a7060]">
+                <MapPin className="w-3 h-3" /> Popular in your area
+              </div>
+            )}
+            {timeLeft && (
+              <div className="flex items-center gap-1 text-xs font-semibold text-orange-600">
+                <Clock className="w-3 h-3" /> Price locked: {timeLeft}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className={`mt-4 grid gap-2 ${onAddToCart ? 'sm:grid-cols-2' : ''}`}>
           {onAddToCart && (
             <button
