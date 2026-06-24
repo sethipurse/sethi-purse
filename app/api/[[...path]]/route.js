@@ -367,46 +367,12 @@ async function callCloudflare(messages, sys, accountId, token) {
   } catch (e) { clearTimeout(t); return { ok: false, reason: e?.name === 'AbortError' ? 'cf_timeout' : 'cf_error' }; }
 }
 
-// ✅ SMARTER FALLBACK SYSTEM
-// 1. Trims env var keys defensively (catches trailing space/newline copy-paste bugs).
-// 2. Tracks per-provider cooldowns in memory — if a provider just failed with a
-//    rate-limit (429) or auth error (401), skip it for a short window instead of
-//    wasting ~7s timing it out on every single message.
-// 3. Remembers the last provider that worked and tries that one FIRST next time,
-//    so once Groq (or whichever) is healthy again, it becomes primary automatically
-//    with zero code changes needed.
-
-const providerCooldowns = { groq: 0, gemini: 0, openrouter: 0, cloudflare: 0 };
-let lastGoodProvider = null;
-
-function isOnCooldown(name) {
-  return providerCooldowns[name] > Date.now();
-}
-
-function setCooldown(name, reason) {
-  // 401 = bad key, likely to keep failing → longer cooldown (5 min)
-  // 429 = rate limited → shorter cooldown (45s), it'll recover on its own
-  const isAuthError = /401/.test(reason || '');
-  const isRateLimit = /429/.test(reason || '');
-  if (isAuthError) providerCooldowns[name] = Date.now() + 5 * 60 * 1000;
-  else if (isRateLimit) providerCooldowns[name] = Date.now() + 45 * 1000;
-  else providerCooldowns[name] = Date.now() + 15 * 1000; // generic/timeout — short cooldown
-}
-
-async function tryProvider(name, fn, messages, sys, key) {
-  if (isOnCooldown(name)) {
-    console.warn(`⏭️  Skipping ${name} — on cooldown until ${new Date(providerCooldowns[name]).toISOString()}`);
-    return { ok: false, reason: `${name}_cooldown` };
-  }
-  const r = await fn(messages, sys, key);
-  if (r.ok) {
-    lastGoodProvider = name;
-    return r;
-  }
-  console.warn(`${name} failed:`, r.reason);
-  setCooldown(name, r.reason);
-  return r;
-}
+// ✅ SIMPLE, RELIABLE FALLBACK — every message tries every configured provider
+// in order until one succeeds. No cooldowns, no shared memory between requests —
+// each provider gets a fair shot on every single message, since Vercel serverless
+// instances are not guaranteed to stay warm and shared in-memory cooldowns caused
+// providers to get incorrectly skipped even when they would have worked fine.
+// Keys are trimmed defensively to catch copy-paste whitespace issues.
 
 async function callAI(messages, sys) {
   const groqKey = (process.env.GROQ_API_KEY || '').trim();
@@ -415,29 +381,28 @@ async function callAI(messages, sys) {
   const cfId = (process.env.CLOUDFLARE_ACCOUNT_ID || '').trim();
   const cfToken = (process.env.CLOUDFLARE_API_TOKEN || '').trim();
 
-  // Build the provider list in normal priority order
-  const providers = [];
-  if (groqKey) providers.push({ name: 'groq', fn: callGroq, key: groqKey });
-  if (geminiKey) providers.push({ name: 'gemini', fn: callGemini, key: geminiKey });
-  if (orKey) providers.push({ name: 'openrouter', fn: callOpenRouter, key: orKey });
-  if (cfId && cfToken) providers.push({ name: 'cloudflare', fn: (m, s) => callCloudflare(m, s, cfId, cfToken), key: null });
-
-  // ✅ If a provider worked last time and isn't on cooldown, try it FIRST —
-  // this means once a flaky key is fixed, the system self-heals automatically.
-  if (lastGoodProvider) {
-    const idx = providers.findIndex((p) => p.name === lastGoodProvider);
-    if (idx > 0 && !isOnCooldown(lastGoodProvider)) {
-      const [preferred] = providers.splice(idx, 1);
-      providers.unshift(preferred);
-    }
+  if (groqKey) {
+    const r = await callGroq(messages, sys, groqKey);
+    if (r.ok) return { ...r, usedAPI: 'groq' };
+    console.warn('Groq failed:', r.reason);
+  }
+  if (geminiKey) {
+    const r = await callGemini(messages, sys, geminiKey);
+    if (r.ok) return { ...r, usedAPI: 'gemini' };
+    console.warn('Gemini failed:', r.reason);
+  }
+  if (orKey) {
+    const r = await callOpenRouter(messages, sys, orKey);
+    if (r.ok) return { ...r, usedAPI: 'openrouter' };
+    console.warn('OpenRouter failed:', r.reason);
+  }
+  if (cfId && cfToken) {
+    const r = await callCloudflare(messages, sys, cfId, cfToken);
+    if (r.ok) return { ...r, usedAPI: 'cloudflare' };
+    console.warn('Cloudflare failed:', r.reason);
   }
 
-  for (const p of providers) {
-    const r = await tryProvider(p.name, p.fn, messages, sys, p.key);
-    if (r.ok) return { ...r, usedAPI: p.name };
-  }
-
-  console.error('❌ All AI tiers failed or on cooldown');
+  console.error('❌ All AI tiers failed');
   return { ok: false, reason: 'all_failed', usedAPI: 'none' };
 }
 
