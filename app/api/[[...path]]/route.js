@@ -276,11 +276,10 @@ function matchProducts(query, products, priceRange, limit = 10, dbCategories = [
   return { matched, upsells };
 }
 
-// 5s per tier × 4 tiers = 20s theoretical max.
-// Vercel hobby = 10s, pro = 60s. Keep at 5s so tiers 3+4 actually get a chance.
+// 5s per tier × 3 tiers (Groq → OpenRouter → Cloudflare) = 15s theoretical max.
+// Vercel hobby = 10s, pro = 60s. Keep at 5s so all tiers get a fair chance.
 const TIER_MS = 5000;
-// ✅ FIXED: gemini-1.5-flash is SHUT DOWN (404 error). Use gemini-2.5-flash-lite (current model)
-// Note: Only 20 req/day free, but it's tier 2, so other providers handle most traffic
+// Used ONLY by generate-description (admin tool) — chat no longer uses Gemini.
 const GEMINI_MODEL = 'gemini-2.5-flash-lite';
 
 function toOpenAI(messages) {
@@ -288,7 +287,6 @@ function toOpenAI(messages) {
 }
 
 async function callGroq(messages, sys, key) {
-  // Try primary model first, fall back to smaller/faster model on failure
   const models = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
   for (const model of models) {
     const ctrl = new AbortController();
@@ -303,9 +301,7 @@ async function callGroq(messages, sys, key) {
       if (!res.ok) {
         const errText = await res.text().catch(() => '');
         console.error(`Groq HTTP error (${model}):`, res.status, errText.slice(0, 300));
-        // 401 = bad key, no point trying backup model
         if (res.status === 401) return { ok: false, reason: `groq_http_${res.status}` };
-        // 429 = rate limit, try next model
         continue;
       }
       const data = await res.json().catch(() => null);
@@ -321,31 +317,6 @@ async function callGroq(messages, sys, key) {
   return { ok: false, reason: 'groq_all_models_failed' };
 }
 
-async function callGemini(messages, sys, key) {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), TIER_MS);
-  try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`, {
-      method: 'POST', signal: ctrl.signal,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: sys }] },
-        contents: messages.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: String(m.content || '').slice(0, 800) }] })),
-        generationConfig: { temperature: 0.7, maxOutputTokens: 500 },
-      }),
-    });
-    clearTimeout(t);
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '');
-      console.error('Gemini HTTP error:', res.status, errText.slice(0, 500));
-      return { ok: false, reason: `gemini_http_${res.status}` };
-    }
-    const data = await res.json().catch(() => null);
-    const text = data?.candidates?.[0]?.content?.parts?.map((p) => p?.text || '').join('').trim();
-    return text ? { ok: true, text } : { ok: false, reason: data?.candidates?.[0]?.finishReason || 'gemini_empty' };
-  } catch (e) { clearTimeout(t); return { ok: false, reason: e?.name === 'AbortError' ? 'gemini_timeout' : 'gemini_error' }; }
-}
-
 async function callOpenRouter(messages, sys, key) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), TIER_MS);
@@ -353,8 +324,6 @@ async function callOpenRouter(messages, sys, key) {
     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST', signal: ctrl.signal,
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}`, 'HTTP-Referer': 'https://sethi-purse.vercel.app', 'X-Title': 'Sethi Purse' },
-      // ✅ FIXED: mistralai/mistral-7b-instruct:free doesn't exist
-      // Use: openrouter/auto (free smart router) - auto-picks best available free model with 50 req/day
       body: JSON.stringify({ model: 'openrouter/auto', messages: [{ role: 'system', content: sys }, ...toOpenAI(messages)], temperature: 0.7, max_tokens: 400 }),
     });
     clearTimeout(t);
@@ -390,16 +359,13 @@ async function callCloudflare(messages, sys, accountId, token) {
   } catch (e) { clearTimeout(t); return { ok: false, reason: e?.name === 'AbortError' ? 'cf_timeout' : 'cf_error' }; }
 }
 
-// ✅ SIMPLE, RELIABLE FALLBACK — every message tries every configured provider
-// in order until one succeeds. No cooldowns, no shared memory between requests —
-// each provider gets a fair shot on every single message, since Vercel serverless
-// instances are not guaranteed to stay warm and shared in-memory cooldowns caused
-// providers to get incorrectly skipped even when they would have worked fine.
-// Keys are trimmed defensively to catch copy-paste whitespace issues.
+// ✅ CHAT FALLBACK CHAIN — Groq → OpenRouter → Cloudflare (3 AIs).
+// Gemini intentionally removed from chat per request — it is now used
+// ONLY by the separate generate-description admin endpoint below, which
+// is untouched. Removing Gemini here has NO effect on that feature.
 
 async function callAI(messages, sys) {
   const groqKey = (process.env.GROQ_API_KEY || '').trim();
-  const geminiKey = (process.env.GEMINI_API_KEY || '').trim();
   const orKey = (process.env.OPENROUTER_API_KEY || '').trim();
   const cfId = (process.env.CLOUDFLARE_ACCOUNT_ID || '').trim();
   const cfToken = (process.env.CLOUDFLARE_API_TOKEN || '').trim();
@@ -408,11 +374,6 @@ async function callAI(messages, sys) {
     const r = await callGroq(messages, sys, groqKey);
     if (r.ok) return { ...r, usedAPI: 'groq' };
     console.warn('Groq failed:', r.reason);
-  }
-  if (geminiKey) {
-    const r = await callGemini(messages, sys, geminiKey);
-    if (r.ok) return { ...r, usedAPI: 'gemini' };
-    console.warn('Gemini failed:', r.reason);
   }
   if (orKey) {
     const r = await callOpenRouter(messages, sys, orKey);
@@ -679,16 +640,44 @@ async function handle(request, { params }) {
     }
   }
 
+  // ===== Generate Description (admin-only — uses Gemini VISION + product image) =====
   if (segments[0] === 'generate-description' && method === 'POST') {
     const authError = requireAdmin(request);
     if (authError) return authError;
-    const { name, brand, category } = body || {};
+    const { name, brand, category, imageUrl } = body || {};
     if (!name) return json({ error: 'Product name is required' }, 400);
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) return json({ error: 'GEMINI_API_KEY not configured' }, 500);
-    const prompt = `Write a concise, persuasive product description (2-3 sentences, no markdown) for an e-commerce listing.\nProduct name: ${name}\n${brand ? `Brand: ${brand}` : ''}\n${category ? `Category: ${category}` : ''}\nFocus on quality, style, and everyday usefulness. Do not invent measurements or prices. Return only the description.`;
+
+    const contextLine = [name, brand, category].filter(Boolean).join(' — ');
+    const textPrompt = `Write a concise, persuasive product description (2-3 sentences, no markdown) for an e-commerce listing.\n${imageUrl ? 'Look closely at the product image and describe what you actually SEE — color, material look, design details (straps, zippers, hardware, pattern, shape). Do not invent details not visible in the photo.\n' : ''}Product context: ${contextLine || name}\nFocus on quality, style, and everyday usefulness. Do not invent measurements or prices. Return only the description.`;
+
     try {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey }, body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }] }) });
+      const parts = [{ text: textPrompt }];
+
+      // If an image URL was provided, fetch it and attach as inline image data
+      // so Gemini's vision capability actually looks at the photo.
+      if (imageUrl) {
+        try {
+          const imgRes = await fetch(imageUrl);
+          if (imgRes.ok) {
+            const contentType = imgRes.headers.get('content-type') || 'image/jpeg';
+            const arrayBuffer = await imgRes.arrayBuffer();
+            const base64 = Buffer.from(arrayBuffer).toString('base64');
+            parts.push({ inline_data: { mime_type: contentType, data: base64 } });
+          } else {
+            console.warn('generate-description: could not fetch image, falling back to text-only', imgRes.status);
+          }
+        } catch (imgErr) {
+          console.warn('generate-description: image fetch failed, falling back to text-only', imgErr);
+        }
+      }
+
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        body: JSON.stringify({ contents: [{ role: 'user', parts }] }),
+      });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return json({ error: data?.error?.message || `Gemini error (${res.status})` }, 500);
       const description = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
