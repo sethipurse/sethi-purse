@@ -374,7 +374,7 @@ export default function AdminProductsPage() {
 
       {/* Single delete confirm */}
       {confirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 md:pl-[260px]">
           <div className="bg-white rounded-sm p-6 max-w-md w-full">
             <h3 className="font-serif text-xl mb-2">Delete product?</h3>
             <p className="text-sethi-gray500 text-sm mb-5">Are you sure you want to delete "<strong>{confirm.name}</strong>"? This cannot be undone.</p>
@@ -390,7 +390,7 @@ export default function AdminProductsPage() {
 
       {/* Bulk delete confirm */}
       {bulkConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 md:pl-[260px]">
           <div className="bg-white rounded-sm p-6 max-w-md w-full">
             <h3 className="font-serif text-xl mb-2 text-red-700">Delete {selectedCount} products?</h3>
             <p className="text-sethi-gray500 text-sm mb-5">You are about to permanently delete <strong>{selectedCount} product{selectedCount > 1 ? 's' : ''}</strong>. This cannot be undone.</p>

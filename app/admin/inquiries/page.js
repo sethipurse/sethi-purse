@@ -159,7 +159,7 @@ export default function AdminInquiriesPage() {
       )}
 
       {confirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 md:pl-[260px]">
           <div className="bg-white rounded-sm p-6 max-w-md w-full">
             <h3 className="font-serif text-xl mb-2">Delete inquiry?</h3>
             <p className="text-sethi-gray500 text-sm mb-5">Are you sure you want to delete inquiry from “{confirm.name}”?</p>
