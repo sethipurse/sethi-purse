@@ -27,7 +27,7 @@ export default function ProductForm({ initial, productId, onSaved }) {
   const router = useRouter();
   const [categories, setCategories] = useState([]);
   const [form, setForm] = useState({
-    name: '', brand: '', category: '', mrp: '', salePrice: '', stock: '',
+    name: '', brand: '', category: '', mrp: '', salePrice: '', discountPercent: '', stock: '',
     description: '', imageUrl: '', galleryImages: '', imageType: 'url', sizes: '', featured: false,
     // Scarcity fields
     scarcity_mode: 'off',
@@ -69,6 +69,7 @@ export default function ProductForm({ initial, productId, onSaved }) {
         category: initial.category || '',
         mrp: initial.mrp ?? '',
         salePrice: initial.salePrice ?? initial.sale_price ?? initial.price ?? '',
+        discountPercent: initial.discount_percent ?? initial.discountPercent ?? '',
         stock: initial.stock === null || initial.stock === undefined ? '' : initial.stock,
         description: initial.description || '',
         imageUrl: initial.imageUrl || initial.image_url || '',
@@ -174,6 +175,7 @@ export default function ProductForm({ initial, productId, onSaved }) {
       ...form,
       mrp: form.mrp === '' ? 0 : Number(form.mrp),
       salePrice: Number(form.salePrice),
+      discount_percent: form.discountPercent === '' ? 0 : Number(form.discountPercent),
       gallery_images: form.galleryImages.split(/\n|,/).map((v) => v.trim()).filter(Boolean),
       sizes: form.sizes.split(',').map((v) => v.trim()).filter(Boolean),
       colors: colorVariants,

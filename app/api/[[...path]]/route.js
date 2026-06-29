@@ -849,7 +849,7 @@ async function handle(request, { params }) {
 
   if (segments[0] === 'inquiries') {
     if (segments.length === 1) {
-      if (method === 'GET') { const { data, error } = await supabase.from('inquiries').select('*').order('created_at', { ascending: false }); if (error) return json({ error: error.message }, 500); return json(data || []); }
+      if (method === 'GET') { const authError = requireAdmin(request); if (authError) return authError; const { data, error } = await supabase.from('inquiries').select('*').order('created_at', { ascending: false }); if (error) return json({ error: error.message }, 500); return json(data || []); }
       if (method === 'POST') {
         const i = body || {}; const phone = String(i.phone || '').replace(/\D/g, '');
         if (!i.name || !phone || !i.city || !i.productInterest || !i.message) return json({ error: 'All fields are required' }, 400);
@@ -863,8 +863,8 @@ async function handle(request, { params }) {
     }
     if (segments.length === 2) {
       const id = segments[1];
-      if (method === 'PUT') { const i = body || {}; const updates = {}; if (i.status !== undefined) { if (!VALID_STATUSES.includes(i.status)) return json({ error: 'Invalid status' }, 400); updates.status = i.status; } const { data, error } = await supabase.from('inquiries').update(updates).eq('id', id).select().single(); if (error) return json({ error: error.message }, 500); return json(data); }
-      if (method === 'DELETE') { const { data, error } = await supabase.from('inquiries').delete().eq('id', id).select().single(); if (error) return json({ error: 'Not found' }, 404); return json({ success: true, removed: data }); }
+      if (method === 'PUT') { const authError = requireAdmin(request); if (authError) return authError; const i = body || {}; const updates = {}; if (i.status !== undefined) { if (!VALID_STATUSES.includes(i.status)) return json({ error: 'Invalid status' }, 400); updates.status = i.status; } const { data, error } = await supabase.from('inquiries').update(updates).eq('id', id).select().single(); if (error) return json({ error: error.message }, 500); return json(data); }
+      if (method === 'DELETE') { const authError = requireAdmin(request); if (authError) return authError; const { data, error } = await supabase.from('inquiries').delete().eq('id', id).select().single(); if (error) return json({ error: 'Not found' }, 404); return json({ success: true, removed: data }); }
     }
   }
 
@@ -881,8 +881,8 @@ async function handle(request, { params }) {
     }
     if (segments.length === 2) {
       const id = segments[1];
-      if (method === 'PUT') { const r = body || {}; const updates = {}; if (r.customerName !== undefined) updates.customer_name = String(r.customerName).trim(); if (r.customerPhoto !== undefined) updates.customer_photo = String(r.customerPhoto).trim(); if (r.rating !== undefined) updates.rating = Math.max(1, Math.min(5, Number(r.rating))); if (r.reviewText !== undefined) updates.review_text = String(r.reviewText).trim(); if (r.isFeatured !== undefined) updates.is_featured = !!r.isFeatured; const { data, error } = await supabase.from('reviews').update(updates).eq('id', id).select().single(); if (error) return json({ error: error.message }, 500); return json(data); }
-      if (method === 'DELETE') { const { data, error } = await supabase.from('reviews').delete().eq('id', id).select().single(); if (error) return json({ error: 'Not found' }, 404); return json({ success: true, removed: data }); }
+      if (method === 'PUT') { const authError = requireAdmin(request); if (authError) return authError; const r = body || {}; const updates = {}; if (r.customerName !== undefined) updates.customer_name = String(r.customerName).trim(); if (r.customerPhoto !== undefined) updates.customer_photo = String(r.customerPhoto).trim(); if (r.rating !== undefined) updates.rating = Math.max(1, Math.min(5, Number(r.rating))); if (r.reviewText !== undefined) updates.review_text = String(r.reviewText).trim(); if (r.isFeatured !== undefined) updates.is_featured = !!r.isFeatured; const { data, error } = await supabase.from('reviews').update(updates).eq('id', id).select().single(); if (error) return json({ error: error.message }, 500); return json(data); }
+      if (method === 'DELETE') { const authError = requireAdmin(request); if (authError) return authError; const { data, error } = await supabase.from('reviews').delete().eq('id', id).select().single(); if (error) return json({ error: 'Not found' }, 404); return json({ success: true, removed: data }); }
     }
   }
 

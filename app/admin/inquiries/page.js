@@ -129,7 +129,7 @@ export default function AdminInquiriesPage() {
                       <h3 className="font-semibold text-lg">{i.name}</h3>
                       <span className="text-sm text-sethi-gray500">• {i.city}</span>
                     </div>
-                    <div className="text-xs text-sethi-gray500 mt-0.5">{formatIST(i.createdAt)}</div>
+                    <div className="text-xs text-sethi-gray500 mt-0.5">{formatIST(i.created_at ?? i.createdAt)}</div>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className={`inline-block px-2.5 py-0.5 rounded-sm text-[11px] font-semibold tracking-wide border ${STATUS_STYLES[i.status] || ''}`}>{(i.status || 'new').toUpperCase()}</span>
@@ -143,7 +143,7 @@ export default function AdminInquiriesPage() {
                 <div className="mt-3 flex items-center gap-3 flex-wrap">
                   <a href={telLink} className="inline-flex items-center gap-1.5 text-sethi-gold font-medium hover:underline"><Phone className="w-4 h-4" /> Call +91 {i.phone}</a>
                   <a href={waLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sethi-gold font-medium hover:underline"><MessageCircle className="w-4 h-4" /> WhatsApp</a>
-                  <span className="inline-block bg-sethi-gold/15 text-sethi-gold-dark text-[11px] font-semibold tracking-wide uppercase px-2 py-0.5 rounded-sm">{i.productInterest}</span>
+                  <span className="inline-block bg-sethi-gold/15 text-sethi-gold-dark text-[11px] font-semibold tracking-wide uppercase px-2 py-0.5 rounded-sm">{i.product_interest ?? i.productInterest}</span>
                 </div>
 
                 <p className={`mt-3 text-sethi-gray800 ${isOpen ? '' : 'line-clamp-2'}`}>{i.message}</p>

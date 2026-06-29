@@ -5,9 +5,9 @@ import Link from 'next/link';
 import { ShoppingBag, Menu, ChevronLeft, ChevronRight } from 'lucide-react';
 import { categoryPath } from '@/lib/categoryUtils';
 
-export default function HeroSlider({ cartCount = 0, onMenuClick, onCartClick }) {
-  const [slides, setSlides] = useState([]);
-  const [loading, setLoading] = useState(true);
+export default function HeroSlider({ slides: slidesProp, cartCount = 0, onMenuClick, onCartClick }) {
+  const [slides, setSlides] = useState(slidesProp || []);
+  const [loading, setLoading] = useState(!slidesProp);
   const [current, setCurrent] = useState(0);
   const [animating, setAnimating] = useState(false);
   const [direction, setDirection] = useState('right');
@@ -29,6 +29,7 @@ export default function HeroSlider({ cartCount = 0, onMenuClick, onCartClick }) 
   }, []);
 
   useEffect(() => {
+    if (slidesProp) return;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 4000);
     fetch('/api/slider-images', { signal: controller.signal })
@@ -40,7 +41,7 @@ export default function HeroSlider({ cartCount = 0, onMenuClick, onCartClick }) 
       .catch(() => setSlides([]))
       .finally(() => { clearTimeout(timeout); setLoading(false); });
     return () => { clearTimeout(timeout); controller.abort(); };
-  }, []);
+  }, [slidesProp]);
 
   function go(index, dir = 'right') {
     if (animRef.current) return;
@@ -56,16 +57,13 @@ export default function HeroSlider({ cartCount = 0, onMenuClick, onCartClick }) 
   useEffect(() => {
     if (slides.length <= 1) return;
     const t = setInterval(() => {
-      setCurrent((c) => {
-        const n = (c + 1) % slides.length;
-        if (!animRef.current) {
-          animRef.current = true;
-          setDirection('right');
-          setAnimating(true);
-          setTimeout(() => { setAnimating(false); animRef.current = false; }, 350);
-        }
-        return n;
-      });
+      if (!animRef.current) {
+        animRef.current = true;
+        setDirection('right');
+        setAnimating(true);
+        setTimeout(() => { setAnimating(false); animRef.current = false; }, 350);
+      }
+      setCurrent((c) => (c + 1) % slides.length);
     }, 4000);
     return () => clearInterval(t);
   }, [slides.length]);

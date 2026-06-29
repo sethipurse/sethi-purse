@@ -318,7 +318,8 @@ export default function ProductDetailClient({ product, related = [], reviews = [
   const addToCart = () => {
     if (cannotPurchase) return;
     const saved = window.localStorage.getItem('sethi-cart');
-    const cart = saved ? JSON.parse(saved) : [];
+    let cart = [];
+    try { if (saved) cart = JSON.parse(saved); } catch {}
     const existingIndex = cart.findIndex((i) => i.id === product.id && (i.size || '') === selectedSize && (i.color || '') === selectedColor);
     let updatedCart;
     if (existingIndex >= 0) {

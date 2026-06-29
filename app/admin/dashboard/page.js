@@ -410,7 +410,7 @@ export default function DashboardPage() {
                         </span>
                       </div>
                       <div className="text-xs text-sethi-gray500 mt-0.5">
-                        {formatIST(i.createdAt)} • {i.productInterest}
+                        {formatIST(i.created_at ?? i.createdAt)} • {i.product_interest ?? i.productInterest}
                       </div>
                       <p className="text-sm mt-1 line-clamp-1 text-sethi-gray800">{i.message}</p>
                     </div>

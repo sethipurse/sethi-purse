@@ -52,10 +52,10 @@ export default function AdminProductsPage() {
       list = list.filter((p) => p.name.toLowerCase().includes(t) || (p.brand || '').toLowerCase().includes(t));
     }
     switch (sort) {
-      case 'oldest': list.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)); break;
+      case 'oldest': list.sort((a, b) => new Date(a.created_at ?? a.createdAt) - new Date(b.created_at ?? b.createdAt)); break;
       case 'price_asc': list.sort((a, b) => (a.salePrice ?? a.sale_price ?? a.price ?? 0) - (b.salePrice ?? b.sale_price ?? b.price ?? 0)); break;
       case 'price_desc': list.sort((a, b) => (b.salePrice ?? b.sale_price ?? b.price ?? 0) - (a.salePrice ?? a.sale_price ?? a.price ?? 0)); break;
-      default: list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      default: list.sort((a, b) => new Date(b.created_at ?? b.createdAt) - new Date(a.created_at ?? a.createdAt));
     }
     return list;
   }, [products, q, cat, sort]);

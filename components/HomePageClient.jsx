@@ -49,8 +49,10 @@ export default function HomePageClient({ initialSlides = [] }) {
   const [cart, setCart] = useState([]);
 
   useEffect(() => {
-    const saved = window.localStorage.getItem('sethi-cart');
-    if (saved) setCart(JSON.parse(saved));
+    try {
+      const saved = window.localStorage.getItem('sethi-cart');
+      if (saved) setCart(JSON.parse(saved));
+    } catch {}
   }, []);
 
   useEffect(() => {
