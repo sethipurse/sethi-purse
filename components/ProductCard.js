@@ -83,14 +83,6 @@ export default function ProductCard({ product, onAddToCart }) {
       <Link href={`/product/${product.id}`} className="block relative bg-[#f5f0e8] aspect-[4/5] overflow-hidden">
         {discount > 0 && <span className="badge-discount">{discount}% OFF</span>}
         {outOfStock && <span className="badge-out">Out of Stock</span>}
-        {!outOfStock && lowStock && <span className="badge-stock-low">Only {product.stock} left!</span>}
-
-        {/* Scarcity label badge */}
-        {isScarcityOn && product.scarcity_label && !outOfStock && (
-          <span className="absolute top-2 left-2 z-10 flex items-center gap-1 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-full shadow">
-            <Flame className="w-3 h-3" /> {product.scarcity_label}
-          </span>
-        )}
 
         {img && !imgErr ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -129,7 +121,12 @@ export default function ProductCard({ product, onAddToCart }) {
 
         {/* Scarcity signals */}
         {isScarcityOn && !outOfStock && (
-          <div className="mt-2 flex flex-col gap-2">
+          <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 flex flex-col gap-2">
+            {product.scarcity_label && (
+              <div className="flex items-center gap-2 text-xs font-bold text-red-700">
+                <Flame className="w-3 h-3" /> {product.scarcity_label}
+              </div>
+            )}
             {displayStock != null && (
               <div className="flex items-center gap-2 text-xs font-semibold text-red-600">
                 <Flame className="w-3 h-3" /> Only {displayStock} left in stock!
