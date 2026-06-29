@@ -4,6 +4,7 @@ import WhatsAppFloat from '@/components/WhatsAppFloat';
 import BackToTop from '@/components/BackToTop';
 import MobileStickyCTA from '@/components/MobileStickyCTA';
 import PWAInstall from '@/components/PWAInstall';
+import { getActiveTheme } from '@/lib/data';
 
 const OG_IMAGE =
   'https://bbdatviaaiqpfvwumkkd.supabase.co/storage/v1/object/public/products/og-default.jpg';
@@ -34,9 +35,11 @@ export const metadata = {
   icons: { icon: '/icons/icon-192.svg', apple: '/icons/icon-192.svg' },
 };
 
-export default function RootLayout({ children }) {
+export default async function RootLayout({ children }) {
+  const theme = await getActiveTheme();
+
   return (
-    <html lang="en">
+    <html lang="en" data-theme={theme}>
       <head>
         {/* FIX: removed user-scalable=no and maximum-scale=1 — these block scroll events on Android */}
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -45,6 +48,13 @@ export default function RootLayout({ children }) {
         <meta property="og:image:height" content="630" />
         <meta property="og:image:type" content="image/jpeg" />
         <meta name="twitter:image" content={OG_IMAGE} />
+        {/* Google Fonts — all theme fonts loaded upfront so switching is instant */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=Syne:wght@400;600;700&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300&display=swap"
+          rel="stylesheet"
+        />
         {/* Google Analytics */}
         <script async src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} />
         <script
@@ -60,7 +70,7 @@ export default function RootLayout({ children }) {
           }}
         />
       </head>
-      <body className="bg-[#faf8f4] text-[#2c1f14] antialiased">
+      <body className="antialiased">
         {children}
         <PWAInstall />
         <WhatsAppFloat />

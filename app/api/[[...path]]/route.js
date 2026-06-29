@@ -925,7 +925,7 @@ async function handle(request, { params }) {
   }
 
   if (segments[0] === 'settings') {
-    if (method === 'GET') { const { data: settings, error: settingsError } = await supabase.from('settings').select('username').single(); if (settingsError) return json({ error: 'Settings unavailable' }, 503); return json({ username: settings?.username || 'admin' }); }
+    if (method === 'GET') { const { data: settings, error: settingsError } = await supabase.from('settings').select('username, theme').single(); if (settingsError) return json({ error: 'Settings unavailable' }, 503); return json({ username: settings?.username || 'admin', theme: settings?.theme || 'pure' }); }
     if (method === 'PUT') {
       const { action, currentPassword, newPassword, confirmPassword, newUsername } = body || {};
       const { data: settings, error: settingsError } = await supabase.from('settings').select('*').single();
@@ -947,6 +947,16 @@ async function handle(request, { params }) {
         const { error: updateError } = await supabase.from('settings').update({ username: trimmed }).eq('id', cur.id);
         if (updateError) return json({ error: 'Failed to update username' }, 500);
         return json({ success: true, username: trimmed });
+      }
+      if (action === 'change-theme') {
+        const authError = requireAdmin(request);
+        if (authError) return authError;
+        const { theme } = body || {};
+        const validThemes = ['pure', 'horizon', 'obsidian', 'sand'];
+        if (!validThemes.includes(theme)) return json({ error: 'Invalid theme' }, 400);
+        const { error: updateError } = await supabase.from('settings').update({ theme }).eq('id', cur.id);
+        if (updateError) return json({ error: 'Failed to update theme' }, 500);
+        return json({ success: true, theme });
       }
       return json({ error: 'Unknown action' }, 400);
     }

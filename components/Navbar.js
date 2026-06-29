@@ -70,7 +70,7 @@ export default function Navbar() {
 
   return (
     <>
-      <header className={`sticky top-0 z-40 bg-white border-b border-sethi-gray200 transition-shadow ${scrolled ? 'shadow-[0_2px_12px_rgba(0,0,0,0.06)]' : ''}`}>
+      <header className={`sticky top-0 z-40 bg-sethi-card border-b border-sethi-gray200 transition-shadow ${scrolled ? 'shadow-[0_2px_12px_rgba(0,0,0,0.06)]' : ''}`}>
         <div className="container-sethi h-16 md:h-20 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -90,10 +90,10 @@ export default function Navbar() {
           {/* Desktop right */}
           <div className="hidden lg:flex items-center gap-3">
             {!isHome && (
-              <Link href="/#products" className="relative inline-flex items-center justify-center w-11 h-11 text-sethi-gold hover:text-[#a07a28] transition-colors">
+              <Link href="/#products" className="relative inline-flex items-center justify-center w-11 h-11 text-sethi-gold hover:text-sethi-gold-dark transition-colors">
                 <ShoppingBag className="w-6 h-6" />
                 {cartCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-sethi-gold text-[#2c1f14] text-[11px] font-bold flex items-center justify-center">
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-sethi-gold text-sethi-card text-[11px] font-bold flex items-center justify-center">
                     {cartCount}
                   </span>
                 )}
@@ -115,7 +115,7 @@ export default function Navbar() {
                 className="relative inline-flex items-center justify-center w-12 h-12 rounded-full text-sethi-gold active:bg-sethi-gold/10">
                 <ShoppingBag className="w-6 h-6" />
                 {cartCount > 0 && (
-                  <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-sethi-gold text-[#2c1f14] text-[11px] font-bold flex items-center justify-center">
+                  <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-sethi-gold text-sethi-card text-[11px] font-bold flex items-center justify-center">
                     {cartCount}
                   </span>
                 )}
@@ -141,7 +141,7 @@ export default function Navbar() {
             width: '100vw',
             height: '100vh',
             zIndex: 99998,
-            backgroundColor: '#2c1f14',
+            backgroundColor: 'var(--theme-nav-bg)',
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
@@ -153,7 +153,7 @@ export default function Navbar() {
             <img src={LOGO_URL} alt={BUSINESS.name} style={{ height: 36, objectFit: 'contain', background: 'white', padding: 2, borderRadius: 2 }} />
             <button
               onClick={() => setOpen(false)}
-              style={{ width: 48, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c9a84c', borderRadius: '50%', background: 'transparent', border: 'none', cursor: 'pointer' }}
+              style={{ width: 48, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--theme-nav-accent)', borderRadius: '50%', background: 'transparent', border: 'none', cursor: 'pointer' }}
               aria-label="Close menu"
             >
               <X style={{ width: 28, height: 28 }} />
@@ -175,7 +175,7 @@ export default function Navbar() {
                     fontWeight: 600,
                     padding: '16px 0',
                     borderBottom: '1px solid rgba(255,255,255,0.1)',
-                    color: active ? '#c9a84c' : '#ffffff',
+                    color: active ? 'var(--theme-nav-accent)' : 'rgba(255,255,255,0.85)',
                     textDecoration: 'none',
                     display: 'flex',
                     alignItems: 'center',
@@ -183,7 +183,7 @@ export default function Navbar() {
                   }}
                 >
                   {l.label}
-                  {active && <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#c9a84c', flexShrink: 0 }} />}
+                  {active && <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: 'var(--theme-nav-accent)', flexShrink: 0 }} />}
                 </Link>
               );
             })}
@@ -203,11 +203,11 @@ export default function Navbar() {
                 gap: 8,
                 width: '100%',
                 minHeight: 56,
-                backgroundColor: '#c9a84c',
-                color: '#2c1f14',
+                backgroundColor: 'var(--theme-nav-accent)',
+                color: 'var(--theme-nav-bg)',
                 fontWeight: 700,
                 fontSize: 16,
-                borderRadius: 2,
+                borderRadius: 'var(--theme-radius)',
                 textDecoration: 'none',
               }}
             >

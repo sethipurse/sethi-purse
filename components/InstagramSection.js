@@ -23,17 +23,17 @@ export default function InstagramSection() {
   }, []);
 
   return (
-    <section className="section-pad bg-[#faf8f4]">
+    <section className="section-pad bg-sethi-white">
       <div className="container-sethi">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <Instagram className="w-6 h-6 text-[#c9a84c]" />
-              <span className="text-sm font-semibold text-[#8a7060] uppercase tracking-wider">Follow Us</span>
+              <Instagram className="w-6 h-6 text-sethi-gold" />
+              <span className="text-sm font-semibold text-sethi-gray500 uppercase tracking-wider">Follow Us</span>
             </div>
             <h2 className="heading-section">@{HANDLE}</h2>
-            <p className="mt-2 text-[#8a7060]">Latest bags, offers and store updates on Instagram.</p>
+            <p className="mt-2 text-sethi-gray500">Latest bags, offers and store updates on Instagram.</p>
           </div>
           <a
             href={PROFILE_URL}
@@ -49,13 +49,13 @@ export default function InstagramSection() {
         {loading ? (
           <div className="grid grid-cols-3 gap-2 md:gap-3">
             {Array.from({ length: 9 }).map((_, i) => (
-              <div key={i} className="aspect-square rounded-sm bg-[#ede8df] animate-pulse" />
+              <div key={i} className="aspect-square rounded-sm bg-sethi-gray200 animate-pulse" />
             ))}
           </div>
         ) : posts.length === 0 ? (
-          <div className="text-center py-8 text-[#8a7060]">
+          <div className="text-center py-8 text-sethi-gray500">
             <Instagram className="w-12 h-12 mx-auto mb-3 opacity-30" />
-            <p>Follow us on Instagram <a href={PROFILE_URL} target="_blank" rel="noopener noreferrer" className="text-[#c9a84c] font-semibold hover:underline">@{HANDLE}</a></p>
+            <p>Follow us on Instagram <a href={PROFILE_URL} target="_blank" rel="noopener noreferrer" className="text-sethi-gold font-semibold hover:underline">@{HANDLE}</a></p>
           </div>
         ) : (
           <div className="grid grid-cols-3 gap-2 md:gap-3">
@@ -74,7 +74,7 @@ export default function InstagramSection() {
                   href={post.permalink || PROFILE_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group relative aspect-square overflow-hidden rounded-sm bg-[#f5f0e8]"
+                  className="group relative aspect-square overflow-hidden rounded-sm bg-sethi-ivory"
                 >
                   {img && (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -105,9 +105,9 @@ export default function InstagramSection() {
 
         {/* Bottom CTA */}
         <div className="mt-6 text-center">
-          <p className="text-[#8a7060] text-sm">
+          <p className="text-sethi-gray500 text-sm">
             See our latest collection and offers →{' '}
-            <a href={PROFILE_URL} target="_blank" rel="noopener noreferrer" className="text-[#c9a84c] font-semibold hover:underline">
+            <a href={PROFILE_URL} target="_blank" rel="noopener noreferrer" className="text-sethi-gold font-semibold hover:underline">
               @{HANDLE}
             </a>
           </p>
