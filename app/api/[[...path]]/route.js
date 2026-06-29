@@ -890,7 +890,8 @@ async function handle(request, { params }) {
     if (segments[1] === 'session' && method === 'GET') return json({ authenticated: !!request.cookies.get('sethi_admin_session')?.value });
     if (segments[1] === 'login' && method === 'POST') {
       const authLimited = rateLimit(request, 'admin-login', 8); if (authLimited) return authLimited;
-      const { data: settings } = await supabase.from('settings').select('*').single();
+      const { data: settings, error: settingsError } = await supabase.from('settings').select('*').single();
+      if (settingsError) return json({ error: 'Auth service unavailable' }, 503);
       const { username, password } = body || {};
       const validUser = settings?.username || 'admin'; const validPass = settings?.password || 'sethi2024';
       if (username === validUser && password === validPass) { const token = makeAdminToken(); return setAdminCookie(json({ success: true, token }), token); }
@@ -924,24 +925,28 @@ async function handle(request, { params }) {
   }
 
   if (segments[0] === 'settings') {
-    if (method === 'GET') { const { data: settings } = await supabase.from('settings').select('username').single(); return json({ username: settings?.username || 'admin' }); }
+    if (method === 'GET') { const { data: settings, error: settingsError } = await supabase.from('settings').select('username').single(); if (settingsError) return json({ error: 'Settings unavailable' }, 503); return json({ username: settings?.username || 'admin' }); }
     if (method === 'PUT') {
       const { action, currentPassword, newPassword, confirmPassword, newUsername } = body || {};
-      const { data: settings } = await supabase.from('settings').select('*').single();
+      const { data: settings, error: settingsError } = await supabase.from('settings').select('*').single();
+      if (settingsError) return json({ error: 'Settings unavailable' }, 503);
       const cur = settings || { username: 'admin', password: 'sethi2024' };
       if (action === 'change-password') {
         if (!currentPassword || !newPassword || !confirmPassword) return json({ error: 'All fields required' }, 400);
         if (currentPassword !== cur.password) return json({ error: 'Current password incorrect' }, 400);
         if (newPassword.length < 6) return json({ error: 'Password must be at least 6 characters' }, 400);
         if (newPassword !== confirmPassword) return json({ error: 'Passwords do not match' }, 400);
-        await supabase.from('settings').update({ password: newPassword }).eq('id', cur.id);
+        const { error: updateError } = await supabase.from('settings').update({ password: newPassword }).eq('id', cur.id);
+        if (updateError) return json({ error: 'Failed to update password' }, 500);
         return json({ success: true });
       }
       if (action === 'change-username') {
         if (!newUsername || !currentPassword) return json({ error: 'Username and password required' }, 400);
         if (currentPassword !== cur.password) return json({ error: 'Current password incorrect' }, 400);
-        await supabase.from('settings').update({ username: String(newUsername).trim() }).eq('id', cur.id);
-        return json({ success: true, username: String(newUsername).trim() });
+        const trimmed = String(newUsername).trim();
+        const { error: updateError } = await supabase.from('settings').update({ username: trimmed }).eq('id', cur.id);
+        if (updateError) return json({ error: 'Failed to update username' }, 500);
+        return json({ success: true, username: trimmed });
       }
       return json({ error: 'Unknown action' }, 400);
     }
