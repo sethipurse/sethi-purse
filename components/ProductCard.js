@@ -129,24 +129,24 @@ export default function ProductCard({ product, onAddToCart }) {
 
         {/* Scarcity signals */}
         {isScarcityOn && !outOfStock && (
-          <div className="mt-2 flex flex-col gap-1">
+          <div className="mt-2 flex flex-col gap-2">
             {displayStock != null && (
-              <div className="flex items-center gap-1 text-xs font-semibold text-red-600">
+              <div className="flex items-center gap-2 text-xs font-semibold text-red-600">
                 <Flame className="w-3 h-3" /> Only {displayStock} left in stock!
               </div>
             )}
             {viewers != null && (
-              <div className="flex items-center gap-1 text-xs text-[#8a7060]">
+              <div className="flex items-center gap-2 text-xs text-[#8a7060]">
                 <Eye className="w-3 h-3" /> {viewers} people viewing this
               </div>
             )}
             {product.local_scarcity && (
-              <div className="flex items-center gap-1 text-xs text-[#8a7060]">
+              <div className="flex items-center gap-2 text-xs text-[#8a7060]">
                 <MapPin className="w-3 h-3" /> Popular in your area
               </div>
             )}
             {timeLeft && (
-              <div className="flex items-center gap-1 text-xs font-semibold text-orange-600">
+              <div className="flex items-center gap-2 text-xs font-semibold text-orange-600">
                 <Clock className="w-3 h-3" /> Price locked: {timeLeft}
               </div>
             )}
