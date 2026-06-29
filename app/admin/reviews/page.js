@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import AdminShell from '@/components/AdminShell';
 import StarRating from '@/components/StarRating';
 import { toast } from 'sonner';
-import { Plus, Trash2, Edit, ImageOff, Loader2, Star as StarIcon, X } from 'lucide-react';
+import { Plus, Trash2, Edit, ImageOff, Loader2, Star as StarIcon, X, Square, CheckSquare } from 'lucide-react';
 import { getInitials } from '@/lib/constants';
 
 const EMPTY = { customerName: '', customerPhoto: '', rating: 5, reviewText: '', isFeatured: false };
@@ -14,7 +14,10 @@ export default function AdminReviewsPage() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
-  const [confirm, setConfirm] = useState(null);
+  const [confirm,      setConfirm]      = useState(null);
+  const [selected,     setSelected]     = useState(new Set());
+  const [bulkConfirm,  setBulkConfirm]  = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -113,6 +116,41 @@ export default function AdminReviewsPage() {
     }
   };
 
+  const clearSelection = () => setSelected(new Set());
+
+  const toggleSelect = (id) => setSelected((prev) => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+
+  const allSelected = reviews.length > 0 && reviews.every((r) => selected.has(r.id));
+
+  const toggleAll = () => {
+    if (allSelected) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(reviews.map((r) => r.id)));
+    }
+  };
+
+  const doBulkDelete = async () => {
+    setBulkDeleting(true);
+    const ids = [...selected];
+    const results = await Promise.allSettled(
+      ids.map((id) => fetch(`/api/reviews/${encodeURIComponent(id)}`, { method: 'DELETE' }))
+    );
+    const failed = results.filter((r) => r.status === 'rejected' || !r.value?.ok).length;
+    setBulkDeleting(false);
+    setBulkConfirm(false);
+    clearSelection();
+    if (failed > 0) toast.error(`${failed} deletion${failed > 1 ? 's' : ''} failed`);
+    else toast.success(`${ids.length} review${ids.length > 1 ? 's' : ''} deleted`);
+    load();
+  };
+
+  const selectedCount = selected.size;
+
   return (
     <AdminShell>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
@@ -120,37 +158,67 @@ export default function AdminReviewsPage() {
         <button onClick={openNew} className="btn-primary"><Plus className="w-4 h-4" /> Add Review</button>
       </div>
 
+      {selectedCount > 0 && (
+        <div className="flex items-center justify-between bg-sethi-black text-white rounded-sm px-4 py-3 mb-4">
+          <span className="text-sm font-medium">{selectedCount} review{selectedCount > 1 ? 's' : ''} selected</span>
+          <div className="flex items-center gap-3">
+            <button onClick={clearSelection} className="text-sm text-white/70 hover:text-white">Deselect all</button>
+            <button
+              onClick={() => setBulkConfirm(true)}
+              className="inline-flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-sm text-sm font-semibold hover:bg-red-700 transition-colors"
+            >
+              <Trash2 className="w-4 h-4" /> Delete {selectedCount} selected
+            </button>
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <div className="text-center py-12 text-sethi-gray500">Loading...</div>
       ) : reviews.length === 0 ? (
         <div className="bg-white border border-sethi-gray200 rounded-sm p-10 text-center text-sethi-gray500">No reviews yet.</div>
       ) : (
-        <div className="grid gap-4">
-          {reviews.map((r) => (
-            <div key={r.id} className="bg-white border border-sethi-gray200 rounded-sm p-5 flex items-start gap-4">
-              <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-sethi-gold bg-sethi-gold flex items-center justify-center shrink-0">
-                {getPhoto(r) ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={getPhoto(r)} alt={getName(r)} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-                ) : (
-                  <span className="font-serif text-base text-sethi-black font-bold">{getInitials(getName(r))}</span>
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-semibold">{getName(r)}</h3>
-                  <StarRating value={getRating(r)} size={14} />
-                  {getFeatured(r) && <span className="inline-block bg-sethi-gold text-sethi-black text-[10px] font-bold px-2 py-0.5 rounded-sm tracking-wide">FEATURED</span>}
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <button onClick={toggleAll} className="inline-flex items-center gap-1.5 text-sm text-sethi-gray500 hover:text-sethi-black">
+              {allSelected ? <CheckSquare className="w-4 h-4 text-sethi-gold" /> : <Square className="w-4 h-4" />}
+              {allSelected ? 'Deselect all' : 'Select all'}
+            </button>
+            {selectedCount > 0 && <span className="text-sm text-sethi-gold font-semibold">{selectedCount} selected</span>}
+          </div>
+          <div className="grid gap-4">
+            {reviews.map((r) => {
+              const isSel = selected.has(r.id);
+              return (
+                <div key={r.id} className={`bg-white border rounded-sm p-5 flex items-start gap-4 transition-colors ${isSel ? 'border-sethi-gold bg-sethi-gold/5' : 'border-sethi-gray200'}`}>
+                  <button onClick={() => toggleSelect(r.id)} className="mt-1 shrink-0 text-sethi-gray500 hover:text-sethi-black">
+                    {isSel ? <CheckSquare className="w-5 h-5 text-sethi-gold" /> : <Square className="w-5 h-5" />}
+                  </button>
+                  <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-sethi-gold bg-sethi-gold flex items-center justify-center shrink-0">
+                    {getPhoto(r) ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={getPhoto(r)} alt={getName(r)} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                    ) : (
+                      <span className="font-serif text-base text-sethi-black font-bold">{getInitials(getName(r))}</span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-semibold">{getName(r)}</h3>
+                      <StarRating value={getRating(r)} size={14} />
+                      {getFeatured(r) && <span className="inline-block bg-sethi-gold text-sethi-black text-[10px] font-bold px-2 py-0.5 rounded-sm tracking-wide">FEATURED</span>}
+                    </div>
+                    <p className="text-sm text-sethi-gray800 mt-1 italic line-clamp-2">&ldquo;{getText(r)}&rdquo;</p>
+                  </div>
+                  <div className="flex flex-col gap-2 shrink-0">
+                    <button onClick={() => toggleFeatured(r)} className={`inline-flex items-center gap-1 px-3 py-1 rounded-sm text-xs font-medium ${getFeatured(r) ? 'bg-sethi-gold text-sethi-black' : 'border border-sethi-gold text-sethi-gold hover:bg-sethi-gold hover:text-sethi-black'}`}><StarIcon className="w-3 h-3" /> {getFeatured(r) ? 'Featured' : 'Feature'}</button>
+                    <button onClick={() => openEdit(r)} className="inline-flex items-center gap-1 border border-sethi-gold text-sethi-gold px-3 py-1 rounded-sm hover:bg-sethi-gold hover:text-sethi-black text-xs"><Edit className="w-3 h-3" /> Edit</button>
+                    <button onClick={() => setConfirm(r)} className="inline-flex items-center gap-1 border border-red-500 text-red-600 px-3 py-1 rounded-sm hover:bg-red-500 hover:text-white text-xs"><Trash2 className="w-3 h-3" /> Delete</button>
+                  </div>
                 </div>
-                <p className="text-sm text-sethi-gray800 mt-1 italic line-clamp-2">&ldquo;{getText(r)}&rdquo;</p>
-              </div>
-              <div className="flex flex-col gap-2 shrink-0">
-                <button onClick={() => toggleFeatured(r)} className={`inline-flex items-center gap-1 px-3 py-1 rounded-sm text-xs font-medium ${getFeatured(r) ? 'bg-sethi-gold text-sethi-black' : 'border border-sethi-gold text-sethi-gold hover:bg-sethi-gold hover:text-sethi-black'}`}><StarIcon className="w-3 h-3" /> {getFeatured(r) ? 'Featured' : 'Feature'}</button>
-                <button onClick={() => openEdit(r)} className="inline-flex items-center gap-1 border border-sethi-gold text-sethi-gold px-3 py-1 rounded-sm hover:bg-sethi-gold hover:text-sethi-black text-xs"><Edit className="w-3 h-3" /> Edit</button>
-                <button onClick={() => setConfirm(r)} className="inline-flex items-center gap-1 border border-red-500 text-red-600 px-3 py-1 rounded-sm hover:bg-red-500 hover:text-white text-xs"><Trash2 className="w-3 h-3" /> Delete</button>
-              </div>
-            </div>
-          ))}
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -208,10 +276,27 @@ export default function AdminReviewsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 md:pl-[260px]">
           <div className="bg-white rounded-sm p-6 max-w-md w-full">
             <h3 className="font-serif text-xl mb-2">Delete review?</h3>
-            <p className="text-sethi-gray500 text-sm mb-5">Are you sure you want to delete review from "{confirm ? getName(confirm) : ''}"?</p>
+            <p className="text-sethi-gray500 text-sm mb-5">Are you sure you want to delete the review from <strong>{confirm ? getName(confirm) : ''}</strong>? This cannot be undone.</p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setConfirm(null)} className="btn-ghost">Cancel</button>
               <button onClick={() => doDelete(confirm.id)} className="inline-flex items-center gap-2 min-h-[48px] px-6 bg-red-600 text-white font-semibold rounded-sm hover:bg-red-700">Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bulkConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 md:pl-[260px]">
+          <div className="bg-white rounded-sm p-6 max-w-md w-full">
+            <h3 className="font-serif text-xl mb-2 text-red-700">Delete {selectedCount} review{selectedCount > 1 ? 's' : ''}?</h3>
+            <p className="text-sethi-gray500 text-sm mb-5">You are about to permanently delete <strong>{selectedCount} review{selectedCount > 1 ? 's' : ''}</strong>. This cannot be undone.</p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setBulkConfirm(false)} disabled={bulkDeleting} className="btn-ghost">Cancel</button>
+              <button onClick={doBulkDelete} disabled={bulkDeleting} className="inline-flex items-center gap-2 min-h-[48px] px-6 bg-red-600 text-white font-semibold rounded-sm hover:bg-red-700 disabled:opacity-60">
+                {bulkDeleting
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Deleting…</>
+                  : <><Trash2 className="w-4 h-4" /> Delete {selectedCount}</>}
+              </button>
             </div>
           </div>
         </div>
