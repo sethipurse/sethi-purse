@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, Clock, Eye, Flame, MapPin, MessageCircle, Minus, Plus, Share2, ShoppingBag, Star } from 'lucide-react';
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, Clock, Eye, Flame, MapPin, MessageCircle, Minus, Plus, Share2, ShoppingBag, Star, TrendingUp, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import ProductCard from '@/components/ProductCard';
 import ReviewCard from '@/components/ReviewCard';
@@ -372,12 +372,12 @@ export default function ProductDetailClient({ product, related = [], reviews = [
               <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 flex flex-col gap-2">
                 {product.scarcity_label && (
                   <div className="flex items-center gap-2 text-sm font-bold text-red-700">
-                    <Flame className="w-4 h-4" /> {product.scarcity_label}
+                    <TrendingUp className="w-4 h-4" /> {product.scarcity_label}
                   </div>
                 )}
                 {displayStock != null && (
                   <div className="flex items-center gap-2 text-sm font-semibold text-red-600">
-                    <Flame className="w-4 h-4" /> Only {displayStock} left in stock — order soon!
+                    <AlertCircle className="w-4 h-4" /> Only {displayStock} left in stock — order soon!
                   </div>
                 )}
                 {viewers != null && (
