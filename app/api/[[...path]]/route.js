@@ -762,7 +762,6 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
       detail:          `Close-up macro product photography, ${productCtx}, handle and zipper hardware details, white background, sharp focus, high detail, professional`,
     };
 
-    const geminiPrompt = geminiPrompts[angle] || geminiPrompts.front;
     const sdxlPrompt = sdxlPrompts[angle] || sdxlPrompts.front;
     const errors = [];
 
@@ -776,14 +775,13 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
       return publicUrl;
     };
 
-    // Helper: detect image from raw buffer by magic bytes
+    // Helper: detect image by magic bytes (reliable across providers)
     const extractImageBuf = (ab) => {
       const bytes = new Uint8Array(ab);
       const isPNG = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47;
       const isJPEG = bytes[0] === 0xFF && bytes[1] === 0xD8;
       if (isPNG) return { buf: Buffer.from(ab), mime: 'image/png' };
       if (isJPEG) return { buf: Buffer.from(ab), mime: 'image/jpeg' };
-      // Try JSON wrapper (Cloudflare sometimes wraps in JSON)
       try {
         const parsed = JSON.parse(Buffer.from(ab).toString('utf8'));
         if (parsed.result?.image) return { buf: Buffer.from(parsed.result.image, 'base64'), mime: 'image/png' };
@@ -791,50 +789,25 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
       return null;
     };
 
-    // 1. Gemini image generation — try two models
-    const geminiKey = process.env.GEMINI_API_KEY;
-    if (geminiKey && imageUrl) {
-      let productImgBase64 = null; let productImgMime = 'image/jpeg';
-      try {
-        const imgRes = await fetch(imageUrl, { signal: AbortSignal.timeout(10000) });
-        if (imgRes.ok) {
-          productImgMime = imgRes.headers.get('content-type') || 'image/jpeg';
-          productImgBase64 = Buffer.from(await imgRes.arrayBuffer()).toString('base64');
+    // 1. Pollinations.ai — free, no API key, FLUX model
+    try {
+      const polUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(sdxlPrompt)}?width=800&height=800&model=flux&nologo=true&seed=${Math.floor(Math.random() * 99999)}`;
+      const polRes = await fetch(polUrl, { signal: AbortSignal.timeout(90000) });
+      if (polRes.ok) {
+        const ab = await polRes.arrayBuffer();
+        const img = extractImageBuf(ab);
+        if (img) {
+          const url = await uploadImgBuf(img.buf, img.mime, 'pol');
+          console.log(`✅ generate-gallery Pollinations OK (${angle})`);
+          return json({ url, source: 'pollinations' });
         }
-      } catch (e) { errors.push(`fetch-img: ${e.message}`); }
-
-      if (productImgBase64) {
-        for (const model of ['gemini-2.0-flash-exp', 'gemini-2.0-flash-preview-image-generation']) {
-          const ctrl = new AbortController();
-          const t = setTimeout(() => ctrl.abort(), 45000);
-          try {
-            const gRes = await fetch(
-              `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
-              {
-                method: 'POST', signal: ctrl.signal,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  contents: [{ parts: [{ text: geminiPrompt }, { inline_data: { mime_type: productImgMime, data: productImgBase64 } }] }],
-                  generationConfig: { responseModalities: ['IMAGE'] },
-                }),
-              }
-            );
-            clearTimeout(t);
-            const gData = await gRes.json().catch(() => ({}));
-            if (!gRes.ok) { errors.push(`gemini(${model}): ${gData?.error?.message || gRes.status}`); continue; }
-            const imgPart = gData?.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
-            if (!imgPart) { errors.push(`gemini(${model}): no image part in response`); continue; }
-            const mime = imgPart.inlineData.mimeType || 'image/png';
-            const buf = Buffer.from(imgPart.inlineData.data, 'base64');
-            const url = await uploadImgBuf(buf, mime, 'g');
-            console.log(`✅ generate-gallery ${model} OK (${angle})`);
-            return json({ url, source: model });
-          } catch (e) { clearTimeout(t); errors.push(`gemini(${model}): ${e.message}`); }
-        }
+        errors.push('pollinations: response not a valid image');
+      } else {
+        errors.push(`pollinations(${polRes.status}): ${await polRes.text().catch(() => '')}`);
       }
-    }
+    } catch (e) { errors.push(`pollinations: ${e.message}`); }
 
-    // 2. Cloudflare Workers AI — try 3 image models
+    // 2. Cloudflare Workers AI — fallback, try 3 models
     const cfId = (process.env.CLOUDFLARE_ACCOUNT_ID || '').trim();
     const cfToken = (process.env.CLOUDFLARE_API_TOKEN || '').trim();
     if (cfId && cfToken) {
@@ -859,7 +832,7 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
           const ab = await cfRes.arrayBuffer();
           if (!cfRes.ok) { errors.push(`cf(${cfModel})(${cfRes.status}): ${Buffer.from(ab).toString('utf8').slice(0, 200)}`); continue; }
           const img = extractImageBuf(ab);
-          if (!img) { errors.push(`cf(${cfModel}): unrecognised response format`); continue; }
+          if (!img) { errors.push(`cf(${cfModel}): unrecognised response`); continue; }
           const url = await uploadImgBuf(img.buf, img.mime, 'cf');
           console.log(`✅ generate-gallery ${cfModel} OK (${angle})`);
           return json({ url, source: cfModel });
