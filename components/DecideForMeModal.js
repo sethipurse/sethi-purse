@@ -92,7 +92,23 @@ export default function DecideForMeModal({ onClose }) {
         {step === 'form' && (
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-              <Sparkles size={22} color="#c9a84c" />
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                {[
+                  { id: 'dm-b', c1: '#c9a84c', c2: '#f0d070', cls: 'uv-dash' },
+                  { id: 'dm-c', c1: '#c9a84c', c2: '#a06aff', cls: 'uv-spin' },
+                  { id: 'dm-d', c1: '#a06aff', c2: '#4ac9c0', cls: 'uv-dash' },
+                ].map(({ id, c1, c2, cls }) => (
+                  <svg key={id} width="24" height="24" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ margin: '0 2px' }}>
+                    <defs>
+                      <linearGradient id={id} x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor={c1} />
+                        <stop offset="100%" stopColor={c2} />
+                      </linearGradient>
+                    </defs>
+                    <circle className={cls} cx="60" cy="60" r="54" stroke={`url(#${id})`} strokeWidth="6" strokeLinecap="round" fill="none" />
+                  </svg>
+                ))}
+              </div>
               <h2 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 22, fontWeight: 700, color: '#2c1f14', margin: 0 }}>Bas best wala de do!</h2>
             </div>
             <p style={{ fontSize: 13, color: '#8a7060', marginBottom: 22 }}>3 sawaal — hum choose karenge aapke liye 😊</p>
