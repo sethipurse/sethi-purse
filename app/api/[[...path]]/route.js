@@ -276,7 +276,9 @@ function matchProducts(query, products, priceRange, limit = 10, dbCategories = [
   return { matched, upsells };
 }
 
-const TIER_MS = 5000;
+const GROQ_MS = 10000;
+const OPENROUTER_MS = 12000;
+const CF_MS = 10000;
 const GEMINI_MODEL = 'gemini-2.5-flash-lite';
 
 function toOpenAI(messages) {
@@ -287,7 +289,7 @@ async function callGroq(messages, sys, key) {
   const models = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
   for (const model of models) {
     const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), TIER_MS);
+    const t = setTimeout(() => ctrl.abort(), GROQ_MS);
     try {
       const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST', signal: ctrl.signal,
@@ -316,7 +318,7 @@ async function callGroq(messages, sys, key) {
 
 async function callOpenRouter(messages, sys, key) {
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), TIER_MS);
+  const t = setTimeout(() => ctrl.abort(), OPENROUTER_MS);
   try {
     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST', signal: ctrl.signal,
@@ -337,7 +339,7 @@ async function callOpenRouter(messages, sys, key) {
 
 async function callCloudflare(messages, sys, accountId, token) {
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), TIER_MS);
+  const t = setTimeout(() => ctrl.abort(), CF_MS);
   try {
     const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/@cf/meta/llama-3.1-8b-instruct`, {
       method: 'POST', signal: ctrl.signal,

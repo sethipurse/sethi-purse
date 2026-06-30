@@ -80,7 +80,10 @@ function AIChatPanel({ onClose, products }) {
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingSlow, setLoadingSlow] = useState(false);
   const [contactCaptured, setContactCaptured] = useState(false);
+  const [whatsappPrefill, setWhatsappPrefill] = useState(null);
+  const slowTimerRef = useRef(null);
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef(null);
   const sessionIdRef = useRef(null);
@@ -108,21 +111,24 @@ function AIChatPanel({ onClose, products }) {
     setMessages(newMessages);
     setInput('');
     setLoading(true);
+    setLoadingSlow(false);
+    clearTimeout(slowTimerRef.current);
+    slowTimerRef.current = setTimeout(() => setLoadingSlow(true), 15000);
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: newMessages,
-          products, // ← now always populated (passed from parent)
+          products,
           sessionId: sessionIdRef.current,
           contactCaptured,
         }),
       });
       const data = await res.json();
       if (data.contactCaptured) setContactCaptured(true);
+      if (data.whatsappPrefill) setWhatsappPrefill(data.whatsappPrefill);
 
-      // FIX: strip any leaked "PRODUCTS: [...]" text the AI accidentally put in reply
       const cleanReply = (data.reply || 'Sorry, please try again!')
         .replace(/PRODUCTS?:\s*\[.*?\]/gi, '')
         .trim();
@@ -138,7 +144,9 @@ function AIChatPanel({ onClose, products }) {
     } catch {
       setMessages((prev) => [...prev, { role: 'assistant', content: 'Network error. Please WhatsApp us directly!' }]);
     } finally {
+      clearTimeout(slowTimerRef.current);
       setLoading(false);
+      setLoadingSlow(false);
     }
   }
 
@@ -170,7 +178,8 @@ function AIChatPanel({ onClose, products }) {
   }
 
   function fmt(text) {
-    return text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br/>');
+    const safe = text.replace(/<[^>]*>/g, '');
+    return safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br/>');
   }
 
   function buildContextWhatsAppLink() {
@@ -185,6 +194,7 @@ function AIChatPanel({ onClose, products }) {
   }
 
   const waLink = buildContextWhatsAppLink();
+  const waPrefillLink = whatsappPrefill ? buildWhatsAppLink(whatsappPrefill) : null;
 
   return (
     <div className="wa-chat-panel" style={{
@@ -303,14 +313,35 @@ function AIChatPanel({ onClose, products }) {
         ))}
 
         {loading && (
-          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6 }}>
             <div style={{ padding: '10px 14px', borderRadius: '16px 16px 16px 4px', backgroundColor: '#fff', border: '1px solid rgba(201,168,76,0.2)', display: 'flex', gap: 5, alignItems: 'center' }}>
               {[0, 1, 2].map((d) => (
                 <span key={d} style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: '#c9a84c', display: 'inline-block', animation: `ai-dot 1.2s ease-in-out ${d * 0.2}s infinite` }} />
               ))}
             </div>
+            {loadingSlow && (
+              <a href={waLink} target="_blank" rel="noopener noreferrer"
+                style={{ fontSize: 11.5, color: '#8a7060', textDecoration: 'underline', paddingLeft: 4 }}>
+                Taking longer than usual… try WhatsApp ↗
+              </a>
+            )}
           </div>
         )}
+
+        {/* Buy on WhatsApp CTA — shown when AI detects buy intent */}
+        {waPrefillLink && !loading && (
+          <a href={waPrefillLink} target="_blank" rel="noopener noreferrer" style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            backgroundColor: '#25D366', color: '#fff',
+            padding: '10px 14px', borderRadius: 12, textDecoration: 'none',
+            fontSize: 13, fontWeight: 700, fontFamily: 'system-ui, sans-serif',
+            boxShadow: '0 2px 10px rgba(37,211,102,0.3)', alignSelf: 'flex-start',
+          }}>
+            <WhatsAppIcon />
+            Buy on WhatsApp
+          </a>
+        )}
+
         <div ref={bottomRef} />
       </div>
 
