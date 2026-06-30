@@ -161,9 +161,7 @@ function AIChatPanel({ onClose, products }) {
     }
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     const rec = new SR();
-    const recentText = messages.filter((m) => m.role === 'user').slice(-3).map((m) => m.content || '').join(' ');
-    const isPunjabi = /[਀-੿]/.test(recentText) || ['kiddan','changa','dasso','tussi','koi gal'].some((w) => recentText.toLowerCase().includes(w));
-    rec.lang = isPunjabi ? 'pa-IN' : 'hi-IN';
+    rec.lang = 'hi-IN';
     rec.interimResults = false;
     rec.maxAlternatives = 1;
     rec.onresult = (e) => {

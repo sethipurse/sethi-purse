@@ -117,17 +117,11 @@ function hasBuyIntent(text) {
 
 function detectLanguage(messages) {
   const recentText = (messages || []).slice(-3).filter((m) => m.role === 'user').map((m) => m.content || '').join(' ');
-  // Gurmukhi script (Punjabi) \u2014 check BEFORE Devanagari to avoid false Hindi match
-  if (/[\u0A00-\u0A7F]/.test(recentText)) return 'punjabi';
-  // Devanagari script (Hindi)
   if (/[\u0900-\u097F]/.test(recentText)) return 'hindi';
-  const t = recentText.toLowerCase();
-  // Punjabi romanized \u2014 words unique to Punjabi not used in Hindi
-  const punjabiRomanized = ['kiddan','ki haal','changa','dasso','tussi','saadi','koi gal','sat sri','waheguru','haan ji','theek aa','nahi ji','dasoo','kiven','ki baat aa','sanu','tenu','menu','hor','fer','chakk','layo','honda','lagda','jaanda','aaunda'];
-  if (punjabiRomanized.some((w) => t.includes(w))) return 'punjabi';
-  // Hindi romanized
-  const hindiRomanized = ['kya','nahi','kaise','kitna','kitne','chahiye','lena','dena','batao','bhai','yaar','agar','mujhe','mere','mera','karo','kab','kahan','hoga','hain','toh','lekin','accha','theek','bilkul','zaroor'];
-  if (hindiRomanized.filter((w) => t.includes(w)).length >= 2) return 'hindi';
+  if (/[\u0A00-\u0A7F]/.test(recentText)) return 'punjabi';
+  const hindiRomanized = ['kya','hai','nahi','kaise','kitna','kitne','chahiye','lena','dena','batao','bhai','yaar','agar','aur','mujhe','mere','mera','karo','kab','kahan','hoga','hain','toh','lekin','sahi','accha','theek','bilkul','zaroor'];
+  const hindiMatches = hindiRomanized.filter((w) => recentText.toLowerCase().includes(w)).length;
+  if (hindiMatches >= 2) return 'hindi';
   return 'english';
 }
 
@@ -402,9 +396,7 @@ async function handleChat(body, cookieSessionId) {
   const language = detectLanguage(messages);
 
   if (detectRepeatedFrustration(messages)) {
-    const msg = language === 'punjabi'
-      ? "Lagda hai sahi jawab nahi mil raha ji — sorry! Seedha gall karo: +91 7986161633 🙏"
-      : language === 'hindi'
+    const msg = language === 'hindi'
       ? "Lagta hai sahi jawab nahi mil pa raha — sorry! Seedha baat karein: +91 7986161633 🙏"
       : "Looks like I'm not getting this right — sorry! Please WhatsApp our team directly: +91 7986161633 🙏";
     try {
@@ -484,18 +476,8 @@ async function handleChat(body, cookieSessionId) {
     ? `\n\n🎁 REFERRAL: If conversation is wrapping up positively, naturally add: "Apne dost ko bhi refer karo — dono ko special discount milega! Link: https://sethi-purse.vercel.app 😊"`
     : '';
 
-  const langInstr = language === 'punjabi'
-    ? '🌐 Reply in friendly Punjabi/Hinglish. Use words like "ji", "dasso", "changa", "kiddan", "tussi". Keep it warm and local.'
-    : language === 'hindi'
-    ? '🌐 Reply in friendly Hinglish (mix of Hindi and English). Natural, conversational tone.'
-    : '🌐 Reply in clear English. You may add a natural Hindi/Punjabi word occasionally for warmth.';
-  const leadInstr = shouldAskContact
-    ? language === 'punjabi'
-      ? '📞 LEAD: After answering, add: "Tussi apna naam te number share karo ji! 😊"'
-      : language === 'hindi'
-      ? '📞 LEAD: After answering, add: "Aapka naam aur number share karein! 😊"'
-      : '📞 LEAD: After answering, add: "Could I get your name and number? Our team will assist you! 😊"'
-    : '';
+  const langInstr = language === 'hindi' ? '🌐 Reply in friendly Hinglish.' : language === 'punjabi' ? '🌐 Reply in friendly Punjabi/Hinglish.' : '🌐 Reply in clear English with natural Hindi words.';
+  const leadInstr = shouldAskContact ? (language === 'hindi' ? '📞 LEAD: After answering, add: "Aapka naam aur number share karein! 😊"' : '📞 LEAD: After answering, add: "Could I get your name and number? Our team will assist you! 😊"') : '';
   const upsellInstr = upsellProducts.length > 0 ? '💡 UPSELL: Mention 1 upsell naturally if customer is budget-focused. Include its ID in PRODUCTS line.' : '';
 
   const systemPrompt = `You are a FRIENDLY, EXPERT sales assistant for SETHI PURSE, Punjab's trusted premium luggage store in Jalandhar.
