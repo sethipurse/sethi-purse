@@ -227,12 +227,15 @@ export default function ProductForm({ initial, productId, onSaved }) {
         if (res.ok && data.url) {
           setGalleryImages((prev) => [...prev, data.url]);
           successCount++;
+        } else {
+          console.warn(`Gallery angle ${GALLERY_ANGLES[i]} error:`, data.error);
+          if (i === 0) toast.error(data.error || 'Generation failed', { duration: 6000 });
         }
       } catch (e) { console.warn(`Gallery angle ${GALLERY_ANGLES[i]} failed:`, e); }
       setGalleryProgress(i + 1);
     }
-    if (successCount > 0) toast.success(`${successCount} AI photos added to gallery ✓`);
-    else toast.error('Generation failed — check API keys or try again');
+    if (successCount > 0) toast.success(`${successCount}/5 AI photos added to gallery ✓`);
+    else toast.error('All providers failed — see console for details');
     setGeneratingGallery(false);
     setGalleryProgress(0);
   };

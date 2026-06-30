@@ -720,47 +720,56 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
 
     const geminiPrompt = geminiPrompts[angle] || geminiPrompts.front;
     const sdxlPrompt = sdxlPrompts[angle] || sdxlPrompts.front;
+    const errors = [];
 
-    // 1. Gemini 2.0 Flash image generation (img2img — understands the uploaded product)
+    // 1. Gemini image generation — try two model names
     const geminiKey = process.env.GEMINI_API_KEY;
+    const GEMINI_IMG_MODELS = ['gemini-2.0-flash-exp', 'gemini-2.0-flash-exp-image-generation', 'gemini-2.0-flash-preview-image-generation'];
     if (geminiKey && imageUrl) {
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 45000);
+      let productImgBase64 = null; let productImgMime = 'image/jpeg';
       try {
-        const imgRes = await fetch(imageUrl);
+        const imgRes = await fetch(imageUrl, { signal: AbortSignal.timeout(10000) });
         if (imgRes.ok) {
-          const ct = imgRes.headers.get('content-type') || 'image/jpeg';
-          const base64 = Buffer.from(await imgRes.arrayBuffer()).toString('base64');
-          const gRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${geminiKey}`,
-            {
-              method: 'POST', signal: ctrl.signal,
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contents: [{ parts: [{ text: geminiPrompt }, { inline_data: { mime_type: ct, data: base64 } }] }],
-                generationConfig: { responseModalities: ['IMAGE'] },
-              }),
-            }
-          );
-          clearTimeout(t);
-          const gData = await gRes.json().catch(() => ({}));
-          const imgPart = gData?.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
-          if (imgPart) {
+          productImgMime = imgRes.headers.get('content-type') || 'image/jpeg';
+          productImgBase64 = Buffer.from(await imgRes.arrayBuffer()).toString('base64');
+        }
+      } catch (e) { errors.push(`fetch-product-img: ${e.message}`); }
+
+      if (productImgBase64) {
+        for (const model of GEMINI_IMG_MODELS) {
+          const ctrl = new AbortController();
+          const t = setTimeout(() => ctrl.abort(), 45000);
+          try {
+            const gRes = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
+              {
+                method: 'POST', signal: ctrl.signal,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [{ parts: [{ text: geminiPrompt }, { inline_data: { mime_type: productImgMime, data: productImgBase64 } }] }],
+                  generationConfig: { responseModalities: ['IMAGE'] },
+                }),
+              }
+            );
+            clearTimeout(t);
+            const gData = await gRes.json().catch(() => ({}));
+            if (!gRes.ok) { errors.push(`gemini(${model}): ${gData?.error?.message || gRes.status}`); continue; }
+            const imgPart = gData?.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
+            if (!imgPart) { errors.push(`gemini(${model}): no image in response`); continue; }
             const mime = imgPart.inlineData.mimeType || 'image/png';
             const buf = Buffer.from(imgPart.inlineData.data, 'base64');
             const fileName = `ai-gen/${Date.now()}-${angle}.${mime.includes('png') ? 'png' : 'jpg'}`;
             const { error: upErr } = await supabase.storage.from('products').upload(fileName, buf, { contentType: mime, upsert: false });
-            if (!upErr) {
-              const { data: { publicUrl } } = supabase.storage.from('products').getPublicUrl(fileName);
-              console.log(`✅ generate-gallery Gemini OK (${angle})`);
-              return json({ url: publicUrl, source: 'gemini' });
-            }
-          }
+            if (upErr) { errors.push(`gemini upload: ${upErr.message}`); continue; }
+            const { data: { publicUrl } } = supabase.storage.from('products').getPublicUrl(fileName);
+            console.log(`✅ generate-gallery ${model} OK (${angle})`);
+            return json({ url: publicUrl, source: model });
+          } catch (e) { clearTimeout(t); errors.push(`gemini(${model}): ${e.message}`); }
         }
-      } catch (e) { clearTimeout(t); console.warn(`generate-gallery Gemini failed (${angle}):`, e.message); }
+      }
     }
 
-    // 2. Fallback: Cloudflare Workers AI SDXL (text-to-image)
+    // 2. Fallback: Cloudflare Workers AI SDXL
     const cfId = (process.env.CLOUDFLARE_ACCOUNT_ID || '').trim();
     const cfToken = (process.env.CLOUDFLARE_API_TOKEN || '').trim();
     if (cfId && cfToken) {
@@ -776,9 +785,12 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
           }
         );
         clearTimeout(t2);
-        if (cfRes.ok) {
-          const ab = await cfRes.arrayBuffer();
-          const ctCf = cfRes.headers.get('content-type') || '';
+        const ab = await cfRes.arrayBuffer();
+        const ctCf = cfRes.headers.get('content-type') || '';
+        if (!cfRes.ok) {
+          const errText = Buffer.from(ab).toString('utf8').slice(0, 200);
+          errors.push(`cloudflare(${cfRes.status}): ${errText}`);
+        } else {
           let imgBuf;
           if (ctCf.startsWith('image/')) {
             imgBuf = Buffer.from(ab);
@@ -786,7 +798,8 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
             try {
               const parsed = JSON.parse(Buffer.from(ab).toString('utf8'));
               if (parsed.result?.image) imgBuf = Buffer.from(parsed.result.image, 'base64');
-            } catch (_) { /* not JSON */ }
+              else errors.push(`cloudflare: unexpected JSON — ${JSON.stringify(parsed).slice(0, 200)}`);
+            } catch (_) { errors.push('cloudflare: response is not image or JSON'); }
           }
           if (imgBuf) {
             const fileName = `ai-gen/${Date.now()}-${angle}-cf.png`;
@@ -795,13 +808,14 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
               const { data: { publicUrl } } = supabase.storage.from('products').getPublicUrl(fileName);
               console.log(`✅ generate-gallery Cloudflare SDXL OK (${angle})`);
               return json({ url: publicUrl, source: 'cloudflare' });
-            }
+            } else { errors.push(`cloudflare upload: ${upErr.message}`); }
           }
         }
-      } catch (e) { clearTimeout(t2); console.warn(`generate-gallery Cloudflare failed (${angle}):`, e.message); }
+      } catch (e) { clearTimeout(t2); errors.push(`cloudflare: ${e.message}`); }
     }
 
-    return json({ error: 'Image generation failed — check API keys and try again' }, 500);
+    console.error(`generate-gallery all failed (${angle}):`, errors);
+    return json({ error: errors[0] || 'All image providers failed', errors }, 500);
   }
 
   if (segments[0] === 'chat' && method === 'POST') {
