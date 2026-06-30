@@ -61,7 +61,13 @@ export default function RootLayout({ children }) {
         />
       </head>
       <body className="bg-[#faf8f4] text-[#2c1f14] antialiased">
-        {children}
+        {/* Aurora blobs — Design 4 warm light background effect */}
+        <div aria-hidden="true" style={{position:'fixed',inset:0,zIndex:0,pointerEvents:'none',overflow:'hidden'}}>
+          <div style={{position:'absolute',width:500,height:500,borderRadius:'50%',filter:'blur(70px)',background:'rgba(201,168,76,0.16)',top:-100,right:-80,animation:'aurora-float 14s ease-in-out infinite'}} />
+          <div style={{position:'absolute',width:400,height:400,borderRadius:'50%',filter:'blur(70px)',background:'rgba(201,100,60,0.1)',bottom:-60,left:-60,animation:'aurora-float 18s ease-in-out infinite reverse'}} />
+          <div style={{position:'absolute',width:350,height:350,borderRadius:'50%',filter:'blur(70px)',background:'rgba(140,100,200,0.08)',top:'40%',left:'30%',animation:'aurora-float 12s ease-in-out infinite 3s'}} />
+        </div>
+        <div style={{position:'relative',zIndex:1}}>{children}</div>
         <PWAInstall />
         <WhatsAppFloat />
         <MobileStickyCTA />

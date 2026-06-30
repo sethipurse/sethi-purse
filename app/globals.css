@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Aurora blob animation — used by layout.js */
+@keyframes aurora-float {
+  0%,100% { transform: translate(0,0) scale(1); }
+  50%      { transform: translate(30px,-25px) scale(1.08); }
+}
+
 @layer base {
   :root {
     --font-cormorant: 'Cormorant Garamond', Georgia, serif;
@@ -131,20 +137,21 @@
     min-height: 52px;
     padding: 14px 32px;
     background: #c9a84c;
-    color: #2c1f14;
+    color: #fff;
     font-weight: 600;
-    border-radius: 2px;
-    transition: background 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+    border-radius: 50px;
+    transition: background 0.25s ease, transform 0.2s ease, box-shadow 0.25s ease;
     cursor: pointer;
     text-decoration: none;
     position: relative;
     overflow: hidden;
+    box-shadow: 0 8px 32px rgba(201,168,76,0.35);
   }
   .btn-primary:hover {
     background: #a07a28;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 16px rgba(201,168,76,0.35);
-    color: #2c1f14;
+    transform: translateY(-3px);
+    box-shadow: 0 12px 48px rgba(160,122,40,0.4);
+    color: #fff;
   }
   .btn-primary:active {
     transform: scale(0.97) translateY(0);
@@ -159,19 +166,19 @@
     min-height: 52px;
     padding: 14px 32px;
     background: transparent;
-    border: 1.5px solid #c9a84c;
-    color: #c9a84c;
+    border: 1.5px solid rgba(201,168,76,0.4);
+    color: #a07a28;
     font-weight: 600;
-    border-radius: 2px;
-    transition: background 0.2s ease, color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+    border-radius: 50px;
+    transition: background 0.25s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.25s ease;
     cursor: pointer;
     text-decoration: none;
   }
   .btn-secondary:hover {
-    background: #c9a84c;
-    color: #2c1f14;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 16px rgba(201,168,76,0.25);
+    background: rgba(201,168,76,0.08);
+    border-color: #c9a84c;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(201,168,76,0.15);
   }
   .btn-secondary:active {
     transform: scale(0.97) translateY(0);
@@ -196,22 +203,32 @@
 
   /* ── Product Card ── */
   .card-sethi {
-    background: #fff;
-    border: 1px solid #ede8df;
-    border-radius: 4px;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-    transition: transform 0.3s cubic-bezier(0.25,0.46,0.45,0.94),
-                box-shadow 0.3s cubic-bezier(0.25,0.46,0.45,0.94),
-                border-color 0.3s ease;
-    will-change: transform;
+    background: rgba(255,255,255,0.85);
+    border: 1px solid rgba(201,168,76,0.18);
+    border-radius: 20px;
+    box-shadow: 0 4px 24px rgba(44,31,20,0.07);
+    transition: transform 0.4s ease,
+                box-shadow 0.4s ease,
+                border-color 0.4s ease;
+    animation: card-breathe 5s ease-in-out infinite;
+  }
+  .card-sethi:nth-child(2) { animation-delay: -1.7s; }
+  .card-sethi:nth-child(3) { animation-delay: -3.4s; }
+  .card-sethi:nth-child(4) { animation-delay: -0.8s; }
+  .card-sethi:nth-child(5) { animation-delay: -2.5s; }
+  .card-sethi:nth-child(6) { animation-delay: -4.2s; }
+  @keyframes card-breathe {
+    0%,100% { box-shadow: 0 4px 24px rgba(44,31,20,0.07); }
+    50%      { box-shadow: 0 8px 40px rgba(44,31,20,0.12), 0 0 0 1px rgba(201,168,76,0.1); }
   }
   .card-sethi:hover {
-    box-shadow: 0 16px 48px rgba(0,0,0,0.14), 0 4px 16px rgba(201,168,76,0.12);
-    transform: translateY(-6px);
-    border-color: #e8d5a3;
+    box-shadow: 0 20px 60px rgba(44,31,20,0.15), 0 0 0 1px rgba(201,168,76,0.3);
+    transform: translateY(-8px) scale(1.015);
+    border-color: rgba(201,168,76,0.4);
+    animation: none;
   }
   .card-sethi:active {
-    transform: translateY(-2px);
+    transform: translateY(-2px) scale(1);
   }
 
   /* ── Headings ── */
