@@ -651,7 +651,7 @@ Rules:
 - Mention build quality, ideal use case, or convenience if relevant
 - Tone: confident and clear, not salesy
 - No markdown, no bullet points, no emojis
-- Max 35 words
+- Max 70 words
 - Do NOT invent sizes, weights, or prices
 Return only the description text, nothing else.`;
 
@@ -668,7 +668,7 @@ Return only the description text, nothing else.`;
     if (!apiKey) return json({ error: 'AI generation failed — no API keys available' }, 500);
 
     const visionPrompt = `Write a 1–2 sentence e-commerce product description (like a top Flipkart listing) for: ${contextLine}${imageUrl ? '\nLook at the image — mention the visible color and material only if clearly visible.' : ''}
-Rules: benefit-first, confident tone, no markdown, no emojis, max 35 words, no invented specs. Return only the description text.`;
+Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no invented specs. Return only the description text.`;
     try {
       const parts = [{ text: visionPrompt }];
       if (imageUrl) {
