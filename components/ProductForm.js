@@ -66,6 +66,8 @@ export default function ProductForm({ initial, productId, onSaved }) {
   const [newColorName, setNewColorName] = useState('');
   const [busy, setBusy] = useState(false);
   const [generatingDesc, setGeneratingDesc] = useState(false);
+  const [generatingGallery, setGeneratingGallery] = useState(false);
+  const [galleryProgress, setGalleryProgress] = useState(0);
   const [uploadingColor, setUploadingColor] = useState(null);
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [imgErr, setImgErr] = useState(false);
@@ -204,6 +206,35 @@ export default function ProductForm({ initial, productId, onSaved }) {
       toast.success(`Demo video uploaded ✓ (${sizeMB}MB)`);
     } catch (error) { toast.error(error.message || 'Video upload failed'); }
     finally { setUploadingVideo(false); }
+  };
+
+  const GALLERY_ANGLES = ['front', 'left-side', 'back', 'three-quarter', 'detail'];
+
+  const generateGallery = async () => {
+    if (!form.imageUrl) { toast.error('Upload a main image first'); return; }
+    if (!form.name.trim()) { toast.error('Enter a product name first'); return; }
+    setGeneratingGallery(true);
+    setGalleryProgress(0);
+    let successCount = 0;
+    for (let i = 0; i < GALLERY_ANGLES.length; i++) {
+      try {
+        const res = await fetch('/api/generate-gallery', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageUrl: form.imageUrl, name: form.name, brand: form.brand, category: form.category, angle: GALLERY_ANGLES[i] }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.url) {
+          setGalleryImages((prev) => [...prev, data.url]);
+          successCount++;
+        }
+      } catch (e) { console.warn(`Gallery angle ${GALLERY_ANGLES[i]} failed:`, e); }
+      setGalleryProgress(i + 1);
+    }
+    if (successCount > 0) toast.success(`${successCount} AI photos added to gallery ✓`);
+    else toast.error('Generation failed — check API keys or try again');
+    setGeneratingGallery(false);
+    setGalleryProgress(0);
   };
 
   const generateDescription = async () => {
@@ -402,6 +433,20 @@ export default function ProductForm({ initial, productId, onSaved }) {
                 onChange={(e) => e.target.files?.[0] && uploadGalleryImage(e.target.files[0])} />
             </label>
           </div>
+          {form.imageUrl && (
+            <div className="flex flex-col gap-2">
+              <button type="button" onClick={generateGallery} disabled={generatingGallery || busy}
+                className="inline-flex items-center gap-2 self-start rounded border border-[#8a7060] px-4 py-2.5 text-sm font-semibold text-[#8a7060] hover:bg-[#8a7060] hover:text-white disabled:opacity-50 transition-colors">
+                {generatingGallery ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {generatingGallery ? `Generating ${galleryProgress}/5 photos…` : '✨ Generate 5 AI Gallery Photos'}
+              </button>
+              {generatingGallery && (
+                <div className="w-48 bg-sethi-gray200 rounded-full h-1">
+                  <div className="bg-sethi-gold h-1 rounded-full transition-all duration-500" style={{ width: `${(galleryProgress / 5) * 100}%` }} />
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </Section>
 

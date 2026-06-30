@@ -694,6 +694,116 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
     } catch (error) { return json({ error: error.message || 'All AI providers failed' }, 500); }
   }
 
+  if (segments[0] === 'generate-gallery' && method === 'POST') {
+    const authError = requireAdmin(request);
+    if (authError) return authError;
+    const { imageUrl, name, brand, category, angle = 'front' } = body || {};
+    if (!imageUrl && !name) return json({ error: 'imageUrl or product name required' }, 400);
+
+    const productCtx = [name, brand, category].filter(Boolean).join(' ');
+
+    const geminiPrompts = {
+      front:           'Recreate this exact product in a straight front-facing view on a clean white studio background with soft diffused lighting. Professional e-commerce product photo. Keep the design, colour and branding identical.',
+      'left-side':     'Recreate this exact product from the left side view on a clean white studio background. Professional e-commerce product photo. Keep the design and colour identical.',
+      back:            'Recreate this exact product from the back view on a clean white studio background. Professional e-commerce product photo. Keep the design and colour identical.',
+      'three-quarter': 'Recreate this exact product at a 45-degree three-quarter angle showing both front and side on a white studio background. Professional e-commerce product photo.',
+      detail:          'Show a sharp close-up macro shot of the top handle, zipper pull and lock area of this product on a white background. Sharp focus on the texture and hardware details.',
+    };
+
+    const sdxlPrompts = {
+      front:           `Professional e-commerce product photography, ${productCtx}, front view, isolated white studio background, soft lighting, high quality, photorealistic`,
+      'left-side':     `Professional e-commerce product photography, ${productCtx}, left side view, white studio background, soft lighting, high quality, photorealistic`,
+      back:            `Professional e-commerce product photography, ${productCtx}, back view, white studio background, soft lighting, high quality, photorealistic`,
+      'three-quarter': `Professional e-commerce product photography, ${productCtx}, three-quarter angle, white background, studio lighting, high quality, photorealistic`,
+      detail:          `Close-up macro product photography, ${productCtx}, handle and zipper hardware details, white background, sharp focus, high detail, professional`,
+    };
+
+    const geminiPrompt = geminiPrompts[angle] || geminiPrompts.front;
+    const sdxlPrompt = sdxlPrompts[angle] || sdxlPrompts.front;
+
+    // 1. Gemini 2.0 Flash image generation (img2img — understands the uploaded product)
+    const geminiKey = process.env.GEMINI_API_KEY;
+    if (geminiKey && imageUrl) {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 45000);
+      try {
+        const imgRes = await fetch(imageUrl);
+        if (imgRes.ok) {
+          const ct = imgRes.headers.get('content-type') || 'image/jpeg';
+          const base64 = Buffer.from(await imgRes.arrayBuffer()).toString('base64');
+          const gRes = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${geminiKey}`,
+            {
+              method: 'POST', signal: ctrl.signal,
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: geminiPrompt }, { inline_data: { mime_type: ct, data: base64 } }] }],
+                generationConfig: { responseModalities: ['IMAGE'] },
+              }),
+            }
+          );
+          clearTimeout(t);
+          const gData = await gRes.json().catch(() => ({}));
+          const imgPart = gData?.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
+          if (imgPart) {
+            const mime = imgPart.inlineData.mimeType || 'image/png';
+            const buf = Buffer.from(imgPart.inlineData.data, 'base64');
+            const fileName = `ai-gen/${Date.now()}-${angle}.${mime.includes('png') ? 'png' : 'jpg'}`;
+            const { error: upErr } = await supabase.storage.from('products').upload(fileName, buf, { contentType: mime, upsert: false });
+            if (!upErr) {
+              const { data: { publicUrl } } = supabase.storage.from('products').getPublicUrl(fileName);
+              console.log(`✅ generate-gallery Gemini OK (${angle})`);
+              return json({ url: publicUrl, source: 'gemini' });
+            }
+          }
+        }
+      } catch (e) { clearTimeout(t); console.warn(`generate-gallery Gemini failed (${angle}):`, e.message); }
+    }
+
+    // 2. Fallback: Cloudflare Workers AI SDXL (text-to-image)
+    const cfId = (process.env.CLOUDFLARE_ACCOUNT_ID || '').trim();
+    const cfToken = (process.env.CLOUDFLARE_API_TOKEN || '').trim();
+    if (cfId && cfToken) {
+      const ctrl2 = new AbortController();
+      const t2 = setTimeout(() => ctrl2.abort(), 45000);
+      try {
+        const cfRes = await fetch(
+          `https://api.cloudflare.com/client/v4/accounts/${cfId}/ai/run/@cf/stabilityai/stable-diffusion-xl-base-1.0`,
+          {
+            method: 'POST', signal: ctrl2.signal,
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfToken}` },
+            body: JSON.stringify({ prompt: sdxlPrompt }),
+          }
+        );
+        clearTimeout(t2);
+        if (cfRes.ok) {
+          const ab = await cfRes.arrayBuffer();
+          const ctCf = cfRes.headers.get('content-type') || '';
+          let imgBuf;
+          if (ctCf.startsWith('image/')) {
+            imgBuf = Buffer.from(ab);
+          } else {
+            try {
+              const parsed = JSON.parse(Buffer.from(ab).toString('utf8'));
+              if (parsed.result?.image) imgBuf = Buffer.from(parsed.result.image, 'base64');
+            } catch (_) { /* not JSON */ }
+          }
+          if (imgBuf) {
+            const fileName = `ai-gen/${Date.now()}-${angle}-cf.png`;
+            const { error: upErr } = await supabase.storage.from('products').upload(fileName, imgBuf, { contentType: 'image/png', upsert: false });
+            if (!upErr) {
+              const { data: { publicUrl } } = supabase.storage.from('products').getPublicUrl(fileName);
+              console.log(`✅ generate-gallery Cloudflare SDXL OK (${angle})`);
+              return json({ url: publicUrl, source: 'cloudflare' });
+            }
+          }
+        }
+      } catch (e) { clearTimeout(t2); console.warn(`generate-gallery Cloudflare failed (${angle}):`, e.message); }
+    }
+
+    return json({ error: 'Image generation failed — check API keys and try again' }, 500);
+  }
+
   if (segments[0] === 'chat' && method === 'POST') {
     try {
       const cookieSessionId = request.cookies.get('sethi_chat_session')?.value || null;
