@@ -32,20 +32,33 @@ export default function ProblemSearch({ allProducts = [] }) {
   const sectionRef = useRef(null);
   const [sectionVisible, setSectionVisible] = useState(false);
   const [chipsVisible, setChipsVisible] = useState(false);
+  const [subtitleText, setSubtitleText] = useState('');
+
+  const SUBTITLE = 'Tap karo — hum sahi bag dhundhenge';
 
   useEffect(() => {
+    let typeTimer;
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
           setSectionVisible(true);
-          setTimeout(() => setChipsVisible(true), 250);
+          setTimeout(() => setChipsVisible(true), 500);
+          // typewriter starts after words animate in (~0.6s)
+          setTimeout(() => {
+            let idx = 0;
+            typeTimer = setInterval(() => {
+              idx++;
+              setSubtitleText(SUBTITLE.slice(0, idx));
+              if (idx >= SUBTITLE.length) clearInterval(typeTimer);
+            }, 36);
+          }, 650);
           observer.disconnect();
         }
       },
       { threshold: 0.12 }
     );
     if (sectionRef.current) observer.observe(sectionRef.current);
-    return () => observer.disconnect();
+    return () => { observer.disconnect(); if (typeTimer) clearInterval(typeTimer); };
   }, []);
 
   function filterByProblem(problem, idx) {
@@ -112,17 +125,46 @@ export default function ProblemSearch({ allProducts = [] }) {
     <section ref={sectionRef} style={{ background: '#f5f0e8', padding: '40px 16px' }}>
       <div style={{ maxWidth: 1152, margin: '0 auto' }}>
 
-        {/* Heading */}
-        <div style={{
-          opacity: sectionVisible ? 1 : 0,
-          transform: sectionVisible ? 'translateY(0)' : 'translateY(28px)',
-          transition: 'opacity 0.6s ease, transform 0.6s ease',
-          marginBottom: 20,
-        }}>
-          <h2 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 30, fontWeight: 700, color: '#2c1f14', margin: '0 0 4px' }}>
-            Apni problem batao 🛍️
+        {/* Heading — word-mask slide-up + emoji bounce + typewriter subtitle */}
+        <div style={{ marginBottom: 20 }}>
+          <h2 style={{
+            fontFamily: "'Cormorant Garamond',serif",
+            fontSize: 30, fontWeight: 700, color: '#2c1f14',
+            margin: '0 0 8px', lineHeight: 1.25,
+            display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '0 0.28em',
+          }}>
+            {['Apni', 'problem', 'batao'].map((word, i) => (
+              <span key={word} style={{ display: 'inline-block', overflow: 'hidden', verticalAlign: 'bottom' }}>
+                <span style={{
+                  display: 'inline-block',
+                  transform: sectionVisible ? 'translateY(0)' : 'translateY(110%)',
+                  opacity: sectionVisible ? 1 : 0,
+                  transition: `transform 0.65s cubic-bezier(0.16, 1, 0.3, 1) ${i * 0.13}s, opacity 0.4s ease ${i * 0.13}s`,
+                }}>
+                  {word}
+                </span>
+              </span>
+            ))}
+            <span style={{ display: 'inline-block', overflow: 'hidden', verticalAlign: 'bottom' }}>
+              <span style={{
+                display: 'inline-block',
+                animation: sectionVisible ? 'emoji-drop 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) 0.5s both' : 'none',
+                opacity: sectionVisible ? undefined : 0,
+              }}>
+                🛍️
+              </span>
+            </span>
           </h2>
-          <p style={{ fontSize: 14, color: '#8a7060', margin: 0 }}>Tap karo — hum sahi bag dhundhenge</p>
+          <p style={{ fontSize: 14, color: '#8a7060', margin: 0, minHeight: '1.4em', fontFamily: 'monospace', letterSpacing: '-0.01em' }}>
+            {subtitleText}
+            {subtitleText.length < SUBTITLE.length && sectionVisible && (
+              <span style={{
+                display: 'inline-block', width: 2, height: '0.9em',
+                background: '#c9a84c', marginLeft: 2, verticalAlign: 'text-bottom',
+                animation: 'cursor-blink 0.65s step-end infinite',
+              }} />
+            )}
+          </p>
         </div>
 
         {/* Chips */}
@@ -300,9 +342,20 @@ export default function ProblemSearch({ allProducts = [] }) {
       </div>
 
       <style>{`
+        @keyframes emoji-drop {
+          from { opacity: 0; transform: scale(0.15) rotate(-45deg); }
+          60%  { transform: scale(1.4) rotate(18deg); }
+          80%  { transform: scale(0.9) rotate(-6deg); }
+          to   { opacity: 1; transform: scale(1) rotate(0deg); }
+        }
+        @keyframes cursor-blink {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0; }
+        }
         @keyframes check-pop {
-          from { opacity: 0; transform: scale(0.5); }
-          to   { opacity: 1; transform: scale(1); }
+          from { opacity: 0; transform: scale(0.4) rotate(-20deg); }
+          70%  { transform: scale(1.3) rotate(5deg); }
+          to   { opacity: 1; transform: scale(1) rotate(0); }
         }
         @keyframes results-in {
           from { opacity: 0; transform: translateY(14px); }

@@ -146,47 +146,82 @@ export default function HomePage() {
           type="button"
           onClick={() => setDecideOpen(true)}
           className="decide-cta w-full rounded-xl border-2 border-dashed border-[#c9a84c] bg-[#fdf6e3] py-5 text-center"
+          style={{ position: 'relative', overflow: 'hidden' }}
         >
-          <div className="flex items-center justify-center gap-2 flex-wrap">
+          {/* shimmer light sweep — runs across the card */}
+          <span aria-hidden="true" className="decide-sweep" />
+          <div className="flex items-center justify-center gap-2 flex-wrap" style={{ position: 'relative' }}>
             <span className="decide-emoji text-2xl">🤔</span>
             <span className="text-lg font-bold text-[#2c1f14]">Confused?</span>
-            <span className="text-lg font-bold text-[#c9a84c]">Bas best wala de do</span>
-            <span className="decide-arrow text-xl font-bold text-[#c9a84c]">→</span>
+            <span className="decide-shimmer-text text-lg font-bold">Bas best wala de do</span>
+            <span className="decide-arrow text-xl font-bold">→</span>
           </div>
-          <p className="mt-1 text-sm text-[#8a7060]">3 sawaal — hum aapke liye best product choose karenge</p>
+          <p className="mt-1 text-sm text-[#8a7060]" style={{ position: 'relative' }}>3 sawaal — hum aapke liye best product choose karenge</p>
         </button>
         <style>{`
           .decide-cta {
             outline: none;
-            transition: transform 0.2s ease, background 0.2s ease;
-            animation: decide-glow 2.8s ease-in-out infinite;
+            cursor: pointer;
+            animation: decide-float 4s ease-in-out infinite, decide-glow 3s ease-in-out infinite;
+            transition: background 0.2s ease;
           }
-          .decide-cta:hover {
-            background: #f5ecca;
-            transform: scale(1.01);
+          .decide-cta:hover { background: #f5ecca !important; }
+          .decide-cta:active { animation: none !important; transform: scale(0.98); }
+          @keyframes decide-float {
+            0%, 100% { transform: translateY(0px); }
+            50%       { transform: translateY(-6px); }
           }
-          .decide-cta:active { transform: scale(0.98); }
           @keyframes decide-glow {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(201,168,76,0.12); }
-            50%       { box-shadow: 0 0 22px 6px rgba(201,168,76,0.28); }
+            0%, 100% { box-shadow: 0 2px 8px rgba(201,168,76,0.1); }
+            50%       { box-shadow: 0 8px 36px 4px rgba(201,168,76,0.38), 0 0 0 3px rgba(201,168,76,0.1); }
+          }
+          .decide-sweep {
+            position: absolute;
+            top: 0; bottom: 0; left: 0;
+            width: 52%;
+            background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%);
+            animation: sweep-across 3.8s ease-in-out 0.8s infinite;
+            pointer-events: none;
+          }
+          @keyframes sweep-across {
+            0%        { transform: translateX(-120%); }
+            45%, 100% { transform: translateX(280%); }
+          }
+          .decide-shimmer-text {
+            background: linear-gradient(90deg, #7a5c0e 0%, #f5d47a 28%, #c9a84c 50%, #f5d47a 72%, #7a5c0e 100%);
+            background-size: 260% auto;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: text-shimmer 2.4s linear infinite;
+          }
+          @keyframes text-shimmer {
+            0%   { background-position: 0% center; }
+            100% { background-position: 260% center; }
           }
           .decide-emoji {
             display: inline-block;
-            animation: decide-wiggle 3.5s ease-in-out infinite;
+            animation: decide-wiggle 4s ease-in-out infinite;
           }
           @keyframes decide-wiggle {
-            0%, 75%, 100% { transform: rotate(0deg); }
-            80%  { transform: rotate(-16deg); }
-            87%  { transform: rotate(13deg); }
-            93%  { transform: rotate(-7deg); }
+            0%, 70%, 100% { transform: rotate(0deg) scale(1); }
+            74%  { transform: rotate(-20deg) scale(1.18); }
+            80%  { transform: rotate(15deg) scale(1.12); }
+            86%  { transform: rotate(-9deg) scale(1.06); }
+            92%  { transform: rotate(4deg) scale(1.02); }
           }
           .decide-arrow {
             display: inline-block;
-            animation: decide-nudge 1.6s ease-in-out infinite;
+            background: linear-gradient(90deg, #7a5c0e, #f5d47a, #c9a84c, #f5d47a, #7a5c0e);
+            background-size: 260% auto;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: text-shimmer 2.4s linear infinite, decide-nudge 1.5s ease-in-out infinite;
           }
           @keyframes decide-nudge {
-            0%, 100% { transform: translateX(0); }
-            50%       { transform: translateX(6px); }
+            0%, 100% { transform: translateX(0) scale(1); }
+            50%       { transform: translateX(8px) scale(1.25); }
           }
         `}</style>
       </section>
