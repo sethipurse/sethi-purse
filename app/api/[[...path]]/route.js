@@ -644,8 +644,16 @@ async function handle(request, { params }) {
     if (!name) return json({ error: 'Product name is required' }, 400);
 
     const contextLine = [name, brand, category].filter(Boolean).join(' — ');
-    const sys = 'You are an expert e-commerce copywriter for a premium luggage and bags store in Jalandhar, India. Write product descriptions that are concise, warm, and persuasive.';
-    const textPrompt = `Write a product description (2-3 sentences, no markdown, no bullet points) for:\n${contextLine}\nFocus on quality, style and everyday usefulness. Do not invent sizes or prices. Return only the description text.`;
+    const sys = 'You are a senior e-commerce copywriter. Write product descriptions exactly like top listings on Flipkart or Amazon India — short, benefit-first, no fluff, no markdown.';
+    const textPrompt = `Write a 1–2 sentence product description for this item: ${contextLine}
+Rules:
+- Lead with the #1 customer benefit or standout feature
+- Mention build quality, ideal use case, or convenience if relevant
+- Tone: confident and clear, not salesy
+- No markdown, no bullet points, no emojis
+- Max 35 words
+- Do NOT invent sizes, weights, or prices
+Return only the description text, nothing else.`;
 
     // 1. Try open-source chain first: Groq → OpenRouter → Cloudflare
     const aiResult = await callAI([{ role: 'user', content: textPrompt }], sys);
@@ -659,7 +667,8 @@ async function handle(request, { params }) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) return json({ error: 'AI generation failed — no API keys available' }, 500);
 
-    const visionPrompt = `Write a concise, persuasive product description (2-3 sentences, no markdown) for an e-commerce listing.\n${imageUrl ? 'Look at the product image and describe what you see — color, material, design details. Do not invent details not visible in the photo.\n' : ''}Product: ${contextLine}\nFocus on quality, style, and everyday usefulness. Return only the description.`;
+    const visionPrompt = `Write a 1–2 sentence e-commerce product description (like a top Flipkart listing) for: ${contextLine}${imageUrl ? '\nLook at the image — mention the visible color and material only if clearly visible.' : ''}
+Rules: benefit-first, confident tone, no markdown, no emojis, max 35 words, no invented specs. Return only the description text.`;
     try {
       const parts = [{ text: visionPrompt }];
       if (imageUrl) {
