@@ -145,113 +145,83 @@ export default function HomePage() {
         <button
           type="button"
           onClick={() => setDecideOpen(true)}
-          className="ds-wrap w-full"
-          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'block' }}
+          className="decide-cta w-full rounded-xl border-2 border-dashed border-[#c9a84c] bg-[#fdf6e3] py-5 text-center"
+          style={{ position: 'relative', overflow: 'hidden' }}
         >
-          <div className="ds-neb1" />
-          <div className="ds-neb2" />
-          <div className="ds-ring" />
-          <div className="ds-rule" />
-          <div style={{ position: 'relative' }}>
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
-              <div className="ds-badge"><span className="ds-dot" />◈ AI · ASSIST</div>
-            </div>
-            <div className="ds-row">
-              <span className="ds-emoji">🤔</span>
-              <span className="ds-confused">Confused?</span>
-              <span className="ds-shimmer">Bas best wala de do</span>
-              <span className="ds-arrow">→</span>
-            </div>
-            <p className="ds-sub">3 sawaal — hum aapke liye best product choose karenge</p>
+          {/* shimmer light sweep — runs across the card */}
+          <span aria-hidden="true" className="decide-sweep" />
+          <div className="flex items-center justify-center gap-2 flex-wrap" style={{ position: 'relative' }}>
+            <span className="decide-emoji text-2xl">🤔</span>
+            <span className="text-lg font-bold text-[#2c1f14]">Confused?</span>
+            <span className="decide-shimmer-text text-lg font-bold">Bas best wala de do</span>
+            <span className="decide-arrow text-xl font-bold">→</span>
           </div>
+          <p className="mt-1 text-sm text-[#8a7060]" style={{ position: 'relative' }}>3 sawaal — hum aapke liye best product choose karenge</p>
         </button>
         <style>{`
-          .ds-wrap {
-            position: relative;
-            border-radius: 18px;
-            background: radial-gradient(ellipse at 30% 30%, #1a0e3a, #0a0520 60%, #070312);
-            padding: 28px 28px 22px;
-            text-align: center;
-            overflow: hidden;
-            border: 1px solid rgba(160,80,255,0.25);
-            box-shadow: 0 0 0 1px rgba(160,80,255,0.1), inset 0 0 80px rgba(100,40,200,0.08);
-            animation: ds-pulse 4s ease-in-out infinite;
-            transition: transform 0.3s ease, filter 0.3s ease;
+          .decide-cta {
+            outline: none;
+            cursor: pointer;
+            animation: decide-float 4s ease-in-out infinite, decide-glow 3s ease-in-out infinite;
+            transition: background 0.2s ease;
           }
-          .ds-wrap:hover { transform: translateY(-4px); filter: brightness(1.12); }
-          .ds-wrap:active { transform: scale(0.98); }
-          @keyframes ds-pulse {
-            0%, 100% { box-shadow: 0 0 0 1px rgba(160,80,255,0.1), 0 8px 40px rgba(100,40,200,0.2); }
-            50%       { box-shadow: 0 0 0 1px rgba(160,80,255,0.3), 0 16px 60px rgba(120,60,255,0.4), 0 0 120px rgba(80,20,200,0.15); }
+          .decide-cta:hover { background: #f5ecca !important; }
+          .decide-cta:active { animation: none !important; transform: scale(0.98); }
+          @keyframes decide-float {
+            0%, 100% { transform: translateY(0px); }
+            50%       { transform: translateY(-6px); }
           }
-          .ds-neb1 {
-            position: absolute; width: 250px; height: 250px; border-radius: 50%;
-            filter: blur(70px); background: rgba(120,40,255,0.15);
-            top: -80px; right: -60px; pointer-events: none;
-            animation: ds-orb 7s ease-in-out infinite;
+          @keyframes decide-glow {
+            0%, 100% { box-shadow: 0 2px 8px rgba(201,168,76,0.1); }
+            50%       { box-shadow: 0 8px 36px 4px rgba(201,168,76,0.38), 0 0 0 3px rgba(201,168,76,0.1); }
           }
-          .ds-neb2 {
-            position: absolute; width: 180px; height: 180px; border-radius: 50%;
-            filter: blur(60px); background: rgba(201,168,76,0.1);
-            bottom: -60px; left: -40px; pointer-events: none;
-            animation: ds-orb 9s ease-in-out infinite reverse;
+          .decide-sweep {
+            position: absolute;
+            top: 0; bottom: 0; left: 0;
+            width: 52%;
+            background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%);
+            animation: sweep-across 3.8s ease-in-out 0.8s infinite;
+            pointer-events: none;
           }
-          @keyframes ds-orb { 0%,100%{transform:translate(0,0)} 50%{transform:translate(16px,-12px)} }
-          .ds-ring {
-            position: absolute; inset: -30%; width: 160%; height: 160%;
-            border-radius: 50%; border: 1px solid rgba(160,80,255,0.06);
-            animation: ds-spin 12s linear infinite; pointer-events: none;
+          @keyframes sweep-across {
+            0%        { transform: translateX(-120%); }
+            45%, 100% { transform: translateX(280%); }
           }
-          @keyframes ds-spin { to { transform: rotate(360deg); } }
-          .ds-rule {
-            position: absolute; top: 0; left: 50%; transform: translateX(-50%);
-            width: 45%; height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(160,80,255,0.9), rgba(201,168,76,0.8), rgba(160,80,255,0.9), transparent);
-            box-shadow: 0 0 20px rgba(160,80,255,0.6); pointer-events: none;
+          .decide-shimmer-text {
+            background: linear-gradient(90deg, #7a5c0e 0%, #f5d47a 28%, #c9a84c 50%, #f5d47a 72%, #7a5c0e 100%);
+            background-size: 260% auto;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: text-shimmer 2.4s linear infinite;
           }
-          .ds-badge {
-            display: inline-flex; align-items: center; gap: 7px;
-            font-size: 9px; letter-spacing: 0.35em; text-transform: uppercase;
-            color: rgba(201,168,76,0.85); font-family: monospace; font-weight: 600;
+          @keyframes text-shimmer {
+            0%   { background-position: 0% center; }
+            100% { background-position: 260% center; }
           }
-          .ds-dot {
-            display: inline-block; width: 5px; height: 5px; border-radius: 50%;
-            background: #c9a84c; box-shadow: 0 0 8px #c9a84c;
-            animation: ds-blink 2s ease-in-out infinite; flex-shrink: 0;
+          .decide-emoji {
+            display: inline-block;
+            animation: decide-wiggle 4s ease-in-out infinite;
           }
-          @keyframes ds-blink { 0%,100%{opacity:1} 50%{opacity:0.15} }
-          .ds-row {
-            display: flex; align-items: center; justify-content: center;
-            gap: 10px; flex-wrap: wrap; margin-bottom: 8px; position: relative;
+          @keyframes decide-wiggle {
+            0%, 70%, 100% { transform: rotate(0deg) scale(1); }
+            74%  { transform: rotate(-20deg) scale(1.18); }
+            80%  { transform: rotate(15deg) scale(1.12); }
+            86%  { transform: rotate(-9deg) scale(1.06); }
+            92%  { transform: rotate(4deg) scale(1.02); }
           }
-          .ds-emoji {
-            font-size: 28px; display: inline-block;
-            animation: ds-float 3.5s ease-in-out infinite;
+          .decide-arrow {
+            display: inline-block;
+            background: linear-gradient(90deg, #7a5c0e, #f5d47a, #c9a84c, #f5d47a, #7a5c0e);
+            background-size: 260% auto;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: text-shimmer 2.4s linear infinite, decide-nudge 1.5s ease-in-out infinite;
           }
-          @keyframes ds-float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
-          .ds-confused {
-            font-size: 19px; font-weight: 800; color: #fff; letter-spacing: 0.02em;
-            font-family: 'DM Sans', sans-serif;
-          }
-          .ds-shimmer {
-            font-size: 19px; font-weight: 800;
-            background: linear-gradient(90deg, #c9a84c, #fff, #c9a84c, #a06aff, #c9a84c);
-            background-size: 300% auto;
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-            animation: ds-shimmer 2.5s linear infinite;
-            font-family: 'DM Sans', sans-serif;
-          }
-          @keyframes ds-shimmer { 0%{background-position:0% center} 100%{background-position:300% center} }
-          .ds-arrow {
-            font-size: 22px; color: #c9a84c; display: inline-block;
-            text-shadow: 0 0 18px rgba(201,168,76,1);
-            animation: ds-nudge 1.5s ease-in-out infinite;
-          }
-          @keyframes ds-nudge { 0%,100%{transform:translateX(0)} 50%{transform:translateX(8px)} }
-          .ds-sub {
-            font-size: 12px; color: rgba(255,255,255,0.35);
-            letter-spacing: 0.03em; margin: 0;
-            font-family: 'DM Sans', sans-serif;
+          @keyframes decide-nudge {
+            0%, 100% { transform: translateX(0) scale(1); }
+            50%       { transform: translateX(8px) scale(1.25); }
           }
         `}</style>
       </section>
