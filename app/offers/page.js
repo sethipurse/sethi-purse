@@ -34,7 +34,7 @@ export default async function OffersPage() {
       <Navbar />
       <main className="section-pad">
         <div className="container-sethi">
-          <SectionHeading title="Special Offers" subtitle="Limited-time deals you don't want to miss." />
+          <SectionHeading title="Special offers" subtitle="Limited-time deals you don't want to miss." />
           {offers.length === 0 ? (
             <p className="text-center text-sethi-gray500 py-12">No active offers at the moment.</p>
           ) : (

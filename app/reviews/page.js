@@ -20,7 +20,7 @@ export default async function ReviewsPage() {
       <Navbar />
       <main className="section-pad pb-32 md:pb-20">
         <div className="container-sethi">
-          <SectionHeading title="Customer Stories" subtitle="Real experiences from our valued customers" />
+          <SectionHeading title="Customer stories" subtitle="Real experiences from our valued customers" />
           <div className="text-center mb-10">
             <a href={BUSINESS.reviews} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sethi-gold hover:underline font-medium">
               <ExternalLink className="w-4 h-4" /> Read our Google Reviews

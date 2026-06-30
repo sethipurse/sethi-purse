@@ -41,7 +41,7 @@ export default function NotificationsPage() {
     <AdminShell>
       <div className="max-w-3xl">
         <div className="mb-6">
-          <h2 className="flex items-center gap-2 font-serif text-2xl"><Bell className="h-6 w-6 text-sethi-gold" /> Push Notifications</h2>
+          <h2 className="flex items-center gap-2 font-serif text-base font-medium"><Bell className="h-5 w-5 text-sethi-gold" /> Push notifications</h2>
           <p className="mt-2 text-sethi-gray500">Send powerful alerts like new arrivals, flash offers, and cart reminders. Requires VAPID keys in Vercel env.</p>
         </div>
         <div className="mb-5 grid gap-3 md:grid-cols-3">

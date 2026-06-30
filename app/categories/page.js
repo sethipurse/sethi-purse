@@ -25,7 +25,7 @@ export default function CategoriesPage() {
           {/* Header */}
           <div className="mb-10">
             <p className="text-xs font-bold tracking-[0.25em] text-[#c9a84c] uppercase mb-2">Shop By</p>
-            <h1 className="font-serif text-4xl md:text-5xl font-bold text-[#2c1f14]">Categories</h1>
+            <h1 className="font-serif text-2xl font-medium text-[#2c1f14]">Categories</h1>
             <div className="mt-3 w-14 h-0.5 bg-[#c9a84c]" />
           </div>
 

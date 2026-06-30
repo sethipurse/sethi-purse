@@ -112,7 +112,7 @@ Please confirm availability and help me avail this deal. Thank you!`;
       {/* Content */}
       <div className="p-5 md:p-6 flex flex-col flex-1">
 
-        <h3 className="font-serif text-xl md:text-2xl leading-snug text-[#2c1f14]">
+        <h3 className="font-serif text-base font-medium leading-snug text-[#2c1f14]">
           {offer.title}
         </h3>
 

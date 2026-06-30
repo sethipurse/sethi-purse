@@ -103,7 +103,7 @@ export default function ProductCard({ product, onAddToCart }) {
       <div className="p-4 md:p-5 flex flex-col flex-1">
         <span className="badge-cat">{product.category || product.category_id}</span>
         <Link href={`/product/${product.id}`} className="mt-1.5 block hover:text-sethi-gold transition-colors">
-          <h3 className="font-serif text-lg md:text-xl font-semibold leading-snug line-clamp-2">{product.name}</h3>
+          <h3 className="font-serif text-base font-medium leading-snug line-clamp-2">{product.name}</h3>
         </Link>
         <p className="text-sm text-sethi-gray500 mt-0.5">{product.brand}</p>
 

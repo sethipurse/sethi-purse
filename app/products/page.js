@@ -163,7 +163,7 @@ function ProductsContent() {
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-10">
-      <h1 className="text-4xl font-bold text-[#c9a84c] mb-6">Our Collection</h1>
+      <h1 className="text-2xl font-medium text-[#2c1f14] mb-6">Our collection</h1>
 
       <div className="relative mb-4">
         <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#8a7060]" />
@@ -257,7 +257,7 @@ function ProductsContent() {
             ) : filteredProducts.length === 0 ? (
               <div className="col-span-full rounded bg-white p-10 text-center ring-1 ring-[#ede8df]">
                 <Sparkles className="mx-auto h-10 w-10 text-[#c9a84c]" />
-                <h3 className="mt-3 text-2xl font-bold text-[#2c1f14]">No products found</h3>
+                <h3 className="mt-3 text-base font-medium text-[#2c1f14]">No products found</h3>
                 <p className="mt-1 text-[#8a7060]">Try another search or adjust your filters.</p>
                 {(query || activeCategory !== 'All' || hasFilters) && (
                   <button type="button" onClick={() => { setQuery(''); setActiveCategory('All'); clearFilters(); }}

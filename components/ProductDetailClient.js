@@ -374,7 +374,7 @@ export default function ProductDetailClient({ product, related = [], reviews = [
               <ArrowLeft className="h-4 w-4" /> Back to products
             </Link>
             <div className="mt-6 text-sm font-bold uppercase tracking-[0.18em] text-[#c9a84c]">{category}</div>
-            <h1 className="mt-2 text-5xl font-bold leading-none text-[#2c1f14] md:text-6xl">{product.name}</h1>
+            <h1 className="mt-2 text-2xl font-medium leading-tight text-[#2c1f14]">{product.name}</h1>
             {product.brand && <p className="mt-3 text-xl text-[#6b5544]">by <span className="font-bold text-[#2c1f14]">{product.brand}</span></p>}
 
             <div className="mt-6 flex flex-wrap items-end gap-4">
@@ -497,14 +497,14 @@ export default function ProductDetailClient({ product, related = [], reviews = [
 
         {reviews.length > 0 && (
           <section>
-            <h2 className="flex items-center gap-2 text-4xl font-bold text-[#c9a84c]"><Star className="h-7 w-7 fill-[#c9a84c]" /> Reviews</h2>
+            <h2 className="flex items-center gap-2 text-xl font-medium text-[#2c1f14]"><Star className="h-5 w-5 fill-[#c9a84c]" /> Reviews</h2>
             <div className="mt-5 grid gap-5 md:grid-cols-3">{reviews.slice(0, 3).map((review) => <ReviewCard key={review.id} review={review} />)}</div>
           </section>
         )}
 
         {related.length > 0 && (
           <section>
-            <h2 className="text-4xl font-bold text-[#c9a84c]">Related Products</h2>
+            <h2 className="text-xl font-medium text-[#2c1f14]">Related products</h2>
             <div className="mt-5 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">{related.map((item) => <ProductCard key={item.id} product={item} />)}</div>
           </section>
         )}

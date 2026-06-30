@@ -39,7 +39,7 @@ export default function EditProductPage() {
   return (
     <AdminShell>
       <div className="max-w-4xl">
-        <h2 className="font-serif text-2xl mb-5">Edit Product</h2>
+        <h2 className="font-serif text-xl font-medium mb-5">Edit product</h2>
         {loading ? (
           <div className="text-sethi-gray500">Loading...</div>
         ) : notFound ? (

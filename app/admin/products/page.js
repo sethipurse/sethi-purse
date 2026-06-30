@@ -222,7 +222,7 @@ export default function AdminProductsPage() {
   return (
     <AdminShell>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <h2 className="font-serif text-2xl">All Products ({products.length})</h2>
+        <h2 className="font-serif text-xl font-medium">All products ({products.length})</h2>
         <Link href="/admin/products/add" className="btn-primary"><Plus className="w-4 h-4" /> Add New Product</Link>
       </div>
 
@@ -376,7 +376,7 @@ export default function AdminProductsPage() {
       {confirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 md:pl-[260px]">
           <div className="bg-white rounded-sm p-6 max-w-md w-full">
-            <h3 className="font-serif text-xl mb-2">Delete product?</h3>
+            <h3 className="font-serif text-base font-medium mb-2">Delete product?</h3>
             <p className="text-sethi-gray500 text-sm mb-5">Are you sure you want to delete "<strong>{confirm.name}</strong>"? This cannot be undone.</p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setConfirm(null)} className="btn-ghost">Cancel</button>
@@ -392,7 +392,7 @@ export default function AdminProductsPage() {
       {bulkConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 md:pl-[260px]">
           <div className="bg-white rounded-sm p-6 max-w-md w-full">
-            <h3 className="font-serif text-xl mb-2 text-red-700">Delete {selectedCount} products?</h3>
+            <h3 className="font-serif text-base font-medium mb-2 text-red-700">Delete {selectedCount} products?</h3>
             <p className="text-sethi-gray500 text-sm mb-5">You are about to permanently delete <strong>{selectedCount} product{selectedCount > 1 ? 's' : ''}</strong>. This cannot be undone.</p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setBulkConfirm(false)} disabled={bulkDeleting} className="btn-ghost">Cancel</button>

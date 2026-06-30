@@ -77,8 +77,8 @@ function AIChatInsights({ inquiries, loading }) {
   return (
     <div className="bg-white border border-sethi-gray200 rounded-sm">
       <div className="p-5 border-b border-sethi-gray200 flex items-center justify-between flex-wrap gap-2">
-        <h2 className="font-serif text-xl flex items-center gap-2">
-          <Bot className="w-5 h-5 text-sethi-gold" /> AI Chat Insights
+        <h2 className="font-serif text-base font-medium flex items-center gap-2">
+          <Bot className="w-5 h-5 text-sethi-gold" /> AI chat insights
           <span className="text-xs font-normal text-sethi-gray500">(last 7 days)</span>
         </h2>
         <Link href="/admin/inquiries" className="text-sm text-sethi-gold hover:underline">View all chats</Link>
@@ -237,7 +237,7 @@ export default function DashboardPage() {
         {/* ── Low Stock Alert — most urgent, comes first ── */}
         <div className="bg-white border border-sethi-gray200 rounded-sm">
           <div className="p-5 border-b border-sethi-gray200 flex items-center justify-between">
-            <h2 className="font-serif text-xl">Recent Products</h2>
+            <h2 className="font-serif text-base font-medium">Recent products</h2>
             <Link href="/admin/products" className="text-sm text-sethi-gold hover:underline">View all</Link>
           </div>
           <div className="overflow-x-auto">
@@ -276,7 +276,7 @@ export default function DashboardPage() {
         <div className="bg-white border border-sethi-gray200 rounded-sm">
           <div className="p-5 border-b border-sethi-gray200 flex items-center gap-2">
             <AlertCircle className="w-5 h-5 text-red-600" />
-            <h2 className="font-serif text-xl text-red-700">Low Stock Alert</h2>
+            <h2 className="font-serif text-base font-medium text-red-700">Low stock alert</h2>
           </div>
           <div className="p-5">
             {loading ? (
@@ -317,8 +317,8 @@ export default function DashboardPage() {
         {/* ── Hero Slider Preview ── */}
         <div className="bg-white border border-sethi-gray200 rounded-sm">
           <div className="p-5 border-b border-sethi-gray200 flex items-center justify-between">
-            <h2 className="font-serif text-xl flex items-center gap-2">
-              <Images className="w-5 h-5 text-sethi-gold" /> Hero Slider
+            <h2 className="font-serif text-base font-medium flex items-center gap-2">
+              <Images className="w-5 h-5 text-sethi-gold" /> Hero slider
             </h2>
             <Link href="/admin/slider" className="text-sm text-sethi-gold hover:underline">Manage slides</Link>
           </div>
@@ -375,8 +375,8 @@ export default function DashboardPage() {
         {/* ── Recent Inquiries (customer form submissions only, AI chats excluded) ── */}
         <div className="bg-white border border-sethi-gray200 rounded-sm lg:col-span-2">
           <div className="p-5 border-b border-sethi-gray200 flex items-center justify-between">
-            <h2 className="font-serif text-xl flex items-center gap-2">
-              <MessageSquare className="w-5 h-5 text-sethi-gold" /> Recent Inquiries
+            <h2 className="font-serif text-base font-medium flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-sethi-gold" /> Recent inquiries
               {newInquiries > 0 && (
                 <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full text-[11px] font-bold bg-red-600 text-white">
                   {newInquiries} new

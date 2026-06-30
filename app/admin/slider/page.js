@@ -329,7 +329,7 @@ export default function AdminSliderPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-[#2c1f14]">Hero Slider</h1>
+            <h1 className="text-2xl font-medium text-[#2c1f14]">Hero slider</h1>
             <p className="text-sm text-[#8a7060] mt-1">
               Manage the slides shown on the home page. Each slide links to a product category.
             </p>
@@ -462,7 +462,7 @@ export default function AdminSliderPage() {
 
         {/* Help box */}
         <div className="rounded-xl bg-[#faf8f4] border border-[#ede8df] p-5 text-sm text-[#6b5544] space-y-2">
-          <p className="font-bold text-[#2c1f14]">How it works</p>
+          <p className="font-medium text-[#2c1f14]">How it works</p>
           <ul className="space-y-1 list-disc list-inside">
             <li>Add a slide with an image + category → it appears on the home page hero slider</li>
             <li>Select a category from the dropdown — this ensures exact match with your products</li>
