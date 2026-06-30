@@ -589,10 +589,15 @@ async function handle(request, { params }) {
       const form = await request.formData();
       const file = form.get('file');
       const bucket = String(form.get('bucket') || 'products').replace(/[^a-z0-9_-]/gi, '').toLowerCase();
-      if (!file || typeof file.arrayBuffer !== 'function') return json({ error: 'Image file is required' }, 400);
-      if (!file.type?.startsWith('image/')) return json({ error: 'Only image uploads are allowed' }, 400);
-      if (file.size > 4 * 1024 * 1024) return json({ error: 'Image must be under 4MB' }, 400);
-      const ext = file.type.includes('webp') ? 'webp' : file.type.includes('png') ? 'png' : 'jpg';
+      if (!file || typeof file.arrayBuffer !== 'function') return json({ error: 'File is required' }, 400);
+      const isVideo = file.type?.startsWith('video/');
+      const isImage = file.type?.startsWith('image/');
+      if (!isImage && !isVideo) return json({ error: 'Only image or video files are allowed' }, 400);
+      const maxSize = isVideo ? 50 * 1024 * 1024 : 4 * 1024 * 1024;
+      if (file.size > maxSize) return json({ error: isVideo ? 'Video must be under 50MB' : 'Image must be under 4MB' }, 400);
+      let ext;
+      if (isVideo) ext = file.type.includes('webm') ? 'webm' : 'mp4';
+      else ext = file.type.includes('webp') ? 'webp' : file.type.includes('png') ? 'png' : 'jpg';
       const path = `${Date.now()}-${uuidv4()}.${ext}`;
       const bytes = await file.arrayBuffer();
       const buffer = new Uint8Array(bytes);
@@ -637,31 +642,36 @@ async function handle(request, { params }) {
     if (authError) return authError;
     const { name, brand, category, imageUrl } = body || {};
     if (!name) return json({ error: 'Product name is required' }, 400);
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return json({ error: 'GEMINI_API_KEY not configured' }, 500);
 
     const contextLine = [name, brand, category].filter(Boolean).join(' — ');
-    const textPrompt = `Write a concise, persuasive product description (2-3 sentences, no markdown) for an e-commerce listing.\n${imageUrl ? 'Look closely at the product image and describe what you actually SEE — color, material look, design details (straps, zippers, hardware, pattern, shape). Do not invent details not visible in the photo.\n' : ''}Product context: ${contextLine || name}\nFocus on quality, style, and everyday usefulness. Do not invent measurements or prices. Return only the description.`;
+    const sys = 'You are an expert e-commerce copywriter for a premium luggage and bags store in Jalandhar, India. Write product descriptions that are concise, warm, and persuasive.';
+    const textPrompt = `Write a product description (2-3 sentences, no markdown, no bullet points) for:\n${contextLine}\nFocus on quality, style and everyday usefulness. Do not invent sizes or prices. Return only the description text.`;
 
+    // 1. Try open-source chain first: Groq → OpenRouter → Cloudflare
+    const aiResult = await callAI([{ role: 'user', content: textPrompt }], sys);
+    if (aiResult.ok && aiResult.text) {
+      console.log(`✅ generate-description via ${aiResult.usedAPI}`);
+      return json({ description: aiResult.text.trim(), usedAPI: aiResult.usedAPI });
+    }
+    console.warn('Open-source chain failed for description, trying Gemini...');
+
+    // 2. Fallback: Gemini (with vision if imageUrl provided)
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return json({ error: 'AI generation failed — no API keys available' }, 500);
+
+    const visionPrompt = `Write a concise, persuasive product description (2-3 sentences, no markdown) for an e-commerce listing.\n${imageUrl ? 'Look at the product image and describe what you see — color, material, design details. Do not invent details not visible in the photo.\n' : ''}Product: ${contextLine}\nFocus on quality, style, and everyday usefulness. Return only the description.`;
     try {
-      const parts = [{ text: textPrompt }];
-
+      const parts = [{ text: visionPrompt }];
       if (imageUrl) {
         try {
           const imgRes = await fetch(imageUrl);
           if (imgRes.ok) {
-            const contentType = imgRes.headers.get('content-type') || 'image/jpeg';
-            const arrayBuffer = await imgRes.arrayBuffer();
-            const base64 = Buffer.from(arrayBuffer).toString('base64');
-            parts.push({ inline_data: { mime_type: contentType, data: base64 } });
-          } else {
-            console.warn('generate-description: could not fetch image, falling back to text-only', imgRes.status);
+            const ct = imgRes.headers.get('content-type') || 'image/jpeg';
+            const ab = await imgRes.arrayBuffer();
+            parts.push({ inline_data: { mime_type: ct, data: Buffer.from(ab).toString('base64') } });
           }
-        } catch (imgErr) {
-          console.warn('generate-description: image fetch failed, falling back to text-only', imgErr);
-        }
+        } catch (e) { console.warn('generate-description: image fetch failed', e); }
       }
-
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
@@ -670,9 +680,9 @@ async function handle(request, { params }) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return json({ error: data?.error?.message || `Gemini error (${res.status})` }, 500);
       const description = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-      if (!description) return json({ error: 'Empty response' }, 502);
-      return json({ description });
-    } catch (error) { return json({ error: error.message || 'Failed to reach Gemini' }, 500); }
+      if (!description) return json({ error: 'Empty response from AI' }, 502);
+      return json({ description, usedAPI: 'gemini' });
+    } catch (error) { return json({ error: error.message || 'All AI providers failed' }, 500); }
   }
 
   if (segments[0] === 'chat' && method === 'POST') {
