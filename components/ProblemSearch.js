@@ -129,25 +129,12 @@ export default function ProblemSearch({ allProducts = [] }) {
         {/* Heading — word-mask slide-up + emoji bounce + typewriter subtitle */}
         <div style={{ marginBottom: 20 }}>
 
-          {/* Smart Finder badge with triple gradient spinner */}
+          {/* Smart Finder badge with spinner */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              {[
-                { id: 'ps-b', c1: '#c9a84c', c2: '#f0d070', cls: 'uv-dash' },
-                { id: 'ps-c', c1: '#c9a84c', c2: '#a06aff', cls: 'uv-spin' },
-                { id: 'ps-d', c1: '#a06aff', c2: '#4ac9c0', cls: 'uv-dash' },
-              ].map(({ id, c1, c2, cls }) => (
-                <svg key={id} width="28" height="28" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ margin: '0 3px' }}>
-                  <defs>
-                    <linearGradient id={id} x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor={c1} />
-                      <stop offset="100%" stopColor={c2} />
-                    </linearGradient>
-                  </defs>
-                  <circle className={cls} cx="60" cy="60" r="54" stroke={`url(#${id})`} strokeWidth="6" strokeLinecap="round" fill="none" />
-                </svg>
-              ))}
-            </div>
+            <svg width="32" height="32" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle className="uv-dash" cx="60" cy="60" r="54" stroke="#c9a84c" strokeWidth="5" strokeLinecap="round" fill="none" />
+              <circle className="uv-spin" cx="60" cy="60" r="54" stroke="#f0d070" strokeWidth="5" strokeLinecap="round" fill="none" />
+            </svg>
             <span style={{
               fontSize: 11, letterSpacing: '0.28em', textTransform: 'uppercase',
               color: '#a07a28', fontWeight: 600, fontFamily: 'DM Sans, sans-serif',
