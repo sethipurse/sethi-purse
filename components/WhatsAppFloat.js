@@ -60,6 +60,17 @@ const SCROLL_THRESHOLD = 150;
 // inside this component. This ensures products are always ready when user sends
 // their first message, even if they open the chat immediately.
 
+function MicIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 17, height: 17 }} aria-hidden="true">
+      <rect x="9" y="2" width="6" height="11" rx="3" />
+      <path d="M5 10a7 7 0 0 0 14 0" />
+      <line x1="12" y1="19" x2="12" y2="22" />
+      <line x1="8" y1="22" x2="16" y2="22" />
+    </svg>
+  );
+}
+
 function AIChatPanel({ onClose, products }) {
   const [messages, setMessages] = useState([
     {
@@ -70,6 +81,8 @@ function AIChatPanel({ onClose, products }) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [contactCaptured, setContactCaptured] = useState(false);
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef(null);
   const sessionIdRef = useRef(null);
   if (!sessionIdRef.current) {
     sessionIdRef.current = (typeof crypto !== 'undefined' && crypto.randomUUID)
@@ -127,6 +140,33 @@ function AIChatPanel({ onClose, products }) {
     } finally {
       setLoading(false);
     }
+  }
+
+  const hasSpeech = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
+
+  function toggleVoice() {
+    if (!hasSpeech) return;
+    if (listening) {
+      recognitionRef.current?.stop();
+      setListening(false);
+      return;
+    }
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const rec = new SR();
+    rec.lang = 'hi-IN';
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    rec.onresult = (e) => {
+      const transcript = e.results[0][0].transcript;
+      setInput(transcript);
+      setListening(false);
+      setTimeout(() => sendMessage(transcript), 80);
+    };
+    rec.onerror = () => setListening(false);
+    rec.onend = () => setListening(false);
+    recognitionRef.current = rec;
+    rec.start();
+    setListening(true);
   }
 
   function fmt(text) {
@@ -317,6 +357,21 @@ function AIChatPanel({ onClose, products }) {
             color: '#2c1f14', backgroundColor: '#faf8f4', outline: 'none',
           }}
         />
+        {hasSpeech && (
+          <button onClick={toggleVoice}
+            style={{
+              width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+              backgroundColor: listening ? '#e53935' : '#f5f0e8',
+              color: listening ? '#fff' : '#4a3728',
+              border: listening ? '2px solid #e53935' : '1px solid #ede8df',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', transition: 'background 0.2s',
+              animation: listening ? 'mic-pulse 1s ease-in-out infinite' : 'none',
+            }}
+            aria-label={listening ? 'Stop listening' : 'Speak in Hindi'}>
+            <MicIcon />
+          </button>
+        )}
         <button onClick={() => sendMessage()} disabled={!input.trim() || loading}
           style={{
             width: 38, height: 38, borderRadius: '50%',
@@ -334,6 +389,10 @@ function AIChatPanel({ onClose, products }) {
         @keyframes ai-dot {
           0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
           30% { transform: translateY(-5px); opacity: 1; }
+        }
+        @keyframes mic-pulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(229,57,53,0.4); }
+          50% { box-shadow: 0 0 0 6px rgba(229,57,53,0); }
         }
       `}</style>
     </div>

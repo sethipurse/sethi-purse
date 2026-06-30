@@ -714,6 +714,58 @@ async function handle(request, { params }) {
     }
   }
 
+  if (segments[0] === 'recommend' && method === 'GET') {
+    const url = new URL(request.url);
+    const budget = url.searchParams.get('budget') || '';
+    const use = url.searchParams.get('use') || '';
+
+    const USE_TO_CATEGORY = {
+      daily: ['Handbags', 'Slings', 'Backpacks'],
+      travel: ['LUGGAGE', 'Backpacks'],
+      school: ['School Bags', 'Backpacks'],
+      gift: [],
+      office: ['Handbags', 'Backpacks', 'Slings'],
+      party: ['Party Wear Purse', 'Handbags'],
+    };
+
+    let priceMin = 0, priceMax = 999999;
+    if (budget === 'under1500') priceMax = 1500;
+    else if (budget === '1500to3000') { priceMin = 1500; priceMax = 3000; }
+    else if (budget === 'above3000') priceMin = 3000;
+
+    const targetCategories = USE_TO_CATEGORY[use] || [];
+
+    try {
+      let q = supabase.from('products').select('*').eq('is_active', true).neq('stock', 0).gte('sale_price', priceMin).lte('sale_price', priceMax).order('featured', { ascending: false }).order('created_at', { ascending: false });
+      if (targetCategories.length > 0) q = q.in('category', targetCategories);
+      const { data: matches } = await q.limit(10);
+
+      let pool = matches || [];
+      if (pool.length === 0) {
+        const { data: fallback } = await supabase.from('products').select('*').eq('is_active', true).gte('sale_price', priceMin).lte('sale_price', priceMax).order('featured', { ascending: false }).limit(5);
+        pool = fallback || [];
+      }
+      if (pool.length === 0) return json({ product: null, alternatives: [] });
+
+      const USE_REASON = {
+        daily: 'Best for daily use — durable and lightweight',
+        travel: 'Perfect for travel — spacious and easy to carry',
+        school: 'Great for school — comfortable and sturdy',
+        gift: 'A premium gift choice — stylish and practical',
+        office: 'Ideal for office use — professional look with smart storage',
+        party: 'Perfect for parties — stylish and elegant',
+      };
+
+      const top = pool[0];
+      const alternatives = pool.slice(1, 3);
+      const reason = USE_REASON[use] || 'Top pick for your budget';
+
+      return json({ product: top, alternatives, reason });
+    } catch (e) {
+      return json({ error: e.message }, 500);
+    }
+  }
+
   if (segments[0] === 'products') {
     if (segments.length === 1) {
       if (method === 'GET') { const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false }); if (error) return json([]); return json(data || []); }
@@ -750,13 +802,23 @@ async function handle(request, { params }) {
           price_lock_hours: Number(p.price_lock_hours) || 0,
           local_scarcity: !!p.local_scarcity,
           scarcity_label: String(p.scarcity_label || '').trim() || null,
-          created_at: nowIST() 
+          demo_video_url: String(p.demo_video_url || '').trim() || null,
+          created_at: nowIST()
         };
         const { data, error } = await supabase.from('products').insert([newProduct]).select().single();
         if (error) return json({ error: error.message }, 500); 
         return json(data, 201);
       }
     }
+    if (segments.length === 3 && segments[2] === 'view' && method === 'POST') {
+      const id = segments[1];
+      try {
+        const { data: cur } = await supabase.from('products').select('view_count').eq('id', id).single();
+        if (cur) await supabase.from('products').update({ view_count: (cur.view_count || 0) + 1 }).eq('id', id);
+      } catch (e) {}
+      return json({ ok: true });
+    }
+
     if (segments.length === 2) {
       const id = segments[1];
       if (method === 'GET') { const { data, error } = await supabase.from('products').select('*').eq('id', id).single(); if (error) return json({ error: 'Not found' }, 404); return json(data); }
@@ -789,7 +851,8 @@ async function handle(request, { params }) {
         if (p.price_lock_hours !== undefined) updates.price_lock_hours = Number(p.price_lock_hours) || 0;
         if (p.local_scarcity !== undefined) updates.local_scarcity = !!p.local_scarcity;
         if (p.scarcity_label !== undefined) updates.scarcity_label = String(p.scarcity_label || '').trim() || null;
-        
+        if (p.demo_video_url !== undefined) updates.demo_video_url = String(p.demo_video_url || '').trim() || null;
+
         const { data, error } = await supabase.from('products').update(updates).eq('id', id).select().single();
         if (error) return json({ error: error.message }, 500); 
         return json(data);
@@ -863,7 +926,28 @@ async function handle(request, { params }) {
     }
     if (segments.length === 2) {
       const id = segments[1];
-      if (method === 'PUT') { const authError = requireAdmin(request); if (authError) return authError; const i = body || {}; const updates = {}; if (i.status !== undefined) { if (!VALID_STATUSES.includes(i.status)) return json({ error: 'Invalid status' }, 400); updates.status = i.status; } const { data, error } = await supabase.from('inquiries').update(updates).eq('id', id).select().single(); if (error) return json({ error: error.message }, 500); return json(data); }
+      if (method === 'PUT') {
+        const authError = requireAdmin(request);
+        if (authError) return authError;
+        const i = body || {};
+        const updates = {};
+        if (i.status !== undefined) {
+          if (!VALID_STATUSES.includes(i.status)) return json({ error: 'Invalid status' }, 400);
+          updates.status = i.status;
+        }
+        const { data, error } = await supabase.from('inquiries').update(updates).eq('id', id).select().single();
+        if (error) return json({ error: error.message }, 500);
+        if (i.status === 'converted' && data?.product_interest) {
+          try {
+            const names = data.product_interest.split(',').map((s) => s.trim()).filter(Boolean);
+            for (const name of names) {
+              const { data: p } = await supabase.from('products').select('id, purchase_count').ilike('name', `%${name}%`).limit(1).single();
+              if (p) await supabase.from('products').update({ purchase_count: (p.purchase_count || 0) + 1 }).eq('id', p.id);
+            }
+          } catch (e) {}
+        }
+        return json(data);
+      }
       if (method === 'DELETE') { const authError = requireAdmin(request); if (authError) return authError; const { data, error } = await supabase.from('inquiries').delete().eq('id', id).select().single(); if (error) return json({ error: 'Not found' }, 404); return json({ success: true, removed: data }); }
     }
   }

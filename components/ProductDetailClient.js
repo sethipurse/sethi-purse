@@ -282,6 +282,11 @@ export default function ProductDetailClient({ product, related = [], reviews = [
   const defaultImages = useMemo(() => getDefaultImages(product), [product]);
   const { viewers, displayStock, timeLeft } = useScarcity(product);
 
+  useEffect(() => {
+    if (!product?.id) return;
+    fetch(`/api/products/${product.id}/view`, { method: 'POST' }).catch(() => {});
+  }, [product?.id]);
+
   const [qty, setQty] = useState(1);
   const [selectedSize, setSelectedSize] = useState('');
   const [selectedColor, setSelectedColor] = useState(() => {
@@ -350,7 +355,19 @@ export default function ProductDetailClient({ product, related = [], reviews = [
     <div style={{ backgroundColor: '#faf8f4' }}>
       <div className="space-y-14">
         <div className="grid gap-8 lg:grid-cols-[1.02fr_0.98fr]">
-          <ImageGallery images={images} alt={product.name} />
+          <div className="flex flex-col gap-4">
+            <ImageGallery images={images} alt={product.name} />
+            {product.demo_video_url && (
+              <div className="overflow-hidden rounded-lg bg-black shadow-sm ring-1 ring-[#ede8df]">
+                <p className="px-3 py-1.5 text-xs font-semibold text-white/70 bg-[#2c1f14]">▶ Product Demo</p>
+                <video
+                  src={product.demo_video_url}
+                  autoPlay muted loop playsInline
+                  style={{ width: '100%', maxHeight: 280, objectFit: 'contain', display: 'block', background: '#000' }}
+                />
+              </div>
+            )}
+          </div>
 
           <div className="rounded bg-white p-6 shadow-sm ring-1 ring-[#ede8df] md:p-8">
             <Link href="/products" className="inline-flex items-center gap-2 text-base font-semibold text-[#8a7060] hover:text-[#c9a84c]">

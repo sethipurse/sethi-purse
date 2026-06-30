@@ -119,6 +119,18 @@ export default function ProductCard({ product, onAddToCart }) {
           </div>
         )}
 
+        {/* Confidence badge — only shown once thresholds are crossed */}
+        {(product.purchase_count > 5 || product.view_count > 20) && (
+          <div className="mt-2 flex items-center gap-1.5">
+            <TrendingUp className="h-3.5 w-3.5 text-[#c9a84c]" />
+            <span className="text-xs font-semibold text-[#6b5544]">
+              {product.purchase_count > 5
+                ? `${product.purchase_count}+ buyers chose this`
+                : `${product.view_count}+ people viewed this`}
+            </span>
+          </div>
+        )}
+
         {/* Scarcity signals */}
         {isScarcityOn && !outOfStock && (
           <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 flex flex-col gap-2">

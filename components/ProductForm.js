@@ -38,6 +38,7 @@ export default function ProductForm({ initial, productId, onSaved }) {
     price_lock_hours: '0',
     local_scarcity: false,
     scarcity_label: '',
+    demo_video_url: '',
   });
   const [colorVariants, setColorVariants] = useState([]);
   const [newColorName, setNewColorName] = useState('');
@@ -87,6 +88,7 @@ export default function ProductForm({ initial, productId, onSaved }) {
         price_lock_hours: initial.price_lock_hours ?? '0',
         local_scarcity: !!initial.local_scarcity,
         scarcity_label: initial.scarcity_label || '',
+        demo_video_url: initial.demo_video_url || '',
       });
       setColorVariants(normalizeColorVariants(initial));
     }
@@ -189,6 +191,7 @@ export default function ProductForm({ initial, productId, onSaved }) {
       price_lock_hours: Number(form.price_lock_hours) || 0,
       local_scarcity: !!form.local_scarcity,
       scarcity_label: form.scarcity_label || null,
+      demo_video_url: form.demo_video_url?.trim() || null,
     };
     try {
       const url = productId ? `/api/products/${encodeURIComponent(productId)}` : '/api/products';
@@ -404,6 +407,15 @@ export default function ProductForm({ initial, productId, onSaved }) {
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="md:col-span-2">
+        <label className="block text-sm font-medium mb-1.5">Demo Video URL <span className="text-sethi-gray500 font-normal">(optional — short clip, mp4 or webm)</span></label>
+        <input value={form.demo_video_url} onChange={(e) => update('demo_video_url', e.target.value)}
+          className="input-sethi" placeholder="https://… (upload to Supabase storage or any video host)" />
+        {form.demo_video_url && (
+          <p className="mt-1.5 text-xs text-sethi-gray500">Video will show as muted autoplay loop on the product page.</p>
+        )}
       </div>
 
       <div className="md:col-span-2">

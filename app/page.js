@@ -9,6 +9,8 @@ import OfferCard from '@/components/OfferCard';
 import ReviewCard from '@/components/ReviewCard';
 import Footer from '@/components/Footer';
 import InstagramSection from '@/components/InstagramSection';
+import DecideForMeModal from '@/components/DecideForMeModal';
+import ProblemSearch from '@/components/ProblemSearch';
 import { buildCartOrderMessage, buildWhatsAppLink, cartTotal } from '@/lib/constants';
 import { categoryPath } from '@/lib/categoryUtils';
 
@@ -47,6 +49,7 @@ export default function HomePage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [cart, setCart] = useState([]);
+  const [decideOpen, setDecideOpen] = useState(false);
 
   useEffect(() => {
     try {
@@ -124,6 +127,21 @@ export default function HomePage() {
           </div>
         ))}
       </section>
+
+      {/* Decide for me CTA */}
+      <section className="mx-auto w-full max-w-6xl px-4 pb-6">
+        <button
+          type="button"
+          onClick={() => setDecideOpen(true)}
+          className="w-full rounded-xl border-2 border-dashed border-[#c9a84c] bg-[#fdf6e3] py-4 text-center transition hover:bg-[#f5ecca]"
+        >
+          <span className="text-lg font-bold text-[#2c1f14]">🤔 Confused? </span>
+          <span className="text-lg font-bold text-[#c9a84c]">Bas best wala de do →</span>
+          <p className="mt-0.5 text-sm text-[#8a7060]">2 sawaal — hum aapke liye best product choose karenge</p>
+        </button>
+      </section>
+
+      {decideOpen && <DecideForMeModal onClose={() => setDecideOpen(false)} />}
 
       {/* FIX: Search bar + instant results shown RIGHT BELOW search */}
       <section className="mx-auto w-full max-w-6xl px-4 py-8">
@@ -205,6 +223,8 @@ export default function HomePage() {
               ))}
             </div>
           </section>
+
+          <ProblemSearch allProducts={allProducts} />
 
           <section className="mx-auto w-full max-w-6xl px-4 pb-12">
             <h2 className="text-4xl font-bold text-[#c9a84c]">Shop by Category</h2>
