@@ -74,7 +74,7 @@ export default function InquiryForm() {
     return (
       <div className="card-sethi p-8 md:p-10 text-center">
         <CheckCircle2 className="w-14 h-14 text-sethi-gold mx-auto mb-4" />
-        <h3 className="font-serif text-base font-medium mb-2">Thank you!</h3>
+        <h3 className="font-serif text-2xl mb-2">Thank you!</h3>
         <p className="text-sethi-gray500">We&apos;ll contact you soon.</p>
         <button onClick={() => setDone(false)} className="btn-ghost mt-6">Send another inquiry</button>
       </div>

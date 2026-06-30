@@ -130,7 +130,7 @@ export default function HomePage() {
         ].map(({ icon: Icon, title, text }) => (
           <div key={title} className="rounded bg-white p-4 shadow-sm ring-1 ring-[#ede8df] transition hover:-translate-y-0.5 hover:shadow-md">
             <Icon className="h-7 w-7 text-[#c9a84c]" />
-            <div className="mt-3 text-base font-medium text-[#2c1f14]">{title}</div>
+            <div className="mt-3 text-xl font-bold text-[#2c1f14]">{title}</div>
             <div className="text-base text-[#8a7060]">{text}</div>
           </div>
         ))}
@@ -267,7 +267,7 @@ export default function HomePage() {
             {searchResults.length === 0 && (
               <div className="rounded bg-white p-10 text-center ring-1 ring-[#ede8df]">
                 <Sparkles className="mx-auto h-10 w-10 text-[#c9a84c]" />
-                <h3 className="mt-3 text-base font-medium">No products found</h3>
+                <h3 className="mt-3 text-2xl font-bold">No products found</h3>
                 <p className="mt-1 text-[#8a7060]">Try another search term.</p>
                 <button
                   type="button"
@@ -312,7 +312,7 @@ export default function HomePage() {
           <ProblemSearch allProducts={allProducts} />
 
           <section className="mx-auto w-full max-w-6xl px-4 pb-12">
-            <h2 className="text-xl font-medium text-[#2c1f14]">Shop by category</h2>
+            <h2 className="text-4xl font-bold text-[#c9a84c]">Shop by Category</h2>
             <div className="mt-5 grid grid-cols-2 gap-4 md:grid-cols-4">
               {categories.map((category) => (
                 <Link key={category.id || category.name} href={categoryPath(category.name)} className="group relative aspect-[4/5] overflow-hidden rounded bg-white text-left shadow-sm ring-1 ring-[#ede8df]">
@@ -327,7 +327,7 @@ export default function HomePage() {
           <section className="mx-auto w-full max-w-6xl px-4 pb-12">
             <div className="flex items-end justify-between gap-4">
               <div>
-                <h2 className="text-xl font-medium text-[#2c1f14]">Featured products</h2>
+                <h2 className="text-4xl font-bold text-[#c9a84c]">Featured Products</h2>
                 <p className="mt-1 text-lg text-[#8a7060]">Premium picks from SETHI PURSE Jalandhar.</p>
               </div>
               <Link href="/products" className="hidden text-lg font-semibold text-[#a07a28] hover:underline md:inline">View all</Link>
@@ -338,7 +338,7 @@ export default function HomePage() {
               ) : featuredProducts.length === 0 ? (
                 <div className="col-span-full rounded bg-white p-10 text-center ring-1 ring-[#ede8df]">
                   <Sparkles className="mx-auto h-10 w-10 text-[#c9a84c]" />
-                  <h3 className="mt-3 text-base font-medium">No products yet</h3>
+                  <h3 className="mt-3 text-2xl font-bold">No products yet</h3>
                   <p className="mt-1 text-[#8a7060]">Check back soon!</p>
                 </div>
               ) : (
@@ -352,7 +352,7 @@ export default function HomePage() {
           {reviews.length > 0 && (
             <section className="bg-[#f5f0e8] py-12">
               <div className="mx-auto w-full max-w-6xl px-4">
-                <h2 className="text-xl font-medium text-[#2c1f14]">Customer reviews</h2>
+                <h2 className="text-4xl font-bold text-[#c9a84c]">Customer Reviews</h2>
                 <div className="mt-6 grid gap-5 md:grid-cols-3">
                   {reviews.slice(0, 3).map((review) => <ReviewCard key={review.id} review={review} />)}
                 </div>

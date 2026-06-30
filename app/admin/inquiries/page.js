@@ -222,7 +222,7 @@ export default function AdminInquiriesPage() {
         <div className="text-center py-12 text-sethi-gray500">Loading…</div>
       ) : displayed.length === 0 ? (
         <div className="bg-white border border-sethi-gray200 rounded-sm p-10 text-center text-sethi-gray500">
-          <p className="font-serif text-base font-medium mb-2">No enquiries found</p>
+          <p className="font-serif text-xl mb-2">No enquiries found</p>
           <p className="text-sm">
             {search.trim()
               ? 'Try a different name or phone number.'
@@ -415,7 +415,7 @@ export default function AdminInquiriesPage() {
       {confirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 md:pl-[260px]">
           <div className="bg-white rounded-sm p-6 max-w-md w-full">
-            <h3 className="font-serif text-base font-medium mb-2">Delete inquiry?</h3>
+            <h3 className="font-serif text-xl mb-2">Delete inquiry?</h3>
             <p className="text-sethi-gray500 text-sm mb-5">
               Are you sure you want to delete the inquiry from <strong>{confirm.name}</strong>? This cannot be undone.
             </p>
@@ -433,7 +433,7 @@ export default function AdminInquiriesPage() {
       {bulkConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 md:pl-[260px]">
           <div className="bg-white rounded-sm p-6 max-w-md w-full">
-            <h3 className="font-serif text-base font-medium mb-2 text-red-700">Delete {selectedCount} enquir{selectedCount > 1 ? 'ies' : 'y'}?</h3>
+            <h3 className="font-serif text-xl mb-2 text-red-700">Delete {selectedCount} enquir{selectedCount > 1 ? 'ies' : 'y'}?</h3>
             <p className="text-sethi-gray500 text-sm mb-5">
               You are about to permanently delete <strong>{selectedCount} enquir{selectedCount > 1 ? 'ies' : 'y'}</strong>. This cannot be undone.
             </p>

@@ -154,7 +154,7 @@ export default function AdminReviewsPage() {
   return (
     <AdminShell>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <h2 className="font-serif text-xl font-medium">All reviews ({reviews.length})</h2>
+        <h2 className="font-serif text-2xl">All Reviews ({reviews.length})</h2>
         <button onClick={openNew} className="btn-primary"><Plus className="w-4 h-4" /> Add Review</button>
       </div>
 
@@ -226,7 +226,7 @@ export default function AdminReviewsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 md:pl-[260px]">
           <form onSubmit={save} className="bg-white rounded-sm w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-5 border-b border-sethi-gray200">
-              <h3 className="font-serif text-base font-medium">{editing === 'new' ? 'Add review' : 'Edit review'}</h3>
+              <h3 className="font-serif text-xl">{editing === 'new' ? 'Add Review' : 'Edit Review'}</h3>
               <button type="button" onClick={close} className="w-9 h-9 inline-flex items-center justify-center"><X className="w-5 h-5" /></button>
             </div>
             <div className="p-5 space-y-4">
@@ -275,7 +275,7 @@ export default function AdminReviewsPage() {
       {confirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 md:pl-[260px]">
           <div className="bg-white rounded-sm p-6 max-w-md w-full">
-            <h3 className="font-serif text-base font-medium mb-2">Delete review?</h3>
+            <h3 className="font-serif text-xl mb-2">Delete review?</h3>
             <p className="text-sethi-gray500 text-sm mb-5">Are you sure you want to delete the review from <strong>{confirm ? getName(confirm) : ''}</strong>? This cannot be undone.</p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setConfirm(null)} className="btn-ghost">Cancel</button>
@@ -288,7 +288,7 @@ export default function AdminReviewsPage() {
       {bulkConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 md:pl-[260px]">
           <div className="bg-white rounded-sm p-6 max-w-md w-full">
-            <h3 className="font-serif text-base font-medium mb-2 text-red-700">Delete {selectedCount} review{selectedCount > 1 ? 's' : ''}?</h3>
+            <h3 className="font-serif text-xl mb-2 text-red-700">Delete {selectedCount} review{selectedCount > 1 ? 's' : ''}?</h3>
             <p className="text-sethi-gray500 text-sm mb-5">You are about to permanently delete <strong>{selectedCount} review{selectedCount > 1 ? 's' : ''}</strong>. This cannot be undone.</p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setBulkConfirm(false)} disabled={bulkDeleting} className="btn-ghost">Cancel</button>

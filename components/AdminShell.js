@@ -154,7 +154,7 @@ export default function AdminShell({ children }) {
               <button onClick={() => setOpen(true)} className="md:hidden w-10 h-10 inline-flex items-center justify-center text-sethi-black">
                 <Menu className="w-6 h-6" />
               </button>
-              <h1 className="font-serif text-base font-medium">{title}</h1>
+              <h1 className="font-serif text-xl md:text-2xl">{title}</h1>
             </div>
             <a href="/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm text-sethi-gold hover:underline">
               <ExternalLink className="w-4 h-4" /> View Store

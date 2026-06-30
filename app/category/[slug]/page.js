@@ -50,7 +50,7 @@ export default async function CategoryPage({ params }) {
             <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#c9a84c]">Category</p>
             <div className="mt-2 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
               <div>
-                <h1 className="text-2xl font-medium leading-tight text-[#2c1f14]">{title}</h1>
+                <h1 className="text-4xl font-bold leading-tight text-[#2c1f14] md:text-6xl">{title}</h1>
                 <p className="mt-2 text-lg text-[#8a7060]">
                   {products.length === 0
                     ? 'We are updating this collection. Message us for current stock.'
@@ -83,7 +83,7 @@ export default async function CategoryPage({ params }) {
           {products.length === 0 ? (
             <div className="rounded bg-white p-8 text-center ring-1 ring-[#ede8df] md:p-12">
               <Sparkles className="mx-auto h-10 w-10 text-[#c9a84c]" />
-              <h2 className="mt-3 text-xl font-medium text-[#2c1f14]">No products in {title} yet</h2>
+              <h2 className="mt-3 text-2xl font-bold text-[#2c1f14]">No products in {title} yet</h2>
               <p className="mx-auto mt-2 max-w-xl text-[#8a7060]">
                 This category is empty right now. Browse all products or contact us on WhatsApp for the latest in-store arrivals.
               </p>

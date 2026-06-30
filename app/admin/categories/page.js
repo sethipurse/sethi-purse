@@ -177,7 +177,7 @@ export default function AdminCategoriesPage() {
     <AdminShell>
       <div className="grid lg:grid-cols-2 gap-6">
         <form onSubmit={add} className="bg-white border border-sethi-gray200 rounded-sm p-5 md:p-6 space-y-4">
-          <h2 className="font-serif text-base font-medium">Add new category</h2>
+          <h2 className="font-serif text-xl">Add New Category</h2>
           <div>
             <label className="block text-sm font-medium mb-1.5">Category Name</label>
             <input value={name} onChange={(e) => setName(e.target.value)} className="input-sethi" placeholder="e.g. Trolley Bags" />
@@ -190,7 +190,7 @@ export default function AdminCategoriesPage() {
 
         <div className="bg-white border border-sethi-gray200 rounded-sm">
           <div className="p-5 border-b border-sethi-gray200">
-            <h2 className="font-serif text-base font-medium">All categories ({categories.length})</h2>
+            <h2 className="font-serif text-xl">All Categories ({categories.length})</h2>
           </div>
           <ul className="divide-y divide-sethi-gray200">
             {loading ? (
@@ -223,7 +223,7 @@ export default function AdminCategoriesPage() {
       {confirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 md:pl-[260px]">
           <div className="bg-white rounded-sm p-6 max-w-md w-full">
-            <h3 className="font-serif text-base font-medium mb-2">Delete category?</h3>
+            <h3 className="font-serif text-xl mb-2">Delete category?</h3>
             <p className="text-sethi-gray500 text-sm mb-5">Are you sure you want to delete "{confirm.name}"?</p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setConfirm(null)} className="btn-ghost">Cancel</button>
@@ -237,7 +237,7 @@ export default function AdminCategoriesPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 md:pl-[260px]">
           <div className="bg-white rounded-sm w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-5 border-b border-sethi-gray200">
-              <h3 className="font-serif text-base font-medium">Edit category</h3>
+              <h3 className="font-serif text-xl">Edit Category</h3>
               <button onClick={() => setEditing(null)} className="w-9 h-9 inline-flex items-center justify-center"><X className="w-5 h-5" /></button>
             </div>
             <div className="p-5 space-y-4">

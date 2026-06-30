@@ -85,7 +85,7 @@ export default function AdminSettingsPage() {
     <AdminShell>
       <div className="grid lg:grid-cols-2 gap-6 max-w-5xl">
         <form onSubmit={updatePwd} className="bg-white border border-sethi-gray200 rounded-sm p-5 md:p-7 space-y-4">
-          <div className="flex items-center gap-2 mb-2"><KeyRound className="w-5 h-5 text-sethi-gold" /><h2 className="font-serif text-base font-medium">Change admin password</h2></div>
+          <div className="flex items-center gap-2 mb-2"><KeyRound className="w-5 h-5 text-sethi-gold" /><h2 className="font-serif text-xl">Change Admin Password</h2></div>
           <div>
             <label className="block text-sm font-medium mb-1.5">Current Password</label>
             <input type={showP ? 'text' : 'password'} value={curPwd} onChange={(e) => setCurPwd(e.target.value)} className="input-sethi" required />
@@ -107,7 +107,7 @@ export default function AdminSettingsPage() {
         </form>
 
         <form onSubmit={updateUsername} className="bg-white border border-sethi-gray200 rounded-sm p-5 md:p-7 space-y-4">
-          <div className="flex items-center gap-2 mb-2"><UserIcon className="w-5 h-5 text-sethi-gold" /><h2 className="font-serif text-base font-medium">Change admin username</h2></div>
+          <div className="flex items-center gap-2 mb-2"><UserIcon className="w-5 h-5 text-sethi-gold" /><h2 className="font-serif text-xl">Change Admin Username</h2></div>
           <div>
             <label className="block text-sm font-medium mb-1.5">Current Username</label>
             <input value={currentUsername} readOnly className="input-sethi bg-sethi-gray100" />

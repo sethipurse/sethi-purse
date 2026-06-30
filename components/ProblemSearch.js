@@ -130,7 +130,7 @@ export default function ProblemSearch({ allProducts = [] }) {
         <div style={{ marginBottom: 20 }}>
           <h2 style={{
             fontFamily: "'Cormorant Garamond',serif",
-            fontSize: 20, fontWeight: 500, color: '#2c1f14',
+            fontSize: 30, fontWeight: 700, color: '#2c1f14',
             margin: '0 0 8px', lineHeight: 1.25,
             display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '0 0.28em',
           }}>

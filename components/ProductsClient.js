@@ -90,7 +90,7 @@ export default function ProductsClient({ initialProducts, categories }) {
 
       {filtered.length === 0 ? (
         <div className="text-center py-20">
-          <p className="font-serif text-base font-medium mb-2">No products found{q ? ` for "${q}"` : active !== 'All' ? ` in "${active}"` : ''}</p>
+          <p className="font-serif text-2xl mb-2">No products found{q ? ` for "${q}"` : active !== 'All' ? ` in "${active}"` : ''}</p>
           <p className="text-sethi-gray500 mb-4">Try a different search or category.</p>
           {(q || active !== 'All') && (
             <button

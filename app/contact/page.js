@@ -19,7 +19,7 @@ export default function ContactPage() {
       <section className="bg-sethi-black text-white">
         <div className="container-sethi py-16 md:py-24 text-center">
           <span className="text-sethi-gold text-xs tracking-[0.3em] uppercase">Get in Touch</span>
-          <h1 className="heading-hero mt-3 text-white">Visit our <span className="text-sethi-gold">store</span></h1>
+          <h1 className="heading-hero mt-3 text-white">Visit Our <span className="text-sethi-gold">Store</span></h1>
           <p className="mt-4 text-sethi-gray500 max-w-xl mx-auto">We&apos;d love to see you in person.</p>
         </div>
       </section>
@@ -28,7 +28,7 @@ export default function ContactPage() {
       <section className="section-pad">
         <div className="container-sethi grid lg:grid-cols-2 gap-8">
           <div className="card-sethi p-7 md:p-9">
-            <h2 className="font-serif text-xl font-medium">Find us</h2>
+            <h2 className="font-serif text-2xl md:text-3xl">Find Us</h2>
             <span className="gold-rule mt-3 mb-6" />
             <ul className="space-y-5 text-sethi-gray800">
               <li className="flex items-start gap-3">
@@ -88,7 +88,7 @@ export default function ContactPage() {
       {/* SECTION 3 — Google Reviews */}
       <section className="section-pad bg-sethi-gray100">
         <div className="container-sethi text-center max-w-2xl mx-auto">
-          <h2 className="heading-section">Our Google reviews</h2>
+          <h2 className="heading-section">Our Google Reviews</h2>
           <span className="gold-rule mx-auto mt-4" />
           <div className="mt-6 flex items-center justify-center gap-1">
             {[1,2,3,4,5].map((n) => <Star key={n} className="w-7 h-7 text-sethi-gold fill-sethi-gold" />)}
@@ -104,7 +104,7 @@ export default function ContactPage() {
       <section className="section-pad pb-32 md:pb-20">
         <div className="container-sethi">
           <div className="text-center mb-10">
-            <h2 className="heading-section">Send us a message</h2>
+            <h2 className="heading-section">Send Us a Message</h2>
             <span className="gold-rule mx-auto mt-4" />
             <p className="mt-4 text-sethi-gray500">We&apos;ll get back to you within 24 hours.</p>
           </div>

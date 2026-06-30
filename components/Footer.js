@@ -34,7 +34,7 @@ export default function Footer() {
 
           {/* Quick Links */}
           <div>
-            <h4 className="font-serif text-base font-medium mb-4 text-white">Quick links</h4>
+            <h4 className="font-serif text-xl mb-4 text-white">Quick Links</h4>
             <ul className="space-y-1">
               {[
                 { href: '/', label: 'Home' },
@@ -56,7 +56,7 @@ export default function Footer() {
 
           {/* Contact */}
           <div>
-            <h4 className="font-serif text-base font-medium mb-4 text-white">Contact info</h4>
+            <h4 className="font-serif text-xl mb-4 text-white">Contact Info</h4>
             <div className="space-y-4 text-white/70 text-sm">
               <a
                 href={`https://maps.google.com/?q=${encodeURIComponent('Inside Mai Hiran Gate, Near Books Market, Jalandhar, Punjab 144001')}`}

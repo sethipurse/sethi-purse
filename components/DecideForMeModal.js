@@ -93,7 +93,7 @@ export default function DecideForMeModal({ onClose }) {
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
               <Sparkles size={22} color="#c9a84c" />
-              <h2 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 500, color: '#2c1f14', margin: 0 }}>Bas best wala de do</h2>
+              <h2 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 22, fontWeight: 700, color: '#2c1f14', margin: 0 }}>Bas best wala de do!</h2>
             </div>
             <p style={{ fontSize: 13, color: '#8a7060', marginBottom: 22 }}>3 sawaal — hum choose karenge aapke liye 😊</p>
 
@@ -170,7 +170,7 @@ export default function DecideForMeModal({ onClose }) {
         {step === 'result' && result?.product && (
           <>
             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', color: '#c9a84c', textTransform: 'uppercase', marginBottom: 4 }}>Aapke liye best pick</p>
-            <h2 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 500, color: '#2c1f14', margin: '0 0 18px' }}>Yeh lo ✅</h2>
+            <h2 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 700, color: '#2c1f14', margin: '0 0 18px' }}>Yeh lo! ✅</h2>
 
             <TiltCard maxTilt={15} scale={1.025} style={{ background: '#fff', borderRadius: 16, border: '2px solid #c9a84c', padding: 16, marginBottom: 16, display: 'flex', gap: 14, alignItems: 'flex-start' }}>
               {img
@@ -211,7 +211,7 @@ export default function DecideForMeModal({ onClose }) {
               style={{ background: 'none', border: 'none', color: '#8a7060', fontSize: 13, cursor: 'pointer', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 4 }}>
               ← Back to top pick
             </button>
-            <h3 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 16, fontWeight: 500, color: '#2c1f14', margin: '0 0 14px' }}>2 more options</h3>
+            <h3 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 18, fontWeight: 700, color: '#2c1f14', margin: '0 0 14px' }}>2 More Options</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {result.alternatives.map((alt) => {
                 const altPrice = alt.sale_price ?? alt.price ?? 0;
