@@ -8,6 +8,36 @@
   50%      { transform: translate(30px,-25px) scale(1.08); }
 }
 
+/* ── Uiverse Spinner (SelfMadeSystem) ── */
+@keyframes uv-dashArray {
+  0%   { stroke-dasharray: 0 1 359 0; }
+  50%  { stroke-dasharray: 0 359 1 0; }
+  100% { stroke-dasharray: 359 1 0 0; }
+}
+@keyframes uv-spinDashArray {
+  0%   { stroke-dasharray: 270 90; }
+  50%  { stroke-dasharray: 0 360; }
+  100% { stroke-dasharray: 270 90; }
+}
+@keyframes uv-dashOffset {
+  0%   { stroke-dashoffset: 365; }
+  100% { stroke-dashoffset: 5; }
+}
+@keyframes uv-spin {
+  0%          { rotate: 0deg; }
+  12.5%, 25%  { rotate: 270deg; }
+  37.5%, 50%  { rotate: 540deg; }
+  62.5%, 75%  { rotate: 810deg; }
+  87.5%, 100% { rotate: 1080deg; }
+}
+.uv-dash {
+  animation: uv-dashArray 2s ease-in-out infinite, uv-dashOffset 2s linear infinite;
+}
+.uv-spin {
+  animation: uv-spinDashArray 2s ease-in-out infinite, uv-spin 8s ease-in-out infinite, uv-dashOffset 2s linear infinite;
+  transform-origin: center;
+}
+
 @layer base {
   :root {
     --font-cormorant: 'Cormorant Garamond', Georgia, serif;
