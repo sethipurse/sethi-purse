@@ -142,87 +142,213 @@ export default function HomePage() {
         transform: decideVisible ? 'translateY(0)' : 'translateY(24px)',
         transition: 'opacity 0.6s ease, transform 0.6s ease',
       }}>
+        {/* 3D Futuristic CTA */}
         <button
           type="button"
           onClick={() => setDecideOpen(true)}
-          className="decide-cta w-full rounded-xl border-2 border-dashed border-[#c9a84c] bg-[#fdf6e3] py-5 text-center"
-          style={{ position: 'relative', overflow: 'hidden' }}
+          className="ftc3-scene w-full"
+          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'block' }}
         >
-          {/* shimmer light sweep — runs across the card */}
-          <span aria-hidden="true" className="decide-sweep" />
-          <div className="flex items-center justify-center gap-2 flex-wrap" style={{ position: 'relative' }}>
-            <span className="decide-emoji text-2xl">🤔</span>
-            <span className="text-lg font-bold text-[#2c1f14]">Confused?</span>
-            <span className="decide-shimmer-text text-lg font-bold">Bas best wala de do</span>
-            <span className="decide-arrow text-xl font-bold">→</span>
+          <div className="ftc3-card">
+            {/* All background effects inside clipped layer */}
+            <div className="ftc3-bg">
+              <div className="ftc3-grid" />
+              <div className="ftc3-orb ftc3-orb1" />
+              <div className="ftc3-orb ftc3-orb2" />
+              <div className="ftc3-orb ftc3-orb3" />
+              <div className="ftc3-scan" />
+              <div className="ftc3-holo" />
+            </div>
+            {/* HUD corners */}
+            <span className="ftc3-c ftc3-tl" />
+            <span className="ftc3-c ftc3-tr" />
+            <span className="ftc3-c ftc3-bl" />
+            <span className="ftc3-c ftc3-br" />
+            <div className="ftc3-top-rule" />
+            {/* 3D content layers — each child floats at a different Z depth */}
+            <div className="ftc3-content">
+              <div className="ftc3-badge-wrap">
+                <div className="ftc3-badge"><span className="ftc3-dot" />◈ AI · NEURAL SEARCH</div>
+              </div>
+              <div className="ftc3-emoji-wrap">
+                <span className="ftc3-emoji">🤔</span>
+              </div>
+              <div className="ftc3-main-row">
+                <span className="ftc3-confused">Confused?</span>
+                <span className="ftc3-shimmer">Bas best wala de do</span>
+                <span className="ftc3-arrow">→</span>
+              </div>
+              <p className="ftc3-sub">3 sawaal — hum aapke liye best product choose karenge</p>
+            </div>
           </div>
-          <p className="mt-1 text-sm text-[#8a7060]" style={{ position: 'relative' }}>3 sawaal — hum aapke liye best product choose karenge</p>
         </button>
         <style>{`
-          .decide-cta {
-            outline: none;
-            cursor: pointer;
-            animation: decide-float 4s ease-in-out infinite, decide-glow 3s ease-in-out infinite;
-            transition: background 0.2s ease;
+          /* ── SCENE / PERSPECTIVE WRAPPER ── */
+          .ftc3-scene {
+            perspective: 900px;
+            perspective-origin: 50% 45%;
+            display: block;
           }
-          .decide-cta:hover { background: #f5ecca !important; }
-          .decide-cta:active { animation: none !important; transform: scale(0.98); }
-          @keyframes decide-float {
-            0%, 100% { transform: translateY(0px); }
-            50%       { transform: translateY(-6px); }
+          .ftc3-scene:hover .ftc3-card { filter: brightness(1.13); }
+          .ftc3-scene:active .ftc3-card { transform: rotateX(0deg) rotateY(0deg) scale(0.97) !important; animation: none !important; }
+
+          /* ── CARD — rocks in 3D continuously ── */
+          .ftc3-card {
+            position: relative;
+            border-radius: 20px;
+            background: radial-gradient(ellipse at 25% 30%, #1e0d40, #0c0520 55%, #060210);
+            padding: 34px 28px 26px;
+            text-align: center;
+            border: 1px solid rgba(140,60,255,0.35);
+            transform-style: preserve-3d;
+            animation: ftc3-rock 7s ease-in-out infinite;
+            box-shadow:
+              0 0 0 1px rgba(140,60,255,0.12),
+              0 28px 80px rgba(80,20,200,0.55),
+              0 0 140px rgba(100,30,220,0.2),
+              inset 0 1px 0 rgba(255,255,255,0.06);
+            transition: filter 0.3s ease;
           }
-          @keyframes decide-glow {
-            0%, 100% { box-shadow: 0 2px 8px rgba(201,168,76,0.1); }
-            50%       { box-shadow: 0 8px 36px 4px rgba(201,168,76,0.38), 0 0 0 3px rgba(201,168,76,0.1); }
+          @keyframes ftc3-rock {
+            0%   { transform: rotateX(4deg)  rotateY(-2deg); }
+            20%  { transform: rotateX(-1deg) rotateY(2.5deg); }
+            40%  { transform: rotateX(3deg)  rotateY(1deg); }
+            60%  { transform: rotateX(-2deg) rotateY(-1.5deg); }
+            80%  { transform: rotateX(2.5deg) rotateY(-2.5deg); }
+            100% { transform: rotateX(4deg)  rotateY(-2deg); }
           }
-          .decide-sweep {
+
+          /* ── BACKGROUND EFFECTS (clipped) ── */
+          .ftc3-bg {
+            position: absolute; inset: 0; border-radius: 19px;
+            overflow: hidden; pointer-events: none;
+          }
+
+          /* perspective grid at base of card */
+          .ftc3-grid {
             position: absolute;
-            top: 0; bottom: 0; left: 0;
-            width: 52%;
-            background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%);
-            animation: sweep-across 3.8s ease-in-out 0.8s infinite;
-            pointer-events: none;
+            bottom: 0; left: -30%; right: -30%; height: 55%;
+            background:
+              linear-gradient(rgba(140,60,255,0.14) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(140,60,255,0.14) 1px, transparent 1px);
+            background-size: 30px 30px;
+            transform: perspective(180px) rotateX(58deg);
+            transform-origin: bottom center;
+            opacity: 0.7;
           }
-          @keyframes sweep-across {
-            0%        { transform: translateX(-120%); }
-            45%, 100% { transform: translateX(280%); }
+
+          /* nebula orbs */
+          .ftc3-orb { position: absolute; border-radius: 50%; filter: blur(65px); }
+          .ftc3-orb1 { width:300px; height:300px; background:rgba(100,30,255,0.22); top:-110px; right:-80px; animation:ftc3-orb 8s ease-in-out infinite; }
+          .ftc3-orb2 { width:220px; height:220px; background:rgba(201,168,76,0.13); bottom:-90px; left:-70px; animation:ftc3-orb 10s ease-in-out infinite reverse; }
+          .ftc3-orb3 { width:170px; height:170px; background:rgba(0,180,255,0.1); top:10px; left:28%; animation:ftc3-orb 6s ease-in-out infinite 2s; }
+          @keyframes ftc3-orb { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(22px,-16px) scale(1.08)} }
+
+          /* scan line */
+          .ftc3-scan {
+            position: absolute; left:0; right:0; height:2px;
+            background: linear-gradient(90deg, transparent, rgba(140,60,255,0.7), rgba(200,150,255,1), rgba(140,60,255,0.7), transparent);
+            box-shadow: 0 0 18px rgba(140,60,255,0.9), 0 0 40px rgba(140,60,255,0.3);
+            animation: ftc3-scan 3.5s ease-in-out infinite;
           }
-          .decide-shimmer-text {
-            background: linear-gradient(90deg, #7a5c0e 0%, #f5d47a 28%, #c9a84c 50%, #f5d47a 72%, #7a5c0e 100%);
-            background-size: 260% auto;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            animation: text-shimmer 2.4s linear infinite;
+          @keyframes ftc3-scan { 0%{top:0;opacity:0} 4%{opacity:1} 92%{opacity:1} 100%{top:100%;opacity:0} }
+
+          /* holographic sheen */
+          .ftc3-holo {
+            position:absolute; inset:0;
+            background: linear-gradient(125deg, transparent 20%, rgba(255,255,255,0.04) 40%, rgba(140,60,255,0.06) 60%, transparent 80%);
+            animation: ftc3-holo 5s ease-in-out infinite;
           }
-          @keyframes text-shimmer {
-            0%   { background-position: 0% center; }
-            100% { background-position: 260% center; }
+          @keyframes ftc3-holo { 0%,100%{opacity:0.5} 50%{opacity:1} }
+
+          /* ── HUD CORNERS ── */
+          .ftc3-c { position:absolute; width:18px; height:18px; border-color:rgba(160,80,255,0.85); border-style:solid; pointer-events:none; }
+          .ftc3-tl { top:9px; left:9px; border-width:2px 0 0 2px; animation:ftc3-corner 4s ease-in-out infinite 0s; }
+          .ftc3-tr { top:9px; right:9px; border-width:2px 2px 0 0; animation:ftc3-corner 4s ease-in-out infinite 1s; }
+          .ftc3-bl { bottom:9px; left:9px; border-width:0 0 2px 2px; animation:ftc3-corner 4s ease-in-out infinite 2s; }
+          .ftc3-br { bottom:9px; right:9px; border-width:0 2px 2px 0; animation:ftc3-corner 4s ease-in-out infinite 3s; }
+          @keyframes ftc3-corner { 0%,100%{opacity:0.7} 50%{opacity:1;box-shadow:0 0 12px rgba(160,80,255,0.8)} }
+
+          /* top rule */
+          .ftc3-top-rule {
+            position:absolute; top:0; left:50%; transform:translateX(-50%);
+            width:50%; height:2px;
+            background:linear-gradient(90deg,transparent,rgba(140,60,255,0.9),rgba(201,168,76,0.85),rgba(140,60,255,0.9),transparent);
+            box-shadow:0 0 22px rgba(140,60,255,0.8),0 0 44px rgba(140,60,255,0.3);
+            pointer-events:none;
           }
-          .decide-emoji {
-            display: inline-block;
-            animation: decide-wiggle 4s ease-in-out infinite;
+
+          /* ── 3D CONTENT ── */
+          .ftc3-content { position:relative; transform-style:preserve-3d; }
+
+          /* badge — Z+20 */
+          .ftc3-badge-wrap { display:flex; justify-content:center; margin-bottom:14px; transform:translateZ(20px); }
+          .ftc3-badge {
+            display:inline-flex; align-items:center; gap:7px;
+            font-size:9px; letter-spacing:0.35em; text-transform:uppercase;
+            color:rgba(190,150,255,0.95); border:1px solid rgba(140,60,255,0.4);
+            padding:5px 16px; border-radius:100px; background:rgba(100,30,255,0.12);
+            font-family:monospace; font-weight:600;
+            animation:ftc3-badge-glow 3s ease-in-out infinite;
           }
-          @keyframes decide-wiggle {
-            0%, 70%, 100% { transform: rotate(0deg) scale(1); }
-            74%  { transform: rotate(-20deg) scale(1.18); }
-            80%  { transform: rotate(15deg) scale(1.12); }
-            86%  { transform: rotate(-9deg) scale(1.06); }
-            92%  { transform: rotate(4deg) scale(1.02); }
+          @keyframes ftc3-badge-glow { 0%,100%{box-shadow:0 0 0 0 rgba(140,60,255,0)} 50%{box-shadow:0 0 0 3px rgba(140,60,255,0.18),0 0 22px rgba(140,60,255,0.22)} }
+          .ftc3-dot { display:inline-block; width:5px; height:5px; border-radius:50%; background:#c9a84c; box-shadow:0 0 8px #c9a84c; animation:ftc3-blink 1.8s ease-in-out infinite; }
+          @keyframes ftc3-blink { 0%,100%{opacity:1} 50%{opacity:0.1} }
+
+          /* emoji — Z+30 */
+          .ftc3-emoji-wrap { margin-bottom:6px; transform:translateZ(30px); }
+          .ftc3-emoji {
+            font-size:38px; display:inline-block;
+            filter:drop-shadow(0 0 14px rgba(201,168,76,0.6)) drop-shadow(0 4px 12px rgba(100,30,255,0.5));
+            animation:ftc3-emoji 4s ease-in-out infinite;
           }
-          .decide-arrow {
-            display: inline-block;
-            background: linear-gradient(90deg, #7a5c0e, #f5d47a, #c9a84c, #f5d47a, #7a5c0e);
-            background-size: 260% auto;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            animation: text-shimmer 2.4s linear infinite, decide-nudge 1.5s ease-in-out infinite;
+          @keyframes ftc3-emoji {
+            0%,100% { transform:translateY(0) scale(1) rotate(0deg); }
+            30%  { transform:translateY(-12px) scale(1.12) rotate(-10deg); }
+            65%  { transform:translateY(-6px) scale(1.06) rotate(6deg); }
           }
-          @keyframes decide-nudge {
-            0%, 100% { transform: translateX(0) scale(1); }
-            50%       { transform: translateX(8px) scale(1.25); }
+
+          /* main text row — Z+45 */
+          .ftc3-main-row {
+            display:flex; align-items:center; justify-content:center;
+            gap:10px; flex-wrap:wrap; margin-bottom:10px;
+            transform:translateZ(45px);
           }
+          .ftc3-confused {
+            font-size:21px; font-weight:900; color:#fff;
+            font-family:'DM Sans',sans-serif; letter-spacing:-0.01em;
+            animation:ftc3-white-pulse 4s ease-in-out infinite;
+          }
+          @keyframes ftc3-white-pulse { 0%,100%{text-shadow:0 0 18px rgba(255,255,255,0.2)} 50%{text-shadow:0 0 30px rgba(255,255,255,0.55),0 0 60px rgba(255,255,255,0.1)} }
+          .ftc3-shimmer {
+            font-size:21px; font-weight:900;
+            background:linear-gradient(90deg,#c9a84c,#fff,#c9a84c,#b06aff,#fff,#c9a84c);
+            background-size:400% auto;
+            -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+            animation:ftc3-shimmer 2s linear infinite;
+            font-family:'DM Sans',sans-serif;
+          }
+          @keyframes ftc3-shimmer { 0%{background-position:0% center} 100%{background-position:400% center} }
+
+          /* arrow — Z+65 (most in front) */
+          .ftc3-arrow {
+            font-size:25px; color:#c9a84c; display:inline-block;
+            transform:translateZ(65px);
+            animation:ftc3-arrow 1.3s ease-in-out infinite;
+          }
+          @keyframes ftc3-arrow {
+            0%,100% { transform:translateZ(65px) translateX(0) scale(1); text-shadow:0 0 20px rgba(201,168,76,1); }
+            50%      { transform:translateZ(65px) translateX(10px) scale(1.25); text-shadow:0 0 30px rgba(201,168,76,1),0 0 60px rgba(201,168,76,0.6); }
+          }
+
+          /* sub text — Z+15 */
+          .ftc3-sub {
+            font-size:12px; color:rgba(190,160,255,0.45); letter-spacing:0.04em; margin:0;
+            font-family:'DM Sans',sans-serif;
+            transform:translateZ(15px);
+            animation:ftc3-sub-pulse 5s ease-in-out infinite;
+          }
+          @keyframes ftc3-sub-pulse { 0%,100%{color:rgba(190,160,255,0.35)} 50%{color:rgba(190,160,255,0.65)} }
         `}</style>
       </section>
 
