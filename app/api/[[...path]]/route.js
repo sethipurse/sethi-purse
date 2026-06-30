@@ -745,6 +745,7 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
     const url = new URL(request.url);
     const budget = url.searchParams.get('budget') || '';
     const use = url.searchParams.get('use') || '';
+    const category = url.searchParams.get('category') || '';
 
     const USE_TO_CATEGORY = {
       daily: ['Handbags', 'Slings', 'Backpacks'],
@@ -760,7 +761,8 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
     else if (budget === '1500to3000') { priceMin = 1500; priceMax = 3000; }
     else if (budget === 'above3000') priceMin = 3000;
 
-    const targetCategories = USE_TO_CATEGORY[use] || [];
+    // Category from user selection takes priority over use-based mapping
+    const targetCategories = category ? [category] : (USE_TO_CATEGORY[use] || []);
 
     try {
       let q = supabase.from('products').select('*').eq('is_active', true).neq('stock', 0).gte('sale_price', priceMin).lte('sale_price', priceMax).order('featured', { ascending: false }).order('created_at', { ascending: false });
