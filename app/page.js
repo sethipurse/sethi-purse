@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Award, MessageCircle, RefreshCw, Search, ShieldCheck, ShoppingBag, Sparkles, Truck, X } from 'lucide-react';
 import HeroSlider from '@/components/HeroSlider';
 import ProductCard from '@/components/ProductCard';
@@ -50,12 +50,20 @@ export default function HomePage() {
   const [cartOpen, setCartOpen] = useState(false);
   const [cart, setCart] = useState([]);
   const [decideOpen, setDecideOpen] = useState(false);
+  const decideSectionRef = useRef(null);
+  const [decideVisible, setDecideVisible] = useState(false);
 
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem('sethi-cart');
       if (saved) setCart(JSON.parse(saved));
     } catch {}
+  }, []);
+
+  useEffect(() => {
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setDecideVisible(true); obs.disconnect(); } }, { threshold: 0.2 });
+    if (decideSectionRef.current) obs.observe(decideSectionRef.current);
+    return () => obs.disconnect();
   }, []);
 
   useEffect(() => {
@@ -129,16 +137,58 @@ export default function HomePage() {
       </section>
 
       {/* Decide for me CTA */}
-      <section className="mx-auto w-full max-w-6xl px-4 pb-6">
+      <section ref={decideSectionRef} className="mx-auto w-full max-w-6xl px-4 pb-6" style={{
+        opacity: decideVisible ? 1 : 0,
+        transform: decideVisible ? 'translateY(0)' : 'translateY(24px)',
+        transition: 'opacity 0.6s ease, transform 0.6s ease',
+      }}>
         <button
           type="button"
           onClick={() => setDecideOpen(true)}
-          className="w-full rounded-xl border-2 border-dashed border-[#c9a84c] bg-[#fdf6e3] py-4 text-center transition hover:bg-[#f5ecca]"
+          className="decide-cta w-full rounded-xl border-2 border-dashed border-[#c9a84c] bg-[#fdf6e3] py-5 text-center"
         >
-          <span className="text-lg font-bold text-[#2c1f14]">🤔 Confused? </span>
-          <span className="text-lg font-bold text-[#c9a84c]">Bas best wala de do →</span>
-          <p className="mt-0.5 text-sm text-[#8a7060]">2 sawaal — hum aapke liye best product choose karenge</p>
+          <div className="flex items-center justify-center gap-2 flex-wrap">
+            <span className="decide-emoji text-2xl">🤔</span>
+            <span className="text-lg font-bold text-[#2c1f14]">Confused?</span>
+            <span className="text-lg font-bold text-[#c9a84c]">Bas best wala de do</span>
+            <span className="decide-arrow text-xl font-bold text-[#c9a84c]">→</span>
+          </div>
+          <p className="mt-1 text-sm text-[#8a7060]">3 sawaal — hum aapke liye best product choose karenge</p>
         </button>
+        <style>{`
+          .decide-cta {
+            outline: none;
+            transition: transform 0.2s ease, background 0.2s ease;
+            animation: decide-glow 2.8s ease-in-out infinite;
+          }
+          .decide-cta:hover {
+            background: #f5ecca;
+            transform: scale(1.01);
+          }
+          .decide-cta:active { transform: scale(0.98); }
+          @keyframes decide-glow {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(201,168,76,0.12); }
+            50%       { box-shadow: 0 0 22px 6px rgba(201,168,76,0.28); }
+          }
+          .decide-emoji {
+            display: inline-block;
+            animation: decide-wiggle 3.5s ease-in-out infinite;
+          }
+          @keyframes decide-wiggle {
+            0%, 75%, 100% { transform: rotate(0deg); }
+            80%  { transform: rotate(-16deg); }
+            87%  { transform: rotate(13deg); }
+            93%  { transform: rotate(-7deg); }
+          }
+          .decide-arrow {
+            display: inline-block;
+            animation: decide-nudge 1.6s ease-in-out infinite;
+          }
+          @keyframes decide-nudge {
+            0%, 100% { transform: translateX(0); }
+            50%       { transform: translateX(6px); }
+          }
+        `}</style>
       </section>
 
       {decideOpen && <DecideForMeModal onClose={() => setDecideOpen(false)} />}
