@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { MessageCircle, Search, X, Check } from 'lucide-react';
 import { buildWhatsAppLink, buildBuyNowMessage, buildProductUrl, rupee } from '@/lib/constants';
 import { categoryPath } from '@/lib/categoryUtils';
+import TiltCard from '@/components/TiltCard';
 
 const PROBLEMS = [
   { emoji: '💥', label: 'Bag baar baar tootta hai', category: 'LUGGAGE', reason: 'Durable luggage — strong wheels, tough zippers, long-lasting' },
@@ -273,23 +274,25 @@ export default function ProblemSearch({ allProducts = [] }) {
                     const waMsg = buildWhatsAppLink(buildBuyNowMessage(product, { quantity: 1, productUrl: buildProductUrl(product.id) }));
                     const waitlistMsg = buildWhatsAppLink(`Hi SETHI PURSE! ${product.name} out of stock hai. Kab milega? Waitlist mein add karo please.`);
                     return (
-                      <div key={product.id} style={{
-                        background: '#fff', borderRadius: 14, overflow: 'hidden',
+                      <TiltCard key={product.id} maxTilt={12} scale={1.04} style={{
+                        background: '#fff', borderRadius: 14,
                         border: '1px solid #ede8df', display: 'flex', flexDirection: 'column',
                         position: 'relative',
                         animation: `results-in 0.4s ease ${ri * 0.07}s both`,
                       }}>
+                        {/* Badges float above card surface */}
                         {discount > 0 && (
-                          <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 1, background: '#e53935', color: '#fff', fontSize: 10, fontWeight: 800, padding: '2px 7px', borderRadius: 10 }}>
+                          <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 1, background: '#e53935', color: '#fff', fontSize: 10, fontWeight: 800, padding: '2px 7px', borderRadius: 10, transform: 'translateZ(50px)' }}>
                             {discount}% OFF
                           </div>
                         )}
                         {outOfStock && (
-                          <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 1, background: 'rgba(44,31,20,0.75)', color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 10 }}>
+                          <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 1, background: 'rgba(44,31,20,0.75)', color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 10, transform: 'translateZ(50px)' }}>
                             Out of Stock
                           </div>
                         )}
-                        <Link href={`/product/${product.id}`} style={{ display: 'block', aspectRatio: '4/3', background: '#f5f0e8', overflow: 'hidden' }}>
+                        {/* Image clips inside its own overflow:hidden — rounded top corners */}
+                        <Link href={`/product/${product.id}`} style={{ display: 'block', aspectRatio: '4/3', background: '#f5f0e8', overflow: 'hidden', borderRadius: '14px 14px 0 0' }}>
                           {img
                             ? <img src={img} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.35s ease' }}
                                 onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.06)'}
@@ -297,29 +300,30 @@ export default function ProblemSearch({ allProducts = [] }) {
                             : <div style={{ width: '100%', height: '100%', background: '#f5f0e8' }} />
                           }
                         </Link>
-                        <div style={{ padding: '10px 10px 12px', flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {/* Content lifts above card plane */}
+                        <div style={{ padding: '10px 10px 12px', flex: 1, display: 'flex', flexDirection: 'column', gap: 4, transform: 'translateZ(22px)' }}>
                           <Link href={`/product/${product.id}`} style={{ textDecoration: 'none' }}>
                             <p style={{ fontSize: 12.5, fontWeight: 700, color: '#2c1f14', margin: 0, lineHeight: 1.3, WebkitLineClamp: 2, display: '-webkit-box', WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                               {product.name}
                             </p>
                           </Link>
-                          <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, flexWrap: 'wrap', transform: 'translateZ(10px)' }}>
                             <span style={{ fontSize: 14, fontWeight: 800, color: '#c9a84c' }}>{rupee(price)}</span>
                             {mrp > price && <span style={{ fontSize: 11, color: '#bbb', textDecoration: 'line-through' }}>{rupee(mrp)}</span>}
                           </div>
                           {outOfStock ? (
                             <a href={waitlistMsg} target="_blank" rel="noopener noreferrer"
-                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, background: '#8a7060', color: '#fff', padding: '7px 4px', borderRadius: 10, fontSize: 11, fontWeight: 700, textDecoration: 'none', marginTop: 'auto' }}>
+                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, background: '#8a7060', color: '#fff', padding: '7px 4px', borderRadius: 10, fontSize: 11, fontWeight: 700, textDecoration: 'none', marginTop: 'auto', transform: 'translateZ(14px)' }}>
                               <MessageCircle size={11} /> Waitlist
                             </a>
                           ) : (
                             <a href={waMsg} target="_blank" rel="noopener noreferrer"
-                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, background: '#25D366', color: '#fff', padding: '7px 4px', borderRadius: 10, fontSize: 11, fontWeight: 700, textDecoration: 'none', marginTop: 'auto' }}>
+                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, background: '#25D366', color: '#fff', padding: '7px 4px', borderRadius: 10, fontSize: 11, fontWeight: 700, textDecoration: 'none', marginTop: 'auto', transform: 'translateZ(14px)' }}>
                               <MessageCircle size={11} /> Buy on WhatsApp
                             </a>
                           )}
                         </div>
-                      </div>
+                      </TiltCard>
                     );
                   })}
                 </div>

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { MessageCircle, X, Sparkles, ChevronRight } from 'lucide-react';
 import { buildWhatsAppLink, buildBuyNowMessage, buildProductUrl, rupee } from '@/lib/constants';
+import TiltCard from '@/components/TiltCard';
 
 const CATEGORIES = [
   { value: 'LUGGAGE', label: '🧳 Luggage / Trolley' },
@@ -171,18 +172,18 @@ export default function DecideForMeModal({ onClose }) {
             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', color: '#c9a84c', textTransform: 'uppercase', marginBottom: 4 }}>Aapke liye best pick</p>
             <h2 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, fontWeight: 700, color: '#2c1f14', margin: '0 0 18px' }}>Yeh lo! ✅</h2>
 
-            <div style={{ background: '#fff', borderRadius: 16, border: '2px solid #c9a84c', padding: 16, marginBottom: 16, display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+            <TiltCard maxTilt={15} scale={1.025} style={{ background: '#fff', borderRadius: 16, border: '2px solid #c9a84c', padding: 16, marginBottom: 16, display: 'flex', gap: 14, alignItems: 'flex-start' }}>
               {img
-                ? <img src={img} alt={result.product.name} style={{ width: 88, height: 88, borderRadius: 10, objectFit: 'cover', background: '#f5f0e8', flexShrink: 0 }} />
-                : <div style={{ width: 88, height: 88, borderRadius: 10, background: '#f5f0e8', flexShrink: 0 }} />
+                ? <img src={img} alt={result.product.name} style={{ width: 88, height: 88, borderRadius: 10, objectFit: 'cover', background: '#f5f0e8', flexShrink: 0, transform: 'translateZ(60px)' }} />
+                : <div style={{ width: 88, height: 88, borderRadius: 10, background: '#f5f0e8', flexShrink: 0, transform: 'translateZ(60px)' }} />
               }
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 15, fontWeight: 700, color: '#2c1f14', margin: '0 0 4px', lineHeight: 1.3 }}>{result.product.name}</p>
-                {result.product.brand && <p style={{ fontSize: 12, color: '#8a7060', margin: '0 0 6px' }}>{result.product.brand}</p>}
-                <p style={{ fontSize: 17, fontWeight: 800, color: '#c9a84c', margin: '0 0 8px' }}>{rupee(price)}</p>
-                <p style={{ fontSize: 12, color: '#6b5544', background: '#fdf6e3', padding: '5px 8px', borderRadius: 8, display: 'inline-block', margin: 0 }}>💡 {result.reason}</p>
+                <p style={{ fontSize: 15, fontWeight: 700, color: '#2c1f14', margin: '0 0 4px', lineHeight: 1.3, transform: 'translateZ(35px)' }}>{result.product.name}</p>
+                {result.product.brand && <p style={{ fontSize: 12, color: '#8a7060', margin: '0 0 6px', transform: 'translateZ(28px)' }}>{result.product.brand}</p>}
+                <p style={{ fontSize: 17, fontWeight: 800, color: '#c9a84c', margin: '0 0 8px', transform: 'translateZ(42px)' }}>{rupee(price)}</p>
+                <p style={{ fontSize: 12, color: '#6b5544', background: '#fdf6e3', padding: '5px 8px', borderRadius: 8, display: 'inline-block', margin: 0, transform: 'translateZ(30px)' }}>💡 {result.reason}</p>
               </div>
-            </div>
+            </TiltCard>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18 }}>
               <a href={waLink} target="_blank" rel="noopener noreferrer"
