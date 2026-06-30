@@ -80,7 +80,7 @@ export default function ProductCard({ product, onAddToCart }) {
 
   return (
     <div className={`card-sethi overflow-hidden group flex flex-col ${outOfStock ? 'opacity-70' : ''}`}>
-      <Link href={`/product/${product.id}`} className="block relative bg-sethi-ivory aspect-[4/5] overflow-hidden">
+      <Link href={`/product/${product.id}`} className="block relative bg-[#f5f0e8] aspect-[4/5] overflow-hidden">
         {discount > 0 && <span className="badge-discount">{discount}% OFF</span>}
         {outOfStock && <span className="badge-out">Out of Stock</span>}
 
@@ -94,7 +94,7 @@ export default function ProductCard({ product, onAddToCart }) {
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-sethi-ivory">
+          <div className="w-full h-full flex items-center justify-center bg-[#f5f0e8]">
             <ShoppingBag className="w-16 h-16 text-sethi-gold" />
           </div>
         )}
@@ -105,7 +105,7 @@ export default function ProductCard({ product, onAddToCart }) {
         <Link href={`/product/${product.id}`} className="mt-1.5 block hover:text-sethi-gold transition-colors">
           <h3 className="font-serif text-lg md:text-xl font-semibold leading-snug line-clamp-2">{product.name}</h3>
         </Link>
-        <p className="text-sm text-sethi-gray500 mt-0.5 font-sans">{product.brand}</p>
+        <p className="text-sm text-sethi-gray500 mt-0.5">{product.brand}</p>
 
         <div className="mt-3 flex items-end gap-3">
           {mrp > salePrice && (
@@ -133,12 +133,12 @@ export default function ProductCard({ product, onAddToCart }) {
               </div>
             )}
             {viewers != null && (
-              <div className="flex items-center gap-2 text-xs text-sethi-gray500">
+              <div className="flex items-center gap-2 text-xs text-[#8a7060]">
                 <Eye className="w-3 h-3" /> {viewers} people viewing this
               </div>
             )}
             {product.local_scarcity && (
-              <div className="flex items-center gap-2 text-xs text-sethi-gray500">
+              <div className="flex items-center gap-2 text-xs text-[#8a7060]">
                 <MapPin className="w-3 h-3" /> Popular in your area
               </div>
             )}

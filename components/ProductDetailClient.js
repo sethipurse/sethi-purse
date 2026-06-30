@@ -101,8 +101,8 @@ function ZoomImage({ src, alt }) {
   }, []);
 
   if (!src) return (
-    <div className="flex aspect-[4/5] w-full items-center justify-center rounded bg-sethi-ivory">
-      <ShoppingBag className="h-24 w-24 text-sethi-gold" />
+    <div className="flex aspect-[4/5] w-full items-center justify-center rounded bg-[#f5f0e8]">
+      <ShoppingBag className="h-24 w-24 text-[#c9a84c]" />
     </div>
   );
 
@@ -111,7 +111,7 @@ function ZoomImage({ src, alt }) {
       ref={containerRef}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      className="relative aspect-[4/5] w-full rounded bg-sethi-card shadow-sm ring-1 ring-sethi-gray200"
+      className="relative aspect-[4/5] w-full rounded bg-white shadow-sm ring-1 ring-[#ede8df]"
       style={{ cursor: 'zoom-in', overflow: 'hidden', isolation: 'isolate' }}
     >
       <Image
@@ -155,7 +155,7 @@ function FullscreenViewer({ src, alt, onClose }) {
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
         style={{
           position: 'absolute', top: 20, right: 20, zIndex: 1000000,
-          width: 52, height: 52, borderRadius: '50%', backgroundColor: 'var(--theme-accent)',
+          width: 52, height: 52, borderRadius: '50%', backgroundColor: '#c9a84c',
           border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center',
           justifyContent: 'center', fontSize: 22, color: '#fff', fontWeight: 'bold',
           WebkitTapHighlightColor: 'transparent',
@@ -242,11 +242,11 @@ function ImageGallery({ images, alt }) {
           <>
             <button onTouchEnd={(e) => { e.stopPropagation(); prev(); }} onClick={prev}
               className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-white/90 flex items-center justify-center shadow">
-              <ChevronLeft className="w-5 h-5 text-sethi-black" />
+              <ChevronLeft className="w-5 h-5 text-[#2c1f14]" />
             </button>
             <button onTouchEnd={(e) => { e.stopPropagation(); next(); }} onClick={next}
               className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-white/90 flex items-center justify-center shadow">
-              <ChevronRight className="w-5 h-5 text-sethi-black" />
+              <ChevronRight className="w-5 h-5 text-[#2c1f14]" />
             </button>
           </>
         )}
@@ -255,7 +255,7 @@ function ImageGallery({ images, alt }) {
         <div className="grid grid-cols-5 gap-2">
           {images.map((img, idx) => (
             <button key={idx} type="button" onClick={() => goTo(idx)}
-              className={`relative aspect-square overflow-hidden rounded bg-sethi-card ring-2 transition-all duration-200 ${current === idx ? 'ring-sethi-gold scale-105' : 'ring-sethi-gray200 hover:ring-sethi-gold'}`}>
+              className={`relative aspect-square overflow-hidden rounded bg-white ring-2 transition-all duration-200 ${current === idx ? 'ring-[#c9a84c] scale-105' : 'ring-[#ede8df] hover:ring-[#c9a84c]'}`}>
               {img && <Image src={img} alt="" fill sizes="10vw" className="object-cover" />}
             </button>
           ))}
@@ -265,7 +265,7 @@ function ImageGallery({ images, alt }) {
         <div className="flex justify-center gap-1.5 pt-1">
           {images.map((_, i) => (
             <button key={i} onClick={() => goTo(i)}
-              className={`h-1.5 rounded-full transition-all duration-300 ${i === current ? 'w-5 bg-sethi-gold' : 'w-2 bg-sethi-gray200'}`}
+              className={`h-1.5 rounded-full transition-all duration-300 ${i === current ? 'w-5 bg-[#c9a84c]' : 'w-2 bg-[#ddd0be]'}`}
               aria-label={`Image ${i + 1}`} />
           ))}
         </div>
@@ -347,25 +347,25 @@ export default function ProductDetailClient({ product, related = [], reviews = [
   };
 
   return (
-    <div style={{ backgroundColor: 'var(--theme-bg)' }}>
+    <div style={{ backgroundColor: '#faf8f4' }}>
       <div className="space-y-14">
         <div className="grid gap-8 lg:grid-cols-[1.02fr_0.98fr]">
           <ImageGallery images={images} alt={product.name} />
 
-          <div className="rounded bg-sethi-card p-6 shadow-sm ring-1 ring-sethi-gray200 md:p-8">
-            <Link href="/products" className="inline-flex items-center gap-2 text-base font-semibold text-sethi-gray500 hover:text-sethi-gold">
+          <div className="rounded bg-white p-6 shadow-sm ring-1 ring-[#ede8df] md:p-8">
+            <Link href="/products" className="inline-flex items-center gap-2 text-base font-semibold text-[#8a7060] hover:text-[#c9a84c]">
               <ArrowLeft className="h-4 w-4" /> Back to products
             </Link>
-            <div className="mt-6 text-sm font-bold uppercase tracking-[0.18em] text-sethi-gold">{category}</div>
-            <h1 className="mt-2 text-5xl font-bold leading-none text-sethi-black md:text-6xl">{product.name}</h1>
-            {product.brand && <p className="mt-3 text-xl text-sethi-gray800">by <span className="font-bold text-sethi-black">{product.brand}</span></p>}
+            <div className="mt-6 text-sm font-bold uppercase tracking-[0.18em] text-[#c9a84c]">{category}</div>
+            <h1 className="mt-2 text-5xl font-bold leading-none text-[#2c1f14] md:text-6xl">{product.name}</h1>
+            {product.brand && <p className="mt-3 text-xl text-[#6b5544]">by <span className="font-bold text-[#2c1f14]">{product.brand}</span></p>}
 
             <div className="mt-6 flex flex-wrap items-end gap-4">
-              <span className="text-4xl font-bold text-sethi-black">{rupee(salePrice)}</span>
-              {mrp > salePrice && <span className="pb-1 text-xl text-sethi-gray500 line-through">{rupee(mrp)}</span>}
+              <span className="text-4xl font-bold text-[#2c1f14]">{rupee(salePrice)}</span>
+              {mrp > salePrice && <span className="pb-1 text-xl text-[#8a7060] line-through">{rupee(mrp)}</span>}
             </div>
             {discount > 0 && (
-              <span className="mt-2 inline-block rounded bg-sethi-gold px-3 py-1 text-sm font-bold text-white">{discount}% OFF</span>
+              <span className="mt-2 inline-block rounded bg-[#c9a84c] px-3 py-1 text-sm font-bold text-white">{discount}% OFF</span>
             )}
 
             {/* Scarcity signals block */}
@@ -382,12 +382,12 @@ export default function ProductDetailClient({ product, related = [], reviews = [
                   </div>
                 )}
                 {viewers != null && (
-                  <div className="flex items-center gap-2 text-sm text-sethi-gray800">
+                  <div className="flex items-center gap-2 text-sm text-[#6b5544]">
                     <Eye className="w-4 h-4" /> {viewers} people are viewing this right now
                   </div>
                 )}
                 {product.local_scarcity && (
-                  <div className="flex items-center gap-2 text-sm text-sethi-gray800">
+                  <div className="flex items-center gap-2 text-sm text-[#6b5544]">
                     <MapPin className="w-4 h-4" /> High demand in your area
                   </div>
                 )}
@@ -399,17 +399,17 @@ export default function ProductDetailClient({ product, related = [], reviews = [
               </div>
             )}
 
-            <p className="mt-6 text-xl leading-8 text-sethi-gray800">
+            <p className="mt-6 text-xl leading-8 text-[#6b5544]">
               {product.description || 'Premium quality product from SETHI PURSE, Jalandhar. Message us for availability, latest images, and best store price.'}
             </p>
 
-            <div className="mt-7 grid gap-5 border-y border-sethi-gray200 py-6">
+            <div className="mt-7 grid gap-5 border-y border-[#ede8df] py-6">
               <div>
-                <div className="mb-3 text-lg font-bold text-sethi-black">Size</div>
+                <div className="mb-3 text-lg font-bold text-[#2c1f14]">Size</div>
                 <div className="flex flex-wrap gap-2">
                   {sizes.map((size) => (
                     <button key={size} type="button" onClick={() => setSelectedSize(size)}
-                      className={`rounded border px-4 py-2 text-base font-semibold transition ${selectedSize === size ? 'border-sethi-gold bg-sethi-gold text-white' : 'border-sethi-gray200 text-sethi-gray800 hover:border-sethi-gold'}`}>
+                      className={`rounded border px-4 py-2 text-base font-semibold transition ${selectedSize === size ? 'border-[#c9a84c] bg-[#c9a84c] text-white' : 'border-[#ede8df] text-[#6b5544] hover:border-[#c9a84c]'}`}>
                       {size}
                     </button>
                   ))}
@@ -418,8 +418,8 @@ export default function ProductDetailClient({ product, related = [], reviews = [
 
               {colorVariants.length > 0 && (
                 <div>
-                  <div className="mb-3 text-lg font-bold text-sethi-black">
-                    Color{selectedColor ? <span className="text-sethi-gray500 font-normal text-base">: {selectedColor}</span> : ''}
+                  <div className="mb-3 text-lg font-bold text-[#2c1f14]">
+                    Color{selectedColor ? <span className="text-[#8a7060] font-normal text-base">: {selectedColor}</span> : ''}
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {colorVariants.map((color) => {
@@ -430,10 +430,10 @@ export default function ProductDetailClient({ product, related = [], reviews = [
                           onClick={() => !isOut && setSelectedColor(color.name)}
                           className={`relative rounded border px-4 py-2 text-base font-semibold transition ${
                             isOut
-                              ? 'border-sethi-gray200 bg-sethi-ivory text-sethi-gray500 cursor-not-allowed line-through opacity-60 pointer-events-none'
+                              ? 'border-[#ede8df] bg-[#f5f0e8] text-[#b3a89a] cursor-not-allowed line-through opacity-60 pointer-events-none'
                               : isSelected
-                                ? 'border-sethi-gold bg-sethi-gold text-white'
-                                : 'border-sethi-gray200 text-sethi-gray800 hover:border-sethi-gold'
+                                ? 'border-[#c9a84c] bg-[#c9a84c] text-white'
+                                : 'border-[#ede8df] text-[#6b5544] hover:border-[#c9a84c]'
                           }`}>
                           {color.name}
                           {isOut && <span className="ml-1.5 text-[10px] font-bold not-italic no-underline align-middle text-red-500">(Out of Stock)</span>}
@@ -448,31 +448,31 @@ export default function ProductDetailClient({ product, related = [], reviews = [
 
               <div className="flex items-center gap-4">
                 <span className="text-lg font-bold">Quantity</span>
-                <div className="flex h-11 items-center overflow-hidden rounded border border-sethi-gray200">
-                  <button type="button" onClick={() => setQty(Math.max(1, qty - 1))} className="flex h-11 w-11 items-center justify-center hover:bg-sethi-ivory"><Minus className="h-4 w-4" /></button>
+                <div className="flex h-11 items-center overflow-hidden rounded border border-[#ede8df]">
+                  <button type="button" onClick={() => setQty(Math.max(1, qty - 1))} className="flex h-11 w-11 items-center justify-center hover:bg-[#f5f0e8]"><Minus className="h-4 w-4" /></button>
                   <span className="w-12 text-center text-lg font-bold">{qty}</span>
-                  <button type="button" onClick={() => setQty(qty + 1)} className="flex h-11 w-11 items-center justify-center hover:bg-sethi-ivory"><Plus className="h-4 w-4" /></button>
+                  <button type="button" onClick={() => setQty(qty + 1)} className="flex h-11 w-11 items-center justify-center hover:bg-[#f5f0e8]"><Plus className="h-4 w-4" /></button>
                 </div>
               </div>
             </div>
 
             <div className="mt-7 grid gap-3 sm:grid-cols-2">
               <button type="button" onClick={addToCart} disabled={cannotPurchase}
-                className={`flex h-14 items-center justify-center gap-2 rounded text-xl font-bold transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed ${added ? 'bg-green-500 text-white scale-95' : 'bg-sethi-gold text-white hover:bg-sethi-gold-dark'}`}>
+                className={`flex h-14 items-center justify-center gap-2 rounded text-xl font-bold transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed ${added ? 'bg-green-500 text-white scale-95' : 'bg-[#c9a84c] text-white hover:bg-[#a07a28]'}`}>
                 {added ? <><Check className="h-5 w-5" /> Added!</> : <><ShoppingBag className="h-5 w-5" /> {cannotPurchase && !added ? 'Out of Stock' : 'Add to Cart'}</>}
               </button>
               <a href={cannotPurchase ? undefined : buildWhatsAppLink(buyNowMessage)} target="_blank" rel="noopener noreferrer"
                 aria-disabled={cannotPurchase} onClick={(e) => cannotPurchase && e.preventDefault()}
-                className={`flex h-14 items-center justify-center gap-2 rounded border border-sethi-gold text-xl font-bold text-sethi-gold-dark transition hover:bg-sethi-ivory ${cannotPurchase ? 'pointer-events-none opacity-60' : ''}`}>
+                className={`flex h-14 items-center justify-center gap-2 rounded border border-[#c9a84c] text-xl font-bold text-[#a07a28] transition hover:bg-[#f5f0e8] ${cannotPurchase ? 'pointer-events-none opacity-60' : ''}`}>
                 <MessageCircle className="h-5 w-5" /> Buy Now
               </a>
             </div>
-            <button type="button" onClick={onShare} className="mt-3 flex h-12 items-center gap-2 text-lg font-semibold text-sethi-gray800 hover:text-sethi-gold">
+            <button type="button" onClick={onShare} className="mt-3 flex h-12 items-center gap-2 text-lg font-semibold text-[#6b5544] hover:text-[#c9a84c]">
               <Share2 className="h-4 w-4" /> Share product
             </button>
-            <div className="mt-6 grid gap-2 text-lg text-sethi-gray800">
+            <div className="mt-6 grid gap-2 text-lg text-[#6b5544]">
               {['Original branded collection', 'Store pickup and WhatsApp support', 'Best available SETHI PURSE pricing'].map((text) => (
-                <div key={text} className="flex items-center gap-2"><Check className="h-5 w-5 text-sethi-gold" /> {text}</div>
+                <div key={text} className="flex items-center gap-2"><Check className="h-5 w-5 text-[#c9a84c]" /> {text}</div>
               ))}
             </div>
           </div>
@@ -480,14 +480,14 @@ export default function ProductDetailClient({ product, related = [], reviews = [
 
         {reviews.length > 0 && (
           <section>
-            <h2 className="flex items-center gap-2 text-4xl font-bold text-sethi-gold"><Star className="h-7 w-7 fill-sethi-gold" /> Reviews</h2>
+            <h2 className="flex items-center gap-2 text-4xl font-bold text-[#c9a84c]"><Star className="h-7 w-7 fill-[#c9a84c]" /> Reviews</h2>
             <div className="mt-5 grid gap-5 md:grid-cols-3">{reviews.slice(0, 3).map((review) => <ReviewCard key={review.id} review={review} />)}</div>
           </section>
         )}
 
         {related.length > 0 && (
           <section>
-            <h2 className="text-4xl font-bold text-sethi-gold">Related Products</h2>
+            <h2 className="text-4xl font-bold text-[#c9a84c]">Related Products</h2>
             <div className="mt-5 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">{related.map((item) => <ProductCard key={item.id} product={item} />)}</div>
           </section>
         )}

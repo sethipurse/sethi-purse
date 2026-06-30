@@ -27,12 +27,12 @@ function UrgencyBadge({ daysLeft, expiryDate }) {
     </span>
   );
   if (daysLeft <= 7) return (
-    <span className="inline-flex items-center gap-1 text-xs font-semibold text-sethi-gold">
+    <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#c9a84c]">
       <Clock className="w-3 h-3" /> {daysLeft} days left
     </span>
   );
   return (
-    <span className="inline-flex items-center gap-1 text-xs text-sethi-gray500">
+    <span className="inline-flex items-center gap-1 text-xs text-[#8a7060]">
       <Clock className="w-3 h-3" /> Valid till {expiryDate ? formatDateShort(expiryDate) : ''}
     </span>
   );
@@ -66,10 +66,10 @@ Please confirm availability and help me avail this deal. Thank you!`;
     <article className={`card-sethi overflow-hidden flex flex-col h-full ${isExpired ? 'opacity-60' : ''}`}>
 
       {/* ✅ Banner Image — full 16:9, object-cover properly */}
-      <div className="relative bg-sethi-ivory overflow-hidden" style={{ aspectRatio: '16/9' }}>
+      <div className="relative bg-[#f5f0e8] overflow-hidden" style={{ aspectRatio: '16/9' }}>
 
         {/* OFFER badge */}
-        <span className="absolute top-3 left-3 z-10 inline-flex items-center gap-1 bg-sethi-gold text-white text-[11px] font-bold px-2.5 py-1 rounded-sm tracking-wider">
+        <span className="absolute top-3 left-3 z-10 inline-flex items-center gap-1 bg-[#c9a84c] text-white text-[11px] font-bold px-2.5 py-1 rounded-sm tracking-wider">
           <Tag className="w-3 h-3" /> OFFER
         </span>
 
@@ -102,9 +102,9 @@ Please confirm availability and help me avail this deal. Thank you!`;
             className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 hover:scale-105"
           />
         ) : (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-sethi-gold gap-2 bg-gradient-to-br from-[#2c1f14] to-[#6b5544]">
-            <Tag className="w-12 h-12 text-sethi-gold" />
-            <span className="text-sethi-gold text-sm font-semibold">{offer.title}</span>
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-[#c9a84c] gap-2 bg-gradient-to-br from-[#2c1f14] to-[#6b5544]">
+            <Tag className="w-12 h-12 text-[#c9a84c]" />
+            <span className="text-[#c9a84c] text-sm font-semibold">{offer.title}</span>
           </div>
         )}
       </div>
@@ -112,12 +112,12 @@ Please confirm availability and help me avail this deal. Thank you!`;
       {/* Content */}
       <div className="p-5 md:p-6 flex flex-col flex-1">
 
-        <h3 className="font-serif text-xl md:text-2xl leading-snug text-sethi-black">
+        <h3 className="font-serif text-xl md:text-2xl leading-snug text-[#2c1f14]">
           {offer.title}
         </h3>
 
         {!compact && offer.description && (
-          <p className="mt-2 text-sethi-gray800 text-sm md:text-base leading-relaxed line-clamp-3">
+          <p className="mt-2 text-[#6b5544] text-sm md:text-base leading-relaxed line-clamp-3">
             {offer.description}
           </p>
         )}
@@ -126,12 +126,12 @@ Please confirm availability and help me avail this deal. Thank you!`;
         {(originalPrice || offerPrice) && (
           <div className="mt-3 flex items-center gap-3">
             {offerPrice && (
-              <span className="text-2xl font-bold text-sethi-black">
+              <span className="text-2xl font-bold text-[#2c1f14]">
                 Rs.{Number(offerPrice).toLocaleString('en-IN')}
               </span>
             )}
             {originalPrice && (
-              <span className="text-base text-sethi-gray500 line-through">
+              <span className="text-base text-[#8a7060] line-through">
                 Rs.{Number(originalPrice).toLocaleString('en-IN')}
               </span>
             )}
@@ -144,27 +144,27 @@ Please confirm availability and help me avail this deal. Thank you!`;
         )}
 
         {offer.discount_label && (
-          <div className="mt-3 bg-sethi-white border border-sethi-gold-light rounded px-3 py-2 flex items-center gap-2">
-            <Tag className="w-4 h-4 text-sethi-gold shrink-0" />
-            <span className="text-sm font-semibold text-sethi-gold-dark">{offer.discount_label}</span>
+          <div className="mt-3 bg-[#faf8f4] border border-[#e8d5a3] rounded px-3 py-2 flex items-center gap-2">
+            <Tag className="w-4 h-4 text-[#c9a84c] shrink-0" />
+            <span className="text-sm font-semibold text-[#a07a28]">{offer.discount_label}</span>
           </div>
         )}
 
         <div className="mt-3 flex items-center justify-between gap-2 flex-wrap">
           <UrgencyBadge daysLeft={daysLeft} expiryDate={expiryDate} />
           {expiryDate && daysLeft !== null && daysLeft > 7 && (
-            <span className="text-xs text-sethi-gray500">Valid till {formatDateShort(expiryDate)}</span>
+            <span className="text-xs text-[#8a7060]">Valid till {formatDateShort(expiryDate)}</span>
           )}
         </div>
 
         {offer.terms && (
           <div className="mt-3 border-t border-[#ede8df] pt-3">
             <button type="button" onClick={() => setTermsOpen((p) => !p)}
-              className="flex items-center gap-1 text-xs text-sethi-gray500 hover:text-sethi-black transition-colors">
+              className="flex items-center gap-1 text-xs text-[#8a7060] hover:text-[#2c1f14] transition-colors">
               {termsOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
               Terms & Conditions
             </button>
-            {termsOpen && <p className="mt-2 text-xs text-sethi-gray500 leading-relaxed">{offer.terms}</p>}
+            {termsOpen && <p className="mt-2 text-xs text-[#8a7060] leading-relaxed">{offer.terms}</p>}
           </div>
         )}
 
@@ -174,7 +174,7 @@ Please confirm availability and help me avail this deal. Thank you!`;
         <div className="mt-5 grid grid-cols-2 gap-2">
           <a
             href="/products"
-            className="min-h-[48px] flex items-center justify-center gap-1.5 rounded border-2 border-sethi-gold text-sethi-gold text-sm font-bold hover:bg-sethi-gold hover:text-white transition-all active:scale-95"
+            className="min-h-[48px] flex items-center justify-center gap-1.5 rounded border-2 border-[#c9a84c] text-[#c9a84c] text-sm font-bold hover:bg-[#c9a84c] hover:text-white transition-all active:scale-95"
           >
             <ShoppingBag className="w-4 h-4" /> Shop Now
           </a>
@@ -186,7 +186,7 @@ Please confirm availability and help me avail this deal. Thank you!`;
             onClick={(e) => isExpired && e.preventDefault()}
             className={`min-h-[48px] flex items-center justify-center gap-1.5 rounded text-sm font-bold transition-all
               ${isExpired
-                ? 'bg-sethi-gray200 text-sethi-gray500 cursor-not-allowed pointer-events-none'
+                ? 'bg-[#ede8df] text-[#8a7060] cursor-not-allowed pointer-events-none'
                 : 'bg-[#25D366] hover:bg-[#1ebe5c] active:scale-95 text-white'
               }`}
           >
@@ -196,7 +196,7 @@ Please confirm availability and help me avail this deal. Thank you!`;
         </div>
 
         {!isExpired && (
-          <p className="mt-2 text-center text-[11px] text-sethi-gray500">
+          <p className="mt-2 text-center text-[11px] text-[#8a7060]">
             🔒 No payment needed • Just chat with us
           </p>
         )}

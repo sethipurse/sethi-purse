@@ -42,23 +42,23 @@ export default function PWAInstall() {
   if (!show) return null;
 
   return (
-    <div className="fixed bottom-24 left-4 right-4 z-[9998] mx-auto max-w-sm rounded bg-sethi-card p-4 shadow-xl ring-1 ring-sethi-gray200 md:left-auto md:right-5">
-      <div className="text-lg font-bold text-sethi-black">Install SETHI PURSE</div>
-      <p className="mt-1 text-sm text-sethi-gray800">
+    <div className="fixed bottom-24 left-4 right-4 z-[9998] mx-auto max-w-sm rounded bg-white p-4 shadow-xl ring-1 ring-[#ede8df] md:left-auto md:right-5">
+      <div className="text-lg font-bold text-[#2c1f14]">Install SETHI PURSE</div>
+      <p className="mt-1 text-sm text-[#6b5544]">
         Shop faster, get new arrivals, offer alerts, and cart reminders.
       </p>
       <div className="mt-3 flex gap-2">
         <button
           type="button"
           onClick={install}
-          className="btn-primary !min-h-0 !py-2 !px-4 flex-1 text-sm font-bold"
+          className="inline-flex flex-1 items-center justify-center gap-2 rounded bg-[#c9a84c] px-4 py-2 font-bold text-white"
         >
           <Download className="h-4 w-4" /> Install
         </button>
         <button
           type="button"
           onClick={() => setShow(false)}
-          className="rounded border border-sethi-gray200 px-4 py-2 font-semibold text-sethi-gray800"
+          className="rounded border border-[#ede8df] px-4 py-2 font-semibold text-[#6b5544]"
         >
           Later
         </button>

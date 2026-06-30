@@ -96,7 +96,7 @@ export default function ProductsClient({ initialProducts, categories }) {
             <button
               type="button"
               onClick={() => { setQ(''); setActive('All'); }}
-              className="px-6 py-2 rounded bg-sethi-gold text-white font-semibold hover:bg-sethi-gold-dark transition"
+              className="px-6 py-2 rounded bg-sethi-gold text-white font-semibold hover:bg-[#a07a28] transition"
             >
               Clear filters
             </button>

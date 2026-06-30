@@ -103,7 +103,7 @@ export default function AdminShell({ children }) {
   );
 
   return (
-    <div data-admin="true" className="min-h-screen bg-sethi-gray100 flex">
+    <div className="min-h-screen bg-sethi-gray100 flex">
       {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col w-[260px] bg-sethi-black text-white sticky top-0 h-screen">
         <div className="p-4 border-b border-white/10 bg-white">
