@@ -694,6 +694,50 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
     } catch (error) { return json({ error: error.message || 'All AI providers failed' }, 500); }
   }
 
+  // Debug endpoint — tests image providers and returns raw errors (admin only)
+  if (segments[0] === 'test-gallery' && method === 'GET') {
+    const authError = requireAdmin(request);
+    if (authError) return authError;
+    const geminiKey = process.env.GEMINI_API_KEY;
+    const cfId = (process.env.CLOUDFLARE_ACCOUNT_ID || '').trim();
+    const cfToken = (process.env.CLOUDFLARE_API_TOKEN || '').trim();
+    const results = {};
+
+    // Test Gemini image gen models
+    for (const model of ['gemini-2.0-flash-exp', 'gemini-2.0-flash-preview-image-generation']) {
+      if (!geminiKey) { results[model] = 'no GEMINI_API_KEY'; continue; }
+      try {
+        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text: 'Generate a simple red circle image.' }] }], generationConfig: { responseModalities: ['IMAGE'] } }),
+          signal: AbortSignal.timeout(20000),
+        });
+        const d = await r.json().catch(() => ({}));
+        results[model] = r.ok ? (d?.candidates?.[0]?.content?.parts?.find(p => p.inlineData) ? 'OK — image returned' : `OK but no image — ${JSON.stringify(d).slice(0,200)}`) : `${r.status}: ${d?.error?.message || JSON.stringify(d).slice(0,200)}`;
+      } catch (e) { results[model] = `exception: ${e.message}`; }
+    }
+
+    // Test Cloudflare SDXL models
+    for (const model of ['@cf/stabilityai/stable-diffusion-xl-base-1.0', '@cf/lykon/dreamshaper-8-lcm', '@cf/bytedance/stable-diffusion-xl-lightning']) {
+      if (!cfId || !cfToken) { results[model] = 'no CLOUDFLARE creds'; continue; }
+      try {
+        const r = await fetch(`https://api.cloudflare.com/client/v4/accounts/${cfId}/ai/run/${model}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfToken}` },
+          body: JSON.stringify({ prompt: 'a red circle on white background' }),
+          signal: AbortSignal.timeout(30000),
+        });
+        const ab = await r.arrayBuffer();
+        const bytes = new Uint8Array(ab);
+        const isPNG = bytes[0] === 0x89 && bytes[1] === 0x50;
+        const isJPEG = bytes[0] === 0xFF && bytes[1] === 0xD8;
+        if (!r.ok) results[model] = `${r.status}: ${Buffer.from(ab).toString('utf8').slice(0,200)}`;
+        else if (isPNG || isJPEG) results[model] = `OK — binary image (${isPNG?'PNG':'JPEG'}, ${ab.byteLength} bytes)`;
+        else results[model] = `${r.status} but response: ${Buffer.from(ab).toString('utf8').slice(0,300)}`;
+      } catch (e) { results[model] = `exception: ${e.message}`; }
+    }
+    return json({ results });
+  }
+
   if (segments[0] === 'generate-gallery' && method === 'POST') {
     const authError = requireAdmin(request);
     if (authError) return authError;
@@ -722,9 +766,33 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
     const sdxlPrompt = sdxlPrompts[angle] || sdxlPrompts.front;
     const errors = [];
 
-    // 1. Gemini image generation — try two model names
+    // Helper: upload buffer to Supabase and return public URL
+    const uploadImgBuf = async (buf, mime, suffix) => {
+      const ext = mime?.includes('png') ? 'png' : 'jpg';
+      const fileName = `ai-gen/${Date.now()}-${angle}-${suffix}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('products').upload(fileName, buf, { contentType: mime || 'image/png', upsert: false });
+      if (upErr) throw new Error(`Supabase upload: ${upErr.message}`);
+      const { data: { publicUrl } } = supabase.storage.from('products').getPublicUrl(fileName);
+      return publicUrl;
+    };
+
+    // Helper: detect image from raw buffer by magic bytes
+    const extractImageBuf = (ab) => {
+      const bytes = new Uint8Array(ab);
+      const isPNG = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47;
+      const isJPEG = bytes[0] === 0xFF && bytes[1] === 0xD8;
+      if (isPNG) return { buf: Buffer.from(ab), mime: 'image/png' };
+      if (isJPEG) return { buf: Buffer.from(ab), mime: 'image/jpeg' };
+      // Try JSON wrapper (Cloudflare sometimes wraps in JSON)
+      try {
+        const parsed = JSON.parse(Buffer.from(ab).toString('utf8'));
+        if (parsed.result?.image) return { buf: Buffer.from(parsed.result.image, 'base64'), mime: 'image/png' };
+      } catch (_) {}
+      return null;
+    };
+
+    // 1. Gemini image generation — try two models
     const geminiKey = process.env.GEMINI_API_KEY;
-    const GEMINI_IMG_MODELS = ['gemini-2.0-flash-exp', 'gemini-2.0-flash-exp-image-generation', 'gemini-2.0-flash-preview-image-generation'];
     if (geminiKey && imageUrl) {
       let productImgBase64 = null; let productImgMime = 'image/jpeg';
       try {
@@ -733,10 +801,10 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
           productImgMime = imgRes.headers.get('content-type') || 'image/jpeg';
           productImgBase64 = Buffer.from(await imgRes.arrayBuffer()).toString('base64');
         }
-      } catch (e) { errors.push(`fetch-product-img: ${e.message}`); }
+      } catch (e) { errors.push(`fetch-img: ${e.message}`); }
 
       if (productImgBase64) {
-        for (const model of GEMINI_IMG_MODELS) {
+        for (const model of ['gemini-2.0-flash-exp', 'gemini-2.0-flash-preview-image-generation']) {
           const ctrl = new AbortController();
           const t = setTimeout(() => ctrl.abort(), 45000);
           try {
@@ -755,67 +823,52 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
             const gData = await gRes.json().catch(() => ({}));
             if (!gRes.ok) { errors.push(`gemini(${model}): ${gData?.error?.message || gRes.status}`); continue; }
             const imgPart = gData?.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
-            if (!imgPart) { errors.push(`gemini(${model}): no image in response`); continue; }
+            if (!imgPart) { errors.push(`gemini(${model}): no image part in response`); continue; }
             const mime = imgPart.inlineData.mimeType || 'image/png';
             const buf = Buffer.from(imgPart.inlineData.data, 'base64');
-            const fileName = `ai-gen/${Date.now()}-${angle}.${mime.includes('png') ? 'png' : 'jpg'}`;
-            const { error: upErr } = await supabase.storage.from('products').upload(fileName, buf, { contentType: mime, upsert: false });
-            if (upErr) { errors.push(`gemini upload: ${upErr.message}`); continue; }
-            const { data: { publicUrl } } = supabase.storage.from('products').getPublicUrl(fileName);
+            const url = await uploadImgBuf(buf, mime, 'g');
             console.log(`✅ generate-gallery ${model} OK (${angle})`);
-            return json({ url: publicUrl, source: model });
+            return json({ url, source: model });
           } catch (e) { clearTimeout(t); errors.push(`gemini(${model}): ${e.message}`); }
         }
       }
     }
 
-    // 2. Fallback: Cloudflare Workers AI SDXL
+    // 2. Cloudflare Workers AI — try 3 image models
     const cfId = (process.env.CLOUDFLARE_ACCOUNT_ID || '').trim();
     const cfToken = (process.env.CLOUDFLARE_API_TOKEN || '').trim();
     if (cfId && cfToken) {
-      const ctrl2 = new AbortController();
-      const t2 = setTimeout(() => ctrl2.abort(), 45000);
-      try {
-        const cfRes = await fetch(
-          `https://api.cloudflare.com/client/v4/accounts/${cfId}/ai/run/@cf/stabilityai/stable-diffusion-xl-base-1.0`,
-          {
-            method: 'POST', signal: ctrl2.signal,
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfToken}` },
-            body: JSON.stringify({ prompt: sdxlPrompt }),
-          }
-        );
-        clearTimeout(t2);
-        const ab = await cfRes.arrayBuffer();
-        const ctCf = cfRes.headers.get('content-type') || '';
-        if (!cfRes.ok) {
-          const errText = Buffer.from(ab).toString('utf8').slice(0, 200);
-          errors.push(`cloudflare(${cfRes.status}): ${errText}`);
-        } else {
-          let imgBuf;
-          if (ctCf.startsWith('image/')) {
-            imgBuf = Buffer.from(ab);
-          } else {
-            try {
-              const parsed = JSON.parse(Buffer.from(ab).toString('utf8'));
-              if (parsed.result?.image) imgBuf = Buffer.from(parsed.result.image, 'base64');
-              else errors.push(`cloudflare: unexpected JSON — ${JSON.stringify(parsed).slice(0, 200)}`);
-            } catch (_) { errors.push('cloudflare: response is not image or JSON'); }
-          }
-          if (imgBuf) {
-            const fileName = `ai-gen/${Date.now()}-${angle}-cf.png`;
-            const { error: upErr } = await supabase.storage.from('products').upload(fileName, imgBuf, { contentType: 'image/png', upsert: false });
-            if (!upErr) {
-              const { data: { publicUrl } } = supabase.storage.from('products').getPublicUrl(fileName);
-              console.log(`✅ generate-gallery Cloudflare SDXL OK (${angle})`);
-              return json({ url: publicUrl, source: 'cloudflare' });
-            } else { errors.push(`cloudflare upload: ${upErr.message}`); }
-          }
-        }
-      } catch (e) { clearTimeout(t2); errors.push(`cloudflare: ${e.message}`); }
+      const CF_MODELS = [
+        '@cf/stabilityai/stable-diffusion-xl-base-1.0',
+        '@cf/lykon/dreamshaper-8-lcm',
+        '@cf/bytedance/stable-diffusion-xl-lightning',
+      ];
+      for (const cfModel of CF_MODELS) {
+        const ctrl2 = new AbortController();
+        const t2 = setTimeout(() => ctrl2.abort(), 45000);
+        try {
+          const cfRes = await fetch(
+            `https://api.cloudflare.com/client/v4/accounts/${cfId}/ai/run/${cfModel}`,
+            {
+              method: 'POST', signal: ctrl2.signal,
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfToken}` },
+              body: JSON.stringify({ prompt: sdxlPrompt }),
+            }
+          );
+          clearTimeout(t2);
+          const ab = await cfRes.arrayBuffer();
+          if (!cfRes.ok) { errors.push(`cf(${cfModel})(${cfRes.status}): ${Buffer.from(ab).toString('utf8').slice(0, 200)}`); continue; }
+          const img = extractImageBuf(ab);
+          if (!img) { errors.push(`cf(${cfModel}): unrecognised response format`); continue; }
+          const url = await uploadImgBuf(img.buf, img.mime, 'cf');
+          console.log(`✅ generate-gallery ${cfModel} OK (${angle})`);
+          return json({ url, source: cfModel });
+        } catch (e) { clearTimeout(t2); errors.push(`cf(${cfModel}): ${e.message}`); }
+      }
     }
 
     console.error(`generate-gallery all failed (${angle}):`, errors);
-    return json({ error: errors[0] || 'All image providers failed', errors }, 500);
+    return json({ error: errors[0] || 'All providers failed', errors }, 500);
   }
 
   if (segments[0] === 'chat' && method === 'POST') {
