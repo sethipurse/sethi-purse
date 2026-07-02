@@ -14,6 +14,7 @@ import Portal from '@/components/Portal';
 import { buildCartOrderMessage, buildWhatsAppLink, cartTotal } from '@/lib/constants';
 import { categoryPath, toTitleCase } from '@/lib/categoryUtils';
 import { detectCategory } from '@/lib/categoryMatch';
+import { cachedFetchJson } from '@/lib/clientCache';
 
 const C = {
   bg: '#faf8f4',
@@ -63,12 +64,10 @@ export default function HomePage() {
     async function load() {
       setLoading(true);
       const endpoints = ['categories', 'products', 'offers', 'reviews'];
+      // Shares the /api/products request with WhatsAppFloat's own fetch
+      // instead of both firing it separately on every homepage load.
       const results = await Promise.all(
-        endpoints.map((name) =>
-          fetch(`/api/${name}`, { cache: 'no-store' })
-            .then((r) => r.json())
-            .catch(() => [])
-        )
+        endpoints.map((name) => cachedFetchJson(`/api/${name}`).catch(() => []))
       );
       if (!live) return;
       const nextCategories = Array.isArray(results[0]) ? results[0] : [];

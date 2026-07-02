@@ -3,6 +3,7 @@ import { useEffect, useState, useRef, useMemo } from 'react';
 import { usePathname } from 'next/navigation';
 import { buildWhatsAppLink } from '@/lib/constants';
 import { productMatchesCategorySlug } from '@/lib/categoryUtils';
+import { cachedFetchJson } from '@/lib/clientCache';
 
 function WhatsAppIcon() {
   return (
@@ -446,10 +447,11 @@ export default function WhatsAppFloat() {
   const [products, setProducts] = useState([]); // ← MOVED HERE: loads on page mount
   const scrollTimerRef = useRef(null);
 
-  // Load product catalog immediately when the page loads (not when chat opens)
+  // Load product catalog immediately when the page loads (not when chat opens).
+  // Shares a request with whatever the current page already fetched instead
+  // of firing a second parallel /api/products call on every page.
   useEffect(() => {
-    fetch('/api/products')
-      .then((r) => r.json())
+    cachedFetchJson('/api/products')
       .then((data) => {
         const list = Array.isArray(data) ? data : data?.products || data?.data || [];
         setProducts(list.filter((p) => p.is_active !== false));

@@ -8,6 +8,7 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
 import { categoryPath } from '@/lib/categoryUtils';
+import { cachedFetchJson } from '@/lib/clientCache';
 
 const PRICE_RANGES = [
   { label: '₹500 – ₹2,000', min: 500, max: 2000 },
@@ -115,10 +116,13 @@ function ProductsContent() {
     let live = true;
     async function load() {
       setLoading(true);
-      // FIX: use revalidate cache instead of no-store — much faster
+      // Shares cached results with the homepage / WhatsAppFloat instead of
+      // re-fetching — the previous `next: { revalidate }` here did nothing,
+      // since that option only applies to server-side fetches, not this
+      // client component's browser fetch().
       const [cats, prods] = await Promise.all([
-        fetch('/api/categories', { next: { revalidate: 300 } }).then((r) => r.json()).catch(() => []),
-        fetch('/api/products', { next: { revalidate: 60 } }).then((r) => r.json()).catch(() => []),
+        cachedFetchJson('/api/categories').catch(() => []),
+        cachedFetchJson('/api/products').catch(() => []),
       ]);
       if (!live) return;
       setCategories(Array.isArray(cats) ? cats : []);
