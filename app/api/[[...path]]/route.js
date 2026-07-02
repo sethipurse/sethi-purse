@@ -3,6 +3,7 @@ import { supabase, nowIST } from '@/lib/storage';
 import { clearAdminCookie, makeAdminToken, rateLimit, requireAdmin, setAdminCookie } from '@/lib/security';
 import { v4 as uuidv4 } from 'uuid';
 import categoriesJson from '@/data/categories.json';
+import { detectCategory } from '@/lib/categoryMatch';
 
 const LOCAL_CATEGORIES = categoriesJson.map((c) => ({
   ...c,
@@ -11,97 +12,6 @@ const LOCAL_CATEGORIES = categoriesJson.map((c) => ({
 }));
 
 const VALID_STATUSES = ['new', 'contacted', 'converted', 'closed'];
-
-const CATEGORY_KEYWORDS = {
-  'LUGGAGE': [
-    'luggage', 'trolley', 'suitcase', 'travel bag', 'travel luggage',
-    'cabin bag', 'check-in', 'checkin', 'bag on wheels', 'roller bag',
-    'hard case', 'soft case', 'spinner', 'wheeled bag',
-    'cabin luggage', 'check in bag', '20 inch', '24 inch', '28 inch',
-    'samaan', 'trolley bag', 'samaan ki bag', 'yatra bag', 'journey bag',
-    'safar', 'safar bag', 'airport bag', 'flight bag', 'travel', 'trip bag',
-  ],
-  'Backpacks': [
-    'backpack', 'bag pack', 'bagpack', 'rucksack', 'school bag',
-    'college bag', 'laptop bag', 'hiking bag', 'trek bag',
-    'trekking bag', 'camping bag', 'travel backpack', 'daypack',
-    'casual backpack', 'office bag', 'gym bag', 'sports bag',
-    'anti theft bag', 'usb charging bag', 'student bag', 'study bag',
-    'pithu', 'pithhu', 'peethu', 'pitu', 'pith wali bag', 'pith pe pehna',
-    'basta', 'bacha bag', 'kids backpack', 'children bag', 'child bag', 'kids bag',
-  ],
-  'Handbags': [
-    'handbag', 'hand bag', 'ladies bag', 'shoulder bag',
-    'tote bag', 'hobo bag', 'satchel', 'top handle bag',
-    'bucket bag', 'structured bag', 'everyday bag', 'work bag',
-    'office handbag', 'ladies handbag', 'woman bag', 'women bag',
-    'mahila bag', 'ladies purse', 'hand purse',
-    'big purse', 'large bag', 'shopping bag', 'daily use bag',
-    'casual bag', 'regular bag', 'normal bag', 'purse',
-  ],
-  'Party Wear Purse': [
-    'party wear purse', 'party purse', 'party bag', 'party wear bag',
-    'fancy purse', 'fancy bag', 'fancy clutch', 'evening bag',
-    'evening purse', 'bridal purse', 'bridal bag', 'wedding bag',
-    'wedding purse', 'shaadi bag', 'shaadi purse', 'function bag',
-    'function purse', 'designer purse', 'designer bag', 'stylish purse',
-    'stylish bag', 'glitter bag', 'glitter purse', 'sequin bag',
-    'embroidered bag', 'embroidered purse', 'clutch purse', 'clutch',
-    'potli', 'potli bag', 'potli purse', 'ethnic bag', 'ethnic purse',
-    'sangeet bag', 'reception bag', 'cocktail bag', 'formal purse',
-    'fancy', 'party wear', 'shiny bag', 'embellished bag',
-  ],
-  'Slings': [
-    'sling', 'sling bag', 'cross body bag', 'crossbody bag',
-    'messenger bag', 'shoulder sling', 'cross sling', 'side bag',
-    'side purse', 'ek strap bag', 'single strap bag', 'body bag',
-    'mini bag', 'small bag', 'compact bag', 'belt bag', 'waist bag',
-    'fanny pack', 'chest bag', 'mobile bag', 'phone bag',
-    'shoulder strap bag',
-  ],
-  'Wallets': [
-    'wallet', 'purse for cash', 'card holder', 'bifold', 'clutch wallet',
-    'leather wallet', 'slim wallet', 'rfid wallet', 'mens wallet',
-    'ladies wallet', 'zip wallet', 'coin purse', 'cash holder',
-    'card case', 'card wallet', 'money clip', 'travel wallet',
-    'passport wallet', 'document wallet',
-  ],
-  'School Bags': [
-    'school bag', 'school backpack', 'student bag', 'class bag',
-    'child bag', 'kids bag', 'student backpack', 'skool bag',
-    'vidyalaya bag', 'basta', 'bacha bag', 'primary bag',
-    'cartoon bag', 'kids backpack', 'children bag',
-  ],
-};
-
-function detectCategory(text, dbCategories = []) {
-  const lower = (text || '').toLowerCase().trim();
-  if (!lower) return 'Other';
-
-  const sortedDbCats = [...new Set((dbCategories || []).filter(Boolean))].sort((a, b) => b.length - a.length);
-  for (const catName of sortedDbCats) {
-    const escaped = catName.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`\\b${escaped}\\b`, 'i');
-    if (regex.test(lower)) {
-      console.log(`✅ detectCategory: "${lower}" → "${catName}" (database category match)`);
-      return catName;
-    }
-  }
-
-  for (const [keywordCat, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
-    for (const kw of keywords) {
-      const regex = new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
-      if (regex.test(lower)) {
-        const dbMatch = sortedDbCats.find((c) => c.toLowerCase() === keywordCat.toLowerCase()) || keywordCat;
-        console.log(`✅ detectCategory: "${lower}" → "${dbMatch}" (keyword fallback: "${kw}")`);
-        return dbMatch;
-      }
-    }
-  }
-
-  console.log(`⚠️ detectCategory: "${lower}" → "Other" (no match found)`);
-  return 'Other';
-}
 
 const BUY_INTENT_KEYWORDS = [
   'buy', 'order', 'purchase', 'book', 'reserve',

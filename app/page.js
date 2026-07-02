@@ -12,7 +12,8 @@ import InstagramSection from '@/components/InstagramSection';
 import ProblemSearch from '@/components/ProblemSearch';
 import Portal from '@/components/Portal';
 import { buildCartOrderMessage, buildWhatsAppLink, cartTotal } from '@/lib/constants';
-import { categoryPath } from '@/lib/categoryUtils';
+import { categoryPath, toTitleCase } from '@/lib/categoryUtils';
+import { detectCategory } from '@/lib/categoryMatch';
 
 const C = {
   bg: '#faf8f4',
@@ -93,12 +94,24 @@ export default function HomePage() {
   const searchResults = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
-    return allProducts.filter((product) => {
+    const textMatches = allProducts.filter((product) => {
       const productCategory = product.category || product.category_id || '';
       const text = `${product.name || ''} ${product.brand || ''} ${product.description || ''} ${productCategory}`.toLowerCase();
       return text.includes(q);
     });
-  }, [allProducts, query]);
+    // Also pull in the whole category the search term implies (e.g. "trolley"
+    // -> LUGGAGE), even for products whose own name/description don't
+    // literally contain that word, so category searches stay relevant
+    // instead of only relying on exact substring matches.
+    const detectedCategory = detectCategory(query, categories.map((c) => c.name));
+    if (detectedCategory === 'Other') return textMatches;
+    const categoryMatches = allProducts.filter(
+      (product) => (product.category || product.category_id || '').toLowerCase() === detectedCategory.toLowerCase()
+    );
+    const merged = new Map();
+    [...textMatches, ...categoryMatches].forEach((p) => merged.set(p.id, p));
+    return Array.from(merged.values());
+  }, [allProducts, categories, query]);
 
   const isSearching = query.trim().length > 0;
 
@@ -201,7 +214,7 @@ export default function HomePage() {
                 ) : (
                   <Link key={name} href={categoryPath(name)}
                     className="shrink-0 rounded-full border border-[#ede8df] bg-white px-5 py-2 text-base font-semibold text-[#6b5544] transition hover:border-[#c9a84c] hover:text-[#a07a28]">
-                    {name}
+                    {toTitleCase(name)}
                   </Link>
                 )
               ))}
@@ -217,7 +230,7 @@ export default function HomePage() {
                 <Link key={category.id || category.name} href={categoryPath(category.name)} className="group relative aspect-[4/5] overflow-hidden rounded bg-white text-left shadow-sm ring-1 ring-[#ede8df]">
                   {imageOf(category) ? <img src={imageOf(category)} alt={category.name} className="h-full w-full object-cover transition group-hover:scale-105" /> : <div className="h-full w-full bg-[#f5f0e8]" />}
                   <div className="absolute inset-0 bg-gradient-to-t from-[#2c1f14]/80 to-transparent" />
-                  <span className="absolute bottom-4 left-4 right-4 text-2xl font-bold text-white">{category.name}</span>
+                  <span className="absolute bottom-4 left-4 right-4 text-2xl font-bold text-white">{toTitleCase(category.name)}</span>
                 </Link>
               ))}
             </div>
@@ -277,7 +290,7 @@ export default function HomePage() {
             </div>
             <nav className="mt-8 grid gap-3 text-xl font-semibold">
               <Link href="/products">All Products</Link>
-              {categories.map((category) => <Link key={category.id || category.name} href={categoryPath(category.name)}>{category.name}</Link>)}
+              {categories.map((category) => <Link key={category.id || category.name} href={categoryPath(category.name)}>{toTitleCase(category.name)}</Link>)}
               <Link href="/offers">Offers</Link>
               <Link href="/reviews">Reviews</Link>
               <Link href="/contact">Contact</Link>

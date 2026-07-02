@@ -4,7 +4,7 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
 import { getCategories, getProducts } from '@/lib/data';
-import { categoryPath, findCategoryBySlug, productMatchesCategorySlug, titleFromSlug } from '@/lib/categoryUtils';
+import { categoryPath, findCategoryBySlug, productMatchesCategorySlug, titleFromSlug, toTitleCase } from '@/lib/categoryUtils';
 
 export const revalidate = 0;
 
@@ -18,7 +18,7 @@ function matchesCategory(product, category, slug) {
 export async function generateMetadata({ params }) {
   const categories = await getCategories();
   const category = findCategoryBySlug(categories, params.slug);
-  const title = category?.name || titleFromSlug(params.slug);
+  const title = toTitleCase(category?.name) || titleFromSlug(params.slug);
 
   return {
     title: `${title} | SETHI PURSE`,
@@ -30,7 +30,7 @@ export async function generateMetadata({ params }) {
 export default async function CategoryPage({ params }) {
   const [categories, allProducts] = await Promise.all([getCategories(), getProducts()]);
   const category = findCategoryBySlug(categories, params.slug);
-  const title = category?.name || titleFromSlug(params.slug);
+  const title = toTitleCase(category?.name) || titleFromSlug(params.slug);
   const products = allProducts.filter((product) => matchesCategory(product, category, params.slug));
 
   return (

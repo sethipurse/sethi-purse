@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { ImageOff } from 'lucide-react';
+import { toTitleCase } from '@/lib/categoryUtils';
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState([]);
@@ -70,7 +71,7 @@ export default function CategoriesPage() {
                     {/* Label */}
                     <div className="p-3 text-center">
                       <p className="font-serif font-semibold text-[#2c1f14] text-base group-hover:text-[#c9a84c] transition-colors">
-                        {name}
+                        {toTitleCase(name)}
                       </p>
                     </div>
                   </Link>
