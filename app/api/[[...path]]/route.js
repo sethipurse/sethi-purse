@@ -755,6 +755,25 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
       office: ['Handbags', 'Backpacks', 'Slings'],
       party: ['Party Wear Purse', 'Handbags'],
     };
+    // Keywords used to nudge ranking toward products that actually fit the
+    // stated purpose, since category+budget alone can't tell a laptop
+    // backpack from a school backpack.
+    const USE_KEYWORDS = {
+      daily: ['daily', 'everyday', 'lightweight', 'office'],
+      travel: ['travel', 'trip', 'trolley', 'spinner', 'cabin', 'international', 'flight'],
+      school: ['school', 'student', 'college'],
+      gift: ['gift', 'premium', 'elegant'],
+      office: ['laptop', 'office', 'professional', 'formal'],
+      party: ['party', 'stylish', 'trendy', 'elegant'],
+    };
+    const USE_REASON = {
+      daily: 'Best for daily use — durable and lightweight',
+      travel: 'Perfect for travel — spacious and easy to carry',
+      school: 'Great for school — comfortable and sturdy',
+      gift: 'A premium gift choice — stylish and practical',
+      office: 'Ideal for office use — professional look with smart storage',
+      party: 'Perfect for parties — stylish and elegant',
+    };
 
     let priceMin = 0, priceMax = 999999;
     if (budget === 'under1500') priceMax = 1500;
@@ -764,26 +783,48 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
     // Category from user selection takes priority over use-based mapping
     const targetCategories = category ? [category] : (USE_TO_CATEGORY[use] || []);
 
-    try {
-      let q = supabase.from('products').select('*').eq('is_active', true).neq('stock', 0).gte('sale_price', priceMin).lte('sale_price', priceMax).order('featured', { ascending: false }).order('created_at', { ascending: false });
-      if (targetCategories.length > 0) q = q.in('category', targetCategories);
-      const { data: matches } = await q.limit(10);
-
-      let pool = matches || [];
-      if (pool.length === 0) {
-        const { data: fallback } = await supabase.from('products').select('*').eq('is_active', true).gte('sale_price', priceMin).lte('sale_price', priceMax).order('featured', { ascending: false }).limit(5);
-        pool = fallback || [];
+    // "Best" = a weighted score, not just admin-flagged + newest. Purpose
+    // relevance dominates (it's literally what the customer told us they need
+    // it for) — featured/discount/popularity/price-fit only break ties among
+    // similarly-relevant products, never override a relevance mismatch.
+    function scoreProduct(p) {
+      const price = Number(p.sale_price) || 0;
+      let score = 0;
+      const text = `${p.name || ''} ${p.description || ''}`.toLowerCase();
+      if ((USE_KEYWORDS[use] || []).some((k) => text.includes(k))) score += 10;
+      if (p.featured) score += 1;
+      score += Math.min(Number(p.discount_percent) || 0, 50) / 50; // up to +1
+      score += Math.min(Math.log10((Number(p.view_count) || 0) + 1), 2); // up to +2, diminishing returns
+      if (priceMax < 999999) {
+        const bucketWidth = Math.max(priceMax - priceMin, 1);
+        const mid = priceMin + bucketWidth / 2;
+        score += Math.max(0, 1 - Math.abs(price - mid) / bucketWidth); // up to +1
       }
+      return score;
+    }
+
+    async function fetchPool({ withCategory, withBudget }) {
+      let q = supabase.from('products').select('*').eq('is_active', true).neq('stock', 0);
+      if (withCategory && targetCategories.length > 0) q = q.in('category', targetCategories);
+      if (withBudget) q = q.gte('sale_price', priceMin).lte('sale_price', priceMax);
+      const { data } = await q.limit(30);
+      return data || [];
+    }
+
+    try {
+      // Fallback ladder — always excludes out-of-stock. Widen the budget
+      // before ever dropping the category, so a trolley-bag request never
+      // ends up recommending an unrelated wallet just because it's cheap.
+      let pool = await fetchPool({ withCategory: true, withBudget: true });
+      if (pool.length === 0 && targetCategories.length > 0) pool = await fetchPool({ withCategory: true, withBudget: false });
+      if (pool.length === 0) pool = await fetchPool({ withCategory: false, withBudget: true });
+      if (pool.length === 0) pool = await fetchPool({ withCategory: false, withBudget: false });
       if (pool.length === 0) return json({ product: null, alternatives: [] });
 
-      const USE_REASON = {
-        daily: 'Best for daily use — durable and lightweight',
-        travel: 'Perfect for travel — spacious and easy to carry',
-        school: 'Great for school — comfortable and sturdy',
-        gift: 'A premium gift choice — stylish and practical',
-        office: 'Ideal for office use — professional look with smart storage',
-        party: 'Perfect for parties — stylish and elegant',
-      };
+      pool = pool
+        .map((p) => ({ p, s: scoreProduct(p) }))
+        .sort((a, b) => b.s - a.s)
+        .map(({ p }) => p);
 
       const top = pool[0];
       const alternatives = pool.slice(1, 3);
