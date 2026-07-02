@@ -1,7 +1,8 @@
 'use client';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { usePathname } from 'next/navigation';
 import { buildWhatsAppLink } from '@/lib/constants';
+import { productMatchesCategorySlug } from '@/lib/categoryUtils';
 
 function WhatsAppIcon() {
   return (
@@ -71,7 +72,7 @@ function MicIcon() {
   );
 }
 
-function AIChatPanel({ onClose, products }) {
+function AIChatPanel({ onClose, products, pageContext }) {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
@@ -123,6 +124,7 @@ function AIChatPanel({ onClose, products }) {
           products,
           sessionId: sessionIdRef.current,
           contactCaptured,
+          pageContext,
         }),
       });
       const data = await res.json();
@@ -475,6 +477,24 @@ export default function WhatsAppFloat() {
     };
   }, []);
 
+  // Ground the chat in whatever the customer is actually looking at, so a
+  // vague message like "what's the price?" on a product/category page still
+  // gets matched against that product's category instead of the whole catalog.
+  const pageContext = useMemo(() => {
+    if (products.length === 0) return null;
+    const productMatch = pathname.match(/^\/products?\/([^/?#]+)/);
+    if (productMatch) {
+      const p = products.find((pr) => String(pr.id) === productMatch[1]);
+      if (p) return { category: p.category, productId: p.id, productName: p.name };
+    }
+    const categoryMatch = pathname.match(/^\/category\/([^/?#]+)/);
+    if (categoryMatch) {
+      const p = products.find((pr) => productMatchesCategorySlug(pr, categoryMatch[1]));
+      if (p) return { category: p.category };
+    }
+    return null;
+  }, [pathname, products]);
+
   if (pathname.startsWith('/admin')) return null;
 
   const isShown = visible && !chatOpen;
@@ -482,7 +502,7 @@ export default function WhatsAppFloat() {
   return (
     <>
       {/* AI Chat panel — receives pre-loaded products as prop */}
-      {chatOpen && <AIChatPanel onClose={() => setChatOpen(false)} products={products} />}
+      {chatOpen && <AIChatPanel onClose={() => setChatOpen(false)} products={products} pageContext={pageContext} />}
 
       {/* FAB */}
       <button

@@ -216,13 +216,18 @@ function pruneCatalogCache() {
   for (const [k, v] of catalogCache.entries()) { if (v.expiresAt < now) catalogCache.delete(k); }
 }
 
-function matchProducts(query, products, priceRange, limit = 10, dbCategories = []) {
+function matchProducts(query, products, priceRange, limit = 10, dbCategories = [], contextCategory = null) {
   if (!Array.isArray(products) || products.length === 0) return { matched: [], upsells: [] };
 
   const lower = (query || '').toLowerCase();
-  const detectedCat = detectCategory(query, dbCategories);
+  // If the message itself doesn't name a category, fall back to whatever
+  // product/category page the customer is currently viewing — an explicit
+  // category in the message always wins over page context.
+  let detectedCat = detectCategory(query, dbCategories);
+  const usedPageContext = detectedCat === 'Other' && !!contextCategory;
+  if (usedPageContext) detectedCat = contextCategory;
 
-  console.log(`📦 matchProducts: query="${lower}" | detectedCategory="${detectedCat}" | totalProducts=${products.length}`);
+  console.log(`📦 matchProducts: query="${lower}" | detectedCategory="${detectedCat}"${usedPageContext ? ' (from page context)' : ''} | totalProducts=${products.length}`);
 
   let categoryFiltered = products;
   if (detectedCat !== 'Other') {
@@ -385,7 +390,8 @@ async function callAI(messages, sys) {
 }
 
 async function handleChat(body, cookieSessionId) {
-  const { messages, products, sessionId: incomingId, contactCaptured } = body || {};
+  const { messages, products, sessionId: incomingId, contactCaptured, pageContext } = body || {};
+  const contextCategory = pageContext?.category || null;
   const sessionId = incomingId || cookieSessionId || uuidv4();
   const lastUserMsg = [...(messages || [])].reverse().find((m) => m.role === 'user');
   const userMsgCount = countUserMessages(messages);
@@ -415,7 +421,11 @@ async function handleChat(body, cookieSessionId) {
   const dbCategories = await getCachedCategoryNames();
 
   pruneCatalogCache();
-  const cacheKey = `${detectCategory(lastUserMsg?.content || '', dbCategories)}|${priceRange?.min || ''}|${priceRange?.max || ''}`;
+  const msgCategory = detectCategory(lastUserMsg?.content || '', dbCategories);
+  // Include contextCategory in the cache key too — otherwise a generic
+  // message like "price?" sent from two different product pages in the same
+  // session could incorrectly reuse the other page's cached catalog.
+  const cacheKey = `${msgCategory === 'Other' ? (contextCategory || 'Other') : msgCategory}|${priceRange?.min || ''}|${priceRange?.max || ''}`;
   const cached = catalogCache.get(sessionId);
   let catalogText = 'No products loaded.';
   let upsellText = '';
@@ -428,7 +438,7 @@ async function handleChat(body, cookieSessionId) {
   if (cached && cached.key === cacheKey && cached.expiresAt > Date.now()) {
     catalogText = cached.catalogText; upsellText = cached.upsellText; topProductIds = cached.topProductIds; fallbackProducts = cached.fallbackProducts || [];
   } else if (Array.isArray(products) && products.length > 0) {
-    const { matched, upsells } = matchProducts(lastUserMsg?.content || '', products, priceRange, 8, dbCategories);
+    const { matched, upsells } = matchProducts(lastUserMsg?.content || '', products, priceRange, 8, dbCategories, contextCategory);
     upsellProducts = upsells;
     if (matched.length === 0) {
       noDirectMatch = true;
@@ -479,6 +489,11 @@ async function handleChat(body, cookieSessionId) {
   const langInstr = language === 'hindi' ? '🌐 Reply in friendly Hinglish.' : language === 'punjabi' ? '🌐 Reply in friendly Punjabi/Hinglish.' : '🌐 Reply in clear English with natural Hindi words.';
   const leadInstr = shouldAskContact ? (language === 'hindi' ? '📞 LEAD: After answering, add: "Aapka naam aur number share karein! 😊"' : '📞 LEAD: After answering, add: "Could I get your name and number? Our team will assist you! 😊"') : '';
   const upsellInstr = upsellProducts.length > 0 ? '💡 UPSELL: Mention 1 upsell naturally if customer is budget-focused. Include its ID in PRODUCTS line.' : '';
+  const viewingInstr = pageContext?.productName
+    ? `\n\n👀 CUSTOMER IS CURRENTLY VIEWING: "${pageContext.productName}" (${pageContext.category}). If they use words like "this" or "iska", assume they mean this product unless they clearly ask about something else.`
+    : pageContext?.category
+      ? `\n\n👀 CUSTOMER IS CURRENTLY BROWSING: ${pageContext.category} category.`
+      : '';
 
   const systemPrompt = `You are a FRIENDLY, EXPERT sales assistant for SETHI PURSE, Punjab's trusted premium luggage store in Jalandhar.
 
@@ -493,6 +508,7 @@ Facebook: https://www.facebook.com/sethipurse
 YouTube: https://www.youtube.com/@sethipurse
 
 ${langInstr}
+${viewingInstr}
 
 🎯 PRODUCT CATALOG:
 ${catalogText}${upsellText}
