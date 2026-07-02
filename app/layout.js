@@ -4,6 +4,7 @@ import WhatsAppFloat from '@/components/WhatsAppFloat';
 import BackToTop from '@/components/BackToTop';
 import MobileStickyCTA from '@/components/MobileStickyCTA';
 import PWAInstall from '@/components/PWAInstall';
+import DecideForMeTeaser from '@/components/DecideForMeTeaser';
 
 const OG_IMAGE =
   'https://bbdatviaaiqpfvwumkkd.supabase.co/storage/v1/object/public/products/og-default.jpg';
@@ -72,6 +73,7 @@ export default function RootLayout({ children }) {
         <WhatsAppFloat />
         <MobileStickyCTA />
         <BackToTop />
+        <DecideForMeTeaser />
         <Toaster position="top-center" richColors />
       </body>
     </html>

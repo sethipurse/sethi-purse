@@ -1,5 +1,6 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { MessageCircle, X, Sparkles, ChevronRight } from 'lucide-react';
 import { buildWhatsAppLink, buildBuyNowMessage, buildProductUrl, rupee } from '@/lib/constants';
@@ -38,6 +39,12 @@ export default function DecideForMeModal({ onClose }) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
+  const [mounted, setMounted] = useState(false);
+
+  // Portal to document.body so this always renders above every other fixed
+  // element (WhatsApp FAB, back-to-top, sticky nav) regardless of which
+  // ancestor stacking context it's triggered from.
+  useEffect(() => setMounted(true), []);
 
   async function handleSubmit() {
     if (!category || !budget || !use) return;
@@ -64,7 +71,9 @@ export default function DecideForMeModal({ onClose }) {
 
   const allSelected = category && budget && use;
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <div
       style={{ position: 'fixed', inset: 0, zIndex: 100002, background: 'rgba(44,31,20,0.6)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
       onClick={onClose}
@@ -239,6 +248,7 @@ export default function DecideForMeModal({ onClose }) {
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
