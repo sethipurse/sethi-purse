@@ -50,12 +50,9 @@ export default function TiltCard({
         ...style,
         transformStyle: 'preserve-3d',
         willChange: 'transform',
-        touchAction: 'none',
       }}
       onMouseMove={(e) => applyTilt(e.clientX, e.clientY)}
       onMouseLeave={resetTilt}
-      onTouchMove={(e) => { const t = e.touches[0]; applyTilt(t.clientX, t.clientY); }}
-      onTouchEnd={resetTilt}
     >
       {children}
     </div>

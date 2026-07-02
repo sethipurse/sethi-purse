@@ -199,7 +199,7 @@ export default function DecideForMeModal({ onClose }) {
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: '#25D366', color: '#fff', padding: '13px', borderRadius: 14, fontSize: 14, fontWeight: 700, textDecoration: 'none' }}>
                 <MessageCircle size={18} /> Buy Now on WhatsApp
               </a>
-              <Link href={`/product/${result.product.id}`}
+              <Link href={`/product/${result.product.id}`} onClick={onClose}
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: '#2c1f14', color: '#c9a84c', padding: '12px', borderRadius: 14, fontSize: 14, fontWeight: 700, textDecoration: 'none' }}>
                 View Full Details <ChevronRight size={16} />
               </Link>
@@ -227,7 +227,8 @@ export default function DecideForMeModal({ onClose }) {
                 const altImg = alt.image_url || alt.imageUrl || '';
                 const altWa = buildWhatsAppLink(buildBuyNowMessage(alt, { quantity: 1, productUrl: buildProductUrl(alt.id) }));
                 return (
-                  <div key={alt.id} style={{ background: '#fff', borderRadius: 14, border: '1px solid #ede8df', padding: 14, display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <Link key={alt.id} href={`/product/${alt.id}`} onClick={onClose}
+                    style={{ background: '#fff', borderRadius: 14, border: '1px solid #ede8df', padding: 14, display: 'flex', gap: 12, alignItems: 'center', textDecoration: 'none' }}>
                     {altImg
                       ? <img src={altImg} alt={alt.name} style={{ width: 64, height: 64, borderRadius: 8, objectFit: 'cover', background: '#f5f0e8', flexShrink: 0 }} />
                       : <div style={{ width: 64, height: 64, borderRadius: 8, background: '#f5f0e8', flexShrink: 0 }} />
@@ -235,13 +236,13 @@ export default function DecideForMeModal({ onClose }) {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontSize: 13, fontWeight: 700, color: '#2c1f14', margin: '0 0 4px', lineHeight: 1.3 }}>{alt.name}</p>
                       <p style={{ fontSize: 15, fontWeight: 800, color: '#c9a84c', margin: '0 0 8px' }}>{rupee(altPrice)}</p>
-                      <a href={altWa} target="_blank" rel="noopener noreferrer"
+                      <a href={altWa} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
                         style={{ fontSize: 12, fontWeight: 700, background: '#25D366', color: '#fff', padding: '5px 12px', borderRadius: 10, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                         <MessageCircle size={12} /> Buy
                       </a>
                     </div>
-                    <Link href={`/product/${alt.id}`} style={{ color: '#8a7060', flexShrink: 0 }}><ChevronRight size={18} /></Link>
-                  </div>
+                    <ChevronRight size={18} style={{ color: '#8a7060', flexShrink: 0 }} />
+                  </Link>
                 );
               })}
             </div>
