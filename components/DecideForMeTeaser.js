@@ -1,34 +1,48 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { X } from 'lucide-react';
 import DecideForMeModal from '@/components/DecideForMeModal';
 
-const SESSION_KEY = 'sethi-decide-teaser-shown';
-const DELAY_MS = 5000;
+const INITIAL_DELAY_MS = 5000;
+const SCROLL_STOP_DELAY_MS = 400;
 
+// Site-wide banner: appears 5s after landing, hides the instant the user
+// scrolls, and reappears once scrolling stops — on every page, since this
+// is mounted once in the root layout and persists across client-side nav.
 export default function DecideForMeTeaser() {
   const pathname = usePathname() || '';
   const isAdmin = pathname.startsWith('/admin');
   const [visible, setVisible] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const scrollTimerRef = useRef(null);
+  const settledRef = useRef(false);
 
   useEffect(() => {
-    if (isAdmin) return;
-    let alreadyShown = false;
-    try {
-      alreadyShown = sessionStorage.getItem(SESSION_KEY) === '1';
-    } catch {}
-    if (alreadyShown) return;
+    if (isAdmin || dismissed) return;
 
-    const timer = setTimeout(() => {
+    const initialTimer = setTimeout(() => {
+      settledRef.current = true;
       setVisible(true);
-      try { sessionStorage.setItem(SESSION_KEY, '1'); } catch {}
-    }, DELAY_MS);
-    return () => clearTimeout(timer);
-  }, [isAdmin]);
+    }, INITIAL_DELAY_MS);
 
-  if (isAdmin) return null;
+    const onScroll = () => {
+      if (!settledRef.current) return;
+      setVisible(false);
+      clearTimeout(scrollTimerRef.current);
+      scrollTimerRef.current = setTimeout(() => setVisible(true), SCROLL_STOP_DELAY_MS);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+
+    return () => {
+      clearTimeout(initialTimer);
+      clearTimeout(scrollTimerRef.current);
+      window.removeEventListener('scroll', onScroll);
+    };
+  }, [isAdmin, dismissed]);
+
+  if (isAdmin || dismissed) return null;
 
   return (
     <>
@@ -56,7 +70,7 @@ export default function DecideForMeTeaser() {
           padding: '12px 12px 12px 14px',
           boxShadow: '0 14px 44px rgba(80,20,200,0.5), 0 0 0 1px rgba(140,60,255,0.1)',
           cursor: 'pointer',
-          transition: 'top 0.55s cubic-bezier(0.16, 1, 0.3, 1)',
+          transition: 'top 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
           pointerEvents: visible ? 'auto' : 'none',
         }}
       >
@@ -73,7 +87,7 @@ export default function DecideForMeTeaser() {
           </div>
         </div>
         <button
-          onClick={(e) => { e.stopPropagation(); setVisible(false); }}
+          onClick={(e) => { e.stopPropagation(); setDismissed(true); }}
           aria-label="Dismiss"
           style={{
             background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: '50%',
