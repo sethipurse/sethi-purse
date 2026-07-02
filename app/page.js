@@ -11,6 +11,7 @@ import Footer from '@/components/Footer';
 import InstagramSection from '@/components/InstagramSection';
 import DecideForMeModal from '@/components/DecideForMeModal';
 import ProblemSearch from '@/components/ProblemSearch';
+import Portal from '@/components/Portal';
 import { buildCartOrderMessage, buildWhatsAppLink, cartTotal } from '@/lib/constants';
 import { categoryPath } from '@/lib/categoryUtils';
 
@@ -492,7 +493,8 @@ export default function HomePage() {
       )}
 
       {menuOpen && (
-        <div className="fixed inset-0 z-50 bg-[#2c1f14]/35" onClick={() => setMenuOpen(false)}>
+        <Portal>
+        <div className="fixed inset-0 bg-[#2c1f14]/35" style={{ zIndex: 100000 }} onClick={() => setMenuOpen(false)}>
           <aside className="h-full w-[310px] bg-white p-6 shadow-xl" onClick={(event) => event.stopPropagation()}>
             <div className="flex items-center justify-between">
               <div>
@@ -510,13 +512,15 @@ export default function HomePage() {
             </nav>
           </aside>
         </div>
+        </Portal>
       )}
 
       {cartOpen && (
-        <div className="fixed inset-0 bg-[#2c1f14]/50" onClick={() => setCartOpen(false)} style={{ zIndex: 9998 }}>
+        <Portal>
+        <div className="fixed inset-0 bg-[#2c1f14]/50" onClick={() => setCartOpen(false)} style={{ zIndex: 100000 }}>
           <aside
             className="fixed right-0 top-0 h-full w-full max-w-[380px] bg-white shadow-2xl flex flex-col"
-            style={{ zIndex: 9999, position: 'fixed', top: 0, right: 0, height: '100dvh' }}
+            style={{ zIndex: 100001, position: 'fixed', top: 0, right: 0, height: '100dvh' }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-[#ede8df] px-5 py-4 bg-[#2c1f14]">
@@ -585,6 +589,7 @@ export default function HomePage() {
             )}
           </aside>
         </div>
+        </Portal>
       )}
     </main>
   );

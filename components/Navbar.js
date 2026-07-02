@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Menu, X, MessageCircle, ShoppingBag } from 'lucide-react';
 import { LOGO_URL, BUSINESS, getWALinkForPath } from '@/lib/constants';
+import Portal from '@/components/Portal';
 
 const LINKS = [
   { href: '/', label: 'Home' },
@@ -129,8 +130,9 @@ export default function Navbar() {
         </div>
       </header>
 
-      {/* ✅ Mobile menu — renders as portal outside header, covers 100% screen */}
+      {/* Mobile menu — portaled to document.body so it always renders above the WhatsApp FAB, back-to-top button, and sticky bottom nav */}
       {open && (
+        <Portal>
         <div
           style={{
             position: 'fixed',
@@ -216,6 +218,7 @@ export default function Navbar() {
             <p style={{ marginTop: 16, textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: 14 }}>{BUSINESS.phone}</p>
           </div>
         </div>
+        </Portal>
       )}
     </>
   );

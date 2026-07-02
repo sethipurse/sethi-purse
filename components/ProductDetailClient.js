@@ -7,6 +7,7 @@ import { ArrowLeft, Check, ChevronLeft, ChevronRight, Clock, Eye, Flame, MapPin,
 import { toast } from 'sonner';
 import ProductCard from '@/components/ProductCard';
 import ReviewCard from '@/components/ReviewCard';
+import Portal from '@/components/Portal';
 import { buildBuyNowMessage, buildProductUrl, buildWhatsAppLink, resolveImage } from '@/lib/constants';
 
 function rupee(value) {
@@ -140,6 +141,7 @@ function FullscreenViewer({ src, alt, onClose }) {
   }, []);
 
   return (
+    <Portal>
     <div
       onClick={onClose}
       style={{
@@ -166,6 +168,7 @@ function FullscreenViewer({ src, alt, onClose }) {
         style={{ display: 'block', maxWidth: '95vw', maxHeight: '90vh', width: 'auto', height: 'auto', objectFit: 'contain' }} />
       <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, marginTop: 12 }}>Tap outside or ✕ to close</p>
     </div>
+    </Portal>
   );
 }
 
