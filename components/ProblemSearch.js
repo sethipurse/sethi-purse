@@ -123,8 +123,15 @@ export default function ProblemSearch({ allProducts = [] }) {
   const noResultsWaText = `Hi SETHI PURSE! ${activeChip ? activeChip.label : freeText} ke liye koi bag suggest karein please.`;
 
   return (
-    <section ref={sectionRef} style={{ background: '#f5f0e8', padding: '40px 16px' }}>
+    <section ref={sectionRef} style={{ background: '#faf8f4', padding: '40px 16px' }}>
       <div style={{ maxWidth: 1152, margin: '0 auto' }}>
+      <div style={{
+        background: '#fff',
+        borderRadius: 20,
+        border: '1px solid #ede8df',
+        boxShadow: '0 8px 32px rgba(44,31,20,0.08)',
+        padding: '32px 24px',
+      }}>
 
         {/* Heading — word-mask slide-up + emoji bounce + typewriter subtitle */}
         <div style={{ marginBottom: 20 }}>
@@ -192,7 +199,7 @@ export default function ProblemSearch({ allProducts = [] }) {
               <button key={p.label} onClick={() => filterByProblem(p, i)} style={{
                 padding: '8px 14px', borderRadius: 24,
                 border: `2px solid ${isActive ? '#c9a84c' : '#ede8df'}`,
-                background: isActive ? '#fdf6e3' : '#fff',
+                background: isActive ? '#fdf6e3' : '#faf8f4',
                 color: '#2c1f14', fontSize: 13,
                 fontWeight: isActive ? 700 : 400,
                 cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
@@ -229,7 +236,7 @@ export default function ProblemSearch({ allProducts = [] }) {
                 placeholder="Ya apni problem likhein — Hindi ya English mein…"
                 style={{
                   width: '100%', padding: '11px 36px 11px 36px', borderRadius: 12,
-                  border: '1px solid #ede8df', background: '#fff', fontSize: 14, color: '#2c1f14',
+                  border: '1px solid #ede8df', background: '#faf8f4', fontSize: 14, color: '#2c1f14',
                   outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.2s',
                 }}
                 onFocus={(e) => e.target.style.borderColor = '#c9a84c'}
@@ -259,7 +266,7 @@ export default function ProblemSearch({ allProducts = [] }) {
           <div ref={resultsRef} style={{ animation: 'results-in 0.4s ease forwards' }}>
             {aiReason && (
               <p style={{
-                fontSize: 13, color: '#6b5544', background: '#fff',
+                fontSize: 13, color: '#6b5544', background: '#faf8f4',
                 padding: '8px 14px', borderRadius: 10, marginBottom: 16,
                 display: 'inline-block', border: '1px solid #ede8df',
                 animation: 'results-in 0.5s ease 0.1s both',
@@ -269,7 +276,7 @@ export default function ProblemSearch({ allProducts = [] }) {
             )}
 
             {results.length === 0 ? (
-              <div style={{ background: '#fff', borderRadius: 16, padding: '24px 20px', textAlign: 'center', border: '1px solid #ede8df' }}>
+              <div style={{ background: '#faf8f4', borderRadius: 16, padding: '24px 20px', textAlign: 'center', border: '1px solid #ede8df' }}>
                 <p style={{ fontSize: 15, fontWeight: 700, color: '#2c1f14', margin: '0 0 6px' }}>Yeh category abhi available nahi</p>
                 <p style={{ fontSize: 13, color: '#8a7060', margin: '0 0 16px' }}>Koi baat nahi — WhatsApp karein, hum personally help karenge!</p>
                 <a href={buildWhatsAppLink(noResultsWaText)} target="_blank" rel="noopener noreferrer"
@@ -290,7 +297,7 @@ export default function ProblemSearch({ allProducts = [] }) {
                     const waitlistMsg = buildWhatsAppLink(`Hi SETHI PURSE! ${product.name} out of stock hai. Kab milega? Waitlist mein add karo please.`);
                     return (
                       <TiltCard key={product.id} maxTilt={12} scale={1.04} style={{
-                        background: '#fff', borderRadius: 14,
+                        background: '#faf8f4', borderRadius: 14,
                         border: '1px solid #ede8df', display: 'flex', flexDirection: 'column',
                         position: 'relative',
                         animation: `results-in 0.4s ease ${ri * 0.07}s both`,
@@ -358,6 +365,7 @@ export default function ProblemSearch({ allProducts = [] }) {
             )}
           </div>
         )}
+      </div>
       </div>
 
       <style>{`
