@@ -4,12 +4,13 @@ import { usePathname } from 'next/navigation';
 import { X } from 'lucide-react';
 import DecideForMeModal from '@/components/DecideForMeModal';
 
-const INITIAL_DELAY_MS = 5000;
-const SCROLL_STOP_DELAY_MS = 400;
+// Same trigger rule as WhatsAppFloat and BackToTop (both use a 150px
+// threshold) so all three floating widgets show/hide in sync: hidden at
+// the top or while actively scrolling, and appear together once the user
+// has scrolled past the threshold and paused.
+const SCROLL_THRESHOLD = 150;
+const SETTLE_DELAY_MS = 200;
 
-// Site-wide banner: appears 5s after landing, hides the instant the user
-// scrolls, and reappears once scrolling stops — on every page, since this
-// is mounted once in the root layout and persists across client-side nav.
 export default function DecideForMeTeaser() {
   const pathname = usePathname() || '';
   const isAdmin = pathname.startsWith('/admin');
@@ -17,28 +18,27 @@ export default function DecideForMeTeaser() {
   const [dismissed, setDismissed] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const scrollTimerRef = useRef(null);
-  const settledRef = useRef(false);
 
   useEffect(() => {
     if (isAdmin || dismissed) return;
 
-    const initialTimer = setTimeout(() => {
-      settledRef.current = true;
-      setVisible(true);
-    }, INITIAL_DELAY_MS);
-
     const onScroll = () => {
-      if (!settledRef.current) return;
+      if (window.scrollY < SCROLL_THRESHOLD) {
+        setVisible(false);
+        clearTimeout(scrollTimerRef.current);
+        return;
+      }
       setVisible(false);
       clearTimeout(scrollTimerRef.current);
-      scrollTimerRef.current = setTimeout(() => setVisible(true), SCROLL_STOP_DELAY_MS);
+      scrollTimerRef.current = setTimeout(() => {
+        if (window.scrollY >= SCROLL_THRESHOLD) setVisible(true);
+      }, SETTLE_DELAY_MS);
     };
     window.addEventListener('scroll', onScroll, { passive: true });
 
     return () => {
-      clearTimeout(initialTimer);
-      clearTimeout(scrollTimerRef.current);
       window.removeEventListener('scroll', onScroll);
+      clearTimeout(scrollTimerRef.current);
     };
   }, [isAdmin, dismissed]);
 
