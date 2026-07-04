@@ -196,24 +196,6 @@ export default function HomePage() {
       {/* FIX: hide everything below when searching */}
       {!isSearching && (
         <>
-          {offers.length > 0 && (() => {
-            const shownOffers = offers.slice(0, 3);
-            const cardWidth = shownOffers.length === 1
-              ? 'w-full max-w-sm'
-              : shownOffers.length === 2
-                ? 'w-full max-w-sm sm:w-[calc(50%-0.5rem)]'
-                : 'w-full max-w-sm sm:w-[calc(50%-0.5rem)] md:w-[calc(33.333%-0.667rem)]';
-            return (
-              <section className="mx-auto flex w-full max-w-6xl flex-wrap justify-center gap-4 px-4 pb-8">
-                {shownOffers.map((offer) => (
-                  <div key={offer.id} className={cardWidth}>
-                    <OfferCard offer={offer} compact />
-                  </div>
-                ))}
-              </section>
-            );
-          })()}
-
           <section className="mx-auto w-full max-w-6xl px-4 pb-8">
             <div className="flex gap-3 overflow-x-auto pb-3">
               {['All', ...categories.map((c) => c.name)].map((name) => (
@@ -231,6 +213,25 @@ export default function HomePage() {
               ))}
             </div>
           </section>
+
+          {/* FIX: offers render below the (always-in-place) category row so nav doesn't shift when a promo is live */}
+          {offers.length > 0 && (() => {
+            const shownOffers = offers.slice(0, 3);
+            const cardWidth = shownOffers.length === 1
+              ? 'w-full max-w-sm'
+              : shownOffers.length === 2
+                ? 'w-full max-w-sm sm:w-[calc(50%-0.5rem)]'
+                : 'w-full max-w-sm sm:w-[calc(50%-0.5rem)] md:w-[calc(33.333%-0.667rem)]';
+            return (
+              <section className="mx-auto flex w-full max-w-6xl flex-wrap justify-center gap-4 px-4 pb-8">
+                {shownOffers.map((offer) => (
+                  <div key={offer.id} className={cardWidth}>
+                    <OfferCard offer={offer} compact />
+                  </div>
+                ))}
+              </section>
+            );
+          })()}
 
           <ProblemSearch allProducts={allProducts} />
 
