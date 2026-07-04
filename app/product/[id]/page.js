@@ -3,7 +3,8 @@ import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ProductDetailClient from '@/components/ProductDetailClient';
-import { getProduct, getProducts, getReviews } from '@/lib/data';
+import { getProduct, getProducts, getReviews, getCategories } from '@/lib/data';
+import { detectCategory } from '@/lib/categoryMatch';
 
 // FIX: was 0 (no cache = slow blank screen). Now caches for 60s
 export const revalidate = 60;
@@ -13,26 +14,38 @@ const OG_IMAGE =
 
 async function getProductBundle(id) {
   try {
-    const [product, products, reviews] = await Promise.all([
+    const [product, products, reviews, categories] = await Promise.all([
       getProduct(id),
       getProducts(),
       getReviews(),
+      getCategories(),
     ]);
     if (!product) return null;
     const category = product.category || product.category_id;
     const related = products
       .filter((p) => p.id !== product.id && (p.category === category || p.category_id === category))
       .slice(0, 3);
+
     // Prefer reviews tied to this exact product or tagged with its category —
     // only fall back to untagged/general reviews if none of those exist, so a
-    // sling-bag page never shows a review written about luggage.
+    // sling-bag page never shows a review written about luggage. Most reviews
+    // predate the category field and were never manually tagged, so also
+    // infer a category from the review text itself (same keyword matcher the
+    // search box uses) rather than relying only on the (mostly empty) column.
+    const categoryNames = categories.map((c) => c.name);
     const productCategory = (product.category || product.category_id || '').toLowerCase();
+    const reviewCategory = (r) => {
+      if (r.category) return r.category;
+      const text = r.review_text || r.reviewText || '';
+      const detected = detectCategory(text, categoryNames);
+      return detected === 'Other' ? null : detected;
+    };
     const relevantReviews = reviews.filter((r) => {
       if (r.product_id) return r.product_id === product.id;
-      if (r.category) return r.category.toLowerCase() === productCategory;
-      return false;
+      const inferred = reviewCategory(r);
+      return inferred ? inferred.toLowerCase() === productCategory : false;
     });
-    const generalReviews = reviews.filter((r) => !r.product_id && !r.category);
+    const generalReviews = reviews.filter((r) => !r.product_id && !reviewCategory(r));
     const approvedReviews = (relevantReviews.length > 0 ? relevantReviews : generalReviews).slice(0, 6);
     return { product, related, reviews: approvedReviews };
   } catch (err) {
