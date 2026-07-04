@@ -10,7 +10,7 @@ const PROBLEMS = [
   { emoji: '💥', label: 'Bag baar baar tootta hai', category: 'LUGGAGE', reason: 'Durable luggage — strong wheels, tough zippers, long-lasting' },
   { emoji: '🏋️', label: 'Bohot heavy lagta hai', category: 'Backpacks', reason: 'Lightweight bags — easy on shoulders, perfect for daily carry' },
   { emoji: '✈️', label: 'Flight size nahi pata', category: 'LUGGAGE', reason: 'Cabin-size compliant — fits IndiGo, Air India, SpiceJet bins' },
-  { emoji: '🎒', label: 'Bacche ka school bag', category: 'School Bags', reason: 'Sturdy school bags — comfy straps, roomy, built to last' },
+  { emoji: '🎒', label: 'Bacche ka school bag', category: 'Backpacks', reason: 'Sturdy school bags — comfy straps, roomy, built to last' },
   { emoji: '💼', label: 'Office professional bag', category: 'Backpacks', reason: 'Professional look — laptop compartment, sleek design' },
   { emoji: '🧳', label: 'Shaadi/trip bada set', category: 'LUGGAGE', reason: 'Large travel sets — perfect for long trips and weddings' },
   { emoji: '🎁', label: 'Gift dena hai kisi ko', category: 'Handbags', reason: 'Premium gift choice — stylish, practical, beautifully presented' },

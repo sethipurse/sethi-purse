@@ -23,9 +23,17 @@ async function getProductBundle(id) {
     const related = products
       .filter((p) => p.id !== product.id && (p.category === category || p.category_id === category))
       .slice(0, 3);
-    const approvedReviews = reviews
-      .filter((r) => !r.product_id || r.product_id === product.id)
-      .slice(0, 6);
+    // Prefer reviews tied to this exact product or tagged with its category —
+    // only fall back to untagged/general reviews if none of those exist, so a
+    // sling-bag page never shows a review written about luggage.
+    const productCategory = (product.category || product.category_id || '').toLowerCase();
+    const relevantReviews = reviews.filter((r) => {
+      if (r.product_id) return r.product_id === product.id;
+      if (r.category) return r.category.toLowerCase() === productCategory;
+      return false;
+    });
+    const generalReviews = reviews.filter((r) => !r.product_id && !r.category);
+    const approvedReviews = (relevantReviews.length > 0 ? relevantReviews : generalReviews).slice(0, 6);
     return { product, related, reviews: approvedReviews };
   } catch (err) {
     console.error('getProductBundle failed:', err);

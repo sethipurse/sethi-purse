@@ -6,10 +6,11 @@ import { toast } from 'sonner';
 import { Plus, Trash2, Edit, ImageOff, Loader2, Star as StarIcon, X, Square, CheckSquare } from 'lucide-react';
 import { getInitials } from '@/lib/constants';
 
-const EMPTY = { customerName: '', customerPhoto: '', rating: 5, reviewText: '', isFeatured: false };
+const EMPTY = { customerName: '', customerPhoto: '', rating: 5, reviewText: '', isFeatured: false, category: '' };
 
 export default function AdminReviewsPage() {
   const [reviews, setReviews] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(EMPTY);
@@ -35,6 +36,9 @@ export default function AdminReviewsPage() {
     }
   };
   useEffect(() => { load(); }, []);
+  useEffect(() => {
+    fetch('/api/categories').then((res) => res.json()).then((data) => setCategories(Array.isArray(data) ? data : [])).catch(() => setCategories([]));
+  }, []);
 
   // FIX: read snake_case fields from Supabase, fallback to camelCase if present
   const getName = (r) => r.customer_name ?? r.customerName ?? '';
@@ -42,6 +46,7 @@ export default function AdminReviewsPage() {
   const getRating = (r) => r.rating ?? 5;
   const getText = (r) => r.review_text ?? r.reviewText ?? '';
   const getFeatured = (r) => !!(r.is_featured ?? r.isFeatured);
+  const getCategory = (r) => r.category ?? '';
 
   const openNew = () => { setEditing('new'); setForm(EMPTY); };
   const openEdit = (r) => {
@@ -52,6 +57,7 @@ export default function AdminReviewsPage() {
       rating: getRating(r),
       reviewText: getText(r),
       isFeatured: getFeatured(r),
+      category: getCategory(r),
     });
   };
   const close = () => { setEditing(null); setForm(EMPTY); };
@@ -207,6 +213,11 @@ export default function AdminReviewsPage() {
                       <h3 className="font-semibold">{getName(r)}</h3>
                       <StarRating value={getRating(r)} size={14} />
                       {getFeatured(r) && <span className="inline-block bg-sethi-gold text-sethi-black text-[10px] font-bold px-2 py-0.5 rounded-sm tracking-wide">FEATURED</span>}
+                      {getCategory(r) ? (
+                        <span className="inline-block border border-sethi-gray200 text-sethi-gray500 text-[10px] font-medium px-2 py-0.5 rounded-sm tracking-wide">{getCategory(r)}</span>
+                      ) : (
+                        <span className="inline-block border border-sethi-gray200 text-sethi-gray500 text-[10px] font-medium px-2 py-0.5 rounded-sm tracking-wide">Shows on all products</span>
+                      )}
                     </div>
                     <p className="text-sm text-sethi-gray800 mt-1 italic line-clamp-2">&ldquo;{getText(r)}&rdquo;</p>
                   </div>
@@ -253,6 +264,14 @@ export default function AdminReviewsPage() {
               <div>
                 <label className="block text-sm font-medium mb-1.5">Review Text *</label>
                 <textarea value={form.reviewText} onChange={(e) => setForm({ ...form, reviewText: e.target.value })} rows={4} className="input-sethi !min-h-[110px] py-2" required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Category</label>
+                <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="input-sethi">
+                  <option value="">Show on all products (general)</option>
+                  {categories.map((c) => <option key={c.id || c.name} value={c.name}>{c.name}</option>)}
+                </select>
+                <p className="text-xs text-sethi-gray500 mt-1">Tag this review to a category so it only shows on that category&rsquo;s product pages.</p>
               </div>
               <div className="flex items-center gap-3">
                 <label className="text-sm font-medium">Featured</label>

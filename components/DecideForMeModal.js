@@ -46,12 +46,17 @@ export default function DecideForMeModal({ onClose }) {
   // ancestor stacking context it's triggered from.
   useEffect(() => setMounted(true), []);
 
+  // No products actually carry the "School Bags" category — treat it as
+  // Backpacks so the picker never queries an always-empty category.
+  const CATEGORY_QUERY_OVERRIDE = { 'School Bags': 'Backpacks' };
+
   async function handleSubmit() {
     if (!category || !budget || !use) return;
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`/api/recommend?budget=${budget}&use=${use}&category=${encodeURIComponent(category)}`);
+      const queryCategory = CATEGORY_QUERY_OVERRIDE[category] || category;
+      const res = await fetch(`/api/recommend?budget=${budget}&use=${use}&category=${encodeURIComponent(queryCategory)}`);
       const data = await res.json();
       if (!data.product) { setError('No product found for your choice. Try a different option!'); setLoading(false); return; }
       setResult(data);

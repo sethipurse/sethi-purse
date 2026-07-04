@@ -29,6 +29,7 @@ alter table offers add column if not exists is_active boolean default true;
 alter table reviews add column if not exists comment text;
 alter table reviews add column if not exists is_approved boolean default true;
 alter table reviews add column if not exists product_id uuid;
+alter table reviews add column if not exists category text;
 
 create table if not exists push_subscriptions (
   id uuid primary key default gen_random_uuid(),

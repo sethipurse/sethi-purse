@@ -6,6 +6,7 @@
     "rating": 5,
     "reviewText": "Best place in Jalandhar to buy bags! Bought an American Tourister trolley for my Dubai trip at a price way below online. Sethi sir personally helped me pick the right size. Truly trustworthy.",
     "isFeatured": true,
+    "category": "Trolley Bags",
     "createdAt": "2026-05-12T10:00:00+05:30"
   },
   {
@@ -15,6 +16,7 @@
     "rating": 5,
     "reviewText": "Excellent collection of ladies handbags. Got a beautiful Genie handbag with original tag. Quality is amazing and the staff is very polite and helpful.",
     "isFeatured": true,
+    "category": "Handbags",
     "createdAt": "2026-05-08T10:00:00+05:30"
   },
   {
@@ -24,6 +26,7 @@
     "rating": 5,
     "reviewText": "Bought an Arctic Fox laptop backpack here for my office. Super comfortable and the discount they gave was unbeatable. Highly recommend!",
     "isFeatured": true,
+    "category": "Backpacks",
     "createdAt": "2026-04-30T10:00:00+05:30"
   },
   {
@@ -33,6 +36,7 @@
     "rating": 4,
     "reviewText": "Good variety of school bags. My son loved the Safari backpack. Reasonable prices and genuine branded products.",
     "isFeatured": false,
+    "category": "School Bags",
     "createdAt": "2026-04-22T10:00:00+05:30"
   },
   {
@@ -42,6 +46,7 @@
     "rating": 5,
     "reviewText": "Been buying luggage from Sethi Purse for over 10 years. Never disappointed — original products and the best prices in Punjab.",
     "isFeatured": false,
+    "category": "Travel Bags",
     "createdAt": "2026-04-10T10:00:00+05:30"
   }
 ]
