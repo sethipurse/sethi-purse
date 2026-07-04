@@ -109,7 +109,23 @@ export default function HomePage() {
     );
     const merged = new Map();
     [...textMatches, ...categoryMatches].forEach((p) => merged.set(p.id, p));
-    return Array.from(merged.values());
+
+    // A category match can pull in dozens of products that only match via
+    // category, not the search text (e.g. many similarly-named backpacks for
+    // "school bag") — rank the ones whose own name/description actually
+    // mention a query word first, so the most relevant one isn't buried in
+    // an arbitrary list of otherwise-identical results.
+    const queryWords = q.split(/\s+/).filter((w) => w.length > 2);
+    const mentionsQuery = (product) => {
+      const text = `${product.name || ''} ${product.description || ''}`.toLowerCase();
+      return queryWords.some((w) => text.includes(w));
+    };
+    return Array.from(merged.values()).sort((a, b) => {
+      const ma = mentionsQuery(a), mb = mentionsQuery(b);
+      if (ma !== mb) return mb ? 1 : -1;
+      if (!!b.featured !== !!a.featured) return b.featured ? 1 : -1;
+      return (b.discount_percent || 0) - (a.discount_percent || 0);
+    });
   }, [allProducts, categories, query]);
 
   const isSearching = query.trim().length > 0;
