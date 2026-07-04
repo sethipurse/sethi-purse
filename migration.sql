@@ -18,6 +18,7 @@ alter table products add column if not exists is_active boolean default true;
 alter table products add column if not exists gallery_images text[] default array[]::text[];
 alter table products add column if not exists sizes text[] default array[]::text[];
 alter table products add column if not exists colors text[] default array[]::text[];
+alter table products add column if not exists tags text[] default array[]::text[];
 
 alter table categories add column if not exists image_url text;
 alter table categories add column if not exists sort_order integer default 0;

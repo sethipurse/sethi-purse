@@ -26,6 +26,11 @@ const SCARCITY_MODES = [
 
 const SIZE_PRESETS = ['20" Cabin', '24" Medium', '28" Large', '32" XL', 'Standard', 'Small', 'Medium', 'Large'];
 
+// Use-case tags — mainly so categories that hold several different needs
+// (e.g. "Backpacks" covers school, office and college bags) can be told
+// apart by Smart Finder instead of showing the same products for each.
+const TAG_PRESETS = ['School', 'Office', 'College', 'Travel', 'Daily', 'Gift', 'Party'];
+
 function Section({ title, icon, subtitle, children, collapsible = false, defaultOpen = true }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
@@ -63,6 +68,7 @@ export default function ProductForm({ initial, productId, onSaved }) {
   const [galleryImages, setGalleryImages] = useState([]);
   const [sizes, setSizes] = useState([]);
   const [customSize, setCustomSize] = useState('');
+  const [tags, setTags] = useState([]);
   const [colorVariants, setColorVariants] = useState([]);
   const [newColorName, setNewColorName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -123,6 +129,12 @@ export default function ProductForm({ initial, productId, onSaved }) {
           : String(rawSizes || '').split(',').map((v) => v.trim()).filter(Boolean)
       );
       setColorVariants(normalizeColorVariants(initial));
+      const rawTags = initial.tags;
+      setTags(
+        Array.isArray(rawTags)
+          ? rawTags
+          : String(rawTags || '').split(',').map((v) => v.trim()).filter(Boolean)
+      );
     }
   }, [initial]);
 
@@ -258,6 +270,9 @@ export default function ProductForm({ initial, productId, onSaved }) {
   const toggleSize = (size) =>
     setSizes((prev) => prev.includes(size) ? prev.filter((s) => s !== size) : [...prev, size]);
 
+  const toggleTag = (tag) =>
+    setTags((prev) => prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]);
+
   const addCustomSize = () => {
     const s = customSize.trim();
     if (!s) return;
@@ -300,6 +315,7 @@ export default function ProductForm({ initial, productId, onSaved }) {
       gallery_images: galleryImages,
       sizes,
       colors: colorVariants,
+      tags,
       stock: form.stock === '' ? null : Number(form.stock),
       display_stock: form.display_stock === '' ? null : Number(form.display_stock),
       stock_decay_speed: Number(form.stock_decay_speed) || 0,
@@ -482,6 +498,19 @@ export default function ProductForm({ initial, productId, onSaved }) {
               ))}
             </div>
           )}
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="block text-sm font-medium mb-1.5">Use-case Tags</label>
+          <p className="text-xs text-sethi-gray500 mb-2">Helps Smart Finder tell apart bags in the same category — e.g. mark a backpack as School, Office or College.</p>
+          <div className="flex flex-wrap gap-2">
+            {TAG_PRESETS.map((t) => (
+              <button key={t} type="button" onClick={() => toggleTag(t)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${tags.includes(t) ? 'bg-sethi-gold border-sethi-gold text-white' : 'bg-white border-sethi-gray200 text-sethi-gray500 hover:border-sethi-gold hover:text-sethi-gold'}`}>
+                {tags.includes(t) ? '✓ ' : ''}{t}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="md:col-span-2">

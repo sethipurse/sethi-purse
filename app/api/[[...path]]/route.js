@@ -806,8 +806,9 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
           image_url: String(p.imageUrl || p.image_url || '').trim(), 
           image_type: p.imageType || 'url', 
           gallery_images: Array.isArray(p.gallery_images || p.galleryImages) ? (p.gallery_images || p.galleryImages) : [], 
-          sizes: Array.isArray(p.sizes) ? p.sizes : [], 
-          colors: Array.isArray(p.colors) ? p.colors : [], 
+          sizes: Array.isArray(p.sizes) ? p.sizes : [],
+          colors: Array.isArray(p.colors) ? p.colors : [],
+          tags: Array.isArray(p.tags) ? p.tags : [],
           stock: p.stock === '' || p.stock === null || p.stock === undefined ? null : Number(p.stock), 
           featured: !!p.featured, 
           is_active: p.isActive === undefined && p.is_active === undefined ? true : !!(p.isActive ?? p.is_active),
@@ -857,6 +858,7 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
         if (p.gallery_images !== undefined || p.galleryImages !== undefined) updates.gallery_images = Array.isArray(p.gallery_images ?? p.galleryImages) ? (p.gallery_images ?? p.galleryImages) : [];
         if (p.sizes !== undefined) updates.sizes = Array.isArray(p.sizes) ? p.sizes : [];
         if (p.colors !== undefined) updates.colors = Array.isArray(p.colors) ? p.colors : [];
+        if (p.tags !== undefined) updates.tags = Array.isArray(p.tags) ? p.tags : [];
         if (p.stock !== undefined) updates.stock = p.stock === '' || p.stock === null ? null : Number(p.stock);
         if (p.featured !== undefined) updates.featured = !!p.featured;
         if (p.isActive !== undefined || p.is_active !== undefined) updates.is_active = !!(p.isActive ?? p.is_active);

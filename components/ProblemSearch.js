@@ -6,23 +6,26 @@ import { buildWhatsAppLink, buildBuyNowMessage, buildProductUrl, rupee } from '@
 import { categoryPath } from '@/lib/categoryUtils';
 import TiltCard from '@/components/TiltCard';
 
+const GROUPS = ['Travel', 'Daily & Work', 'Style & Gifting'];
+
 const PROBLEMS = [
-  { emoji: '💥', label: 'Bag baar baar tootta hai', category: 'LUGGAGE', reason: 'Durable luggage — strong wheels, tough zippers, long-lasting', keywords: ['durable', 'strong', 'sturdy', 'wheel', 'zipper', 'tough'] },
-  { emoji: '🏋️', label: 'Bohot heavy lagta hai', category: 'Backpacks', reason: 'Lightweight bags — easy on shoulders, perfect for daily carry', keywords: ['light', 'lightweight', 'daily', 'comfortable'] },
-  { emoji: '✈️', label: 'Flight size nahi pata', category: 'LUGGAGE', reason: 'Cabin-size compliant — fits IndiGo, Air India, SpiceJet bins', keywords: ['cabin', 'flight', 'compliant', 'carry-on', 'carry on'] },
-  { emoji: '🎒', label: 'Bacche ka school bag', category: 'Backpacks', reason: 'Sturdy school bags — comfy straps, roomy, built to last', keywords: ['school', 'student', 'kids', 'child', 'roomy'] },
-  { emoji: '💼', label: 'Office professional bag', category: 'Backpacks', reason: 'Professional look — laptop compartment, sleek design', keywords: ['office', 'professional', 'laptop', 'formal', 'sleek'] },
-  { emoji: '🧳', label: 'Shaadi/trip bada set', category: 'LUGGAGE', reason: 'Large travel sets — perfect for long trips and weddings', keywords: ['set', 'large', 'big', 'trip', 'wedding'] },
-  { emoji: '🎁', label: 'Gift dena hai kisi ko', category: 'Handbags', reason: 'Premium gift choice — stylish, practical, beautifully presented', keywords: ['gift', 'premium', 'elegant'] },
-  { emoji: '🎓', label: 'College ke liye bag', category: 'Backpacks', reason: 'College-ready — fits laptop, books, water bottle comfortably', keywords: ['college', 'laptop', 'student', 'books'] },
-  { emoji: '💸', label: 'Budget mein best chahiye', category: null, reason: 'Best value picks — top quality at lowest price in Jalandhar', keywords: [] },
-  { emoji: '✨', label: 'Trendy/fashionable bag', category: 'Party Wear Purse', reason: 'Stylish and trendy — turn heads wherever you go', keywords: ['trendy', 'stylish', 'fashion'] },
-  { emoji: '👜', label: 'Ladies daily handbag', category: 'Handbags', reason: 'Everyday handbags — spacious, stylish, shoulder-friendly', keywords: ['daily', 'everyday', 'spacious'] },
-  { emoji: '👝', label: 'Chhota sling bag chahiye', category: 'Slings', reason: 'Compact sling bags — light, stylish, perfect for short outings', keywords: ['compact', 'small', 'mini', 'light'] },
+  { emoji: '💥', label: 'Bag baar baar tootta hai', group: 'Travel', category: 'LUGGAGE', reason: 'Durable luggage — strong wheels, tough zippers, long-lasting', keywords: ['durable', 'strong', 'sturdy', 'wheel', 'zipper', 'tough'] },
+  { emoji: '✈️', label: 'Flight size nahi pata', group: 'Travel', category: 'LUGGAGE', reason: 'Cabin-size compliant — fits IndiGo, Air India, SpiceJet bins', keywords: ['cabin', 'flight', 'compliant', 'carry-on', 'carry on'] },
+  { emoji: '🧳', label: 'Shaadi/trip bada set', group: 'Travel', category: 'LUGGAGE', tag: 'Travel', reason: 'Large travel sets — perfect for long trips and weddings', keywords: ['set', 'large', 'big', 'trip', 'wedding'] },
+  { emoji: '🏋️', label: 'Bohot heavy lagta hai', group: 'Daily & Work', category: 'Backpacks', tag: 'Daily', reason: 'Lightweight bags — easy on shoulders, perfect for daily carry', keywords: ['light', 'lightweight', 'daily', 'comfortable'] },
+  { emoji: '🎒', label: 'Bacche ka school bag', group: 'Daily & Work', category: 'Backpacks', tag: 'School', reason: 'Sturdy school bags — comfy straps, roomy, built to last', keywords: ['school', 'student', 'kids', 'child', 'roomy'] },
+  { emoji: '💼', label: 'Office professional bag', group: 'Daily & Work', category: 'Backpacks', tag: 'Office', reason: 'Professional look — laptop compartment, sleek design', keywords: ['office', 'professional', 'laptop', 'formal', 'sleek'] },
+  { emoji: '🎓', label: 'College ke liye bag', group: 'Daily & Work', category: 'Backpacks', tag: 'College', reason: 'College-ready — fits laptop, books, water bottle comfortably', keywords: ['college', 'laptop', 'student', 'books'] },
+  { emoji: '👜', label: 'Ladies daily handbag', group: 'Daily & Work', category: 'Handbags', tag: 'Daily', reason: 'Everyday handbags — spacious, stylish, shoulder-friendly', keywords: ['daily', 'everyday', 'spacious'] },
+  { emoji: '👝', label: 'Chhota sling bag chahiye', group: 'Daily & Work', category: 'Slings', reason: 'Compact sling bags — light, stylish, perfect for short outings', keywords: ['compact', 'small', 'mini', 'light'] },
+  { emoji: '🎁', label: 'Gift dena hai kisi ko', group: 'Style & Gifting', category: 'Handbags', tag: 'Gift', reason: 'Premium gift choice — stylish, practical, beautifully presented', keywords: ['gift', 'premium', 'elegant'] },
+  { emoji: '✨', label: 'Trendy/fashionable bag', group: 'Style & Gifting', category: 'Party Wear Purse', tag: 'Party', reason: 'Stylish and trendy — turn heads wherever you go', keywords: ['trendy', 'stylish', 'fashion'] },
+  { emoji: '💸', label: 'Budget mein best chahiye', group: 'Style & Gifting', category: null, reason: 'Best value picks — top quality at lowest price in Jalandhar', keywords: [] },
 ];
 
 export default function ProblemSearch({ allProducts = [] }) {
   const [results, setResults] = useState(null);
+  const [activeGroup, setActiveGroup] = useState(GROUPS[0]);
   const [activeChip, setActiveChip] = useState(null);
   const [freeText, setFreeText] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
@@ -74,19 +77,24 @@ export default function ProblemSearch({ allProducts = [] }) {
     setAiReason(problem.reason);
 
     // Several chips share a category (e.g. school/office/college all pull
-    // from Backpacks) — rank by how well each product's name/description
-    // matches this specific chip's need first, so different chips surface
-    // different top picks instead of the same featured/discount order.
+    // from Backpacks) — rank by how well each product matches this specific
+    // chip's need first, so different chips surface different top picks
+    // instead of the same featured/discount order. An admin-assigned
+    // use-case tag (set in Admin -> Products) is trusted over a keyword
+    // guess from the name/description, since it's a deliberate choice.
+    const matchesTag = (product) =>
+      !!problem.tag && Array.isArray(product.tags) && product.tags.some((t) => t.toLowerCase() === problem.tag.toLowerCase());
     const matchesKeyword = (product) => {
       const text = `${product.name || ''} ${product.description || ''}`.toLowerCase();
       return (problem.keywords || []).some((k) => text.includes(k));
     };
+    const relevanceScore = (product) => (matchesTag(product) ? 2 : matchesKeyword(product) ? 1 : 0);
     let filtered = allProducts.filter((p) => {
       if (!problem.category) return true;
       return (p.category || '').toLowerCase() === (problem.category || '').toLowerCase();
     }).sort((a, b) => {
-      const ka = matchesKeyword(a), kb = matchesKeyword(b);
-      if (ka !== kb) return kb ? 1 : -1;
+      const sa = relevanceScore(a), sb = relevanceScore(b);
+      if (sa !== sb) return sb - sa;
       if (b.featured !== a.featured) return b.featured ? 1 : -1;
       return (b.discount_percent || 0) - (a.discount_percent || 0);
     });
@@ -203,9 +211,30 @@ export default function ProblemSearch({ allProducts = [] }) {
           </p>
         </div>
 
+        {/* Group tabs — splits 12 chips into 3 focused groups instead of one long wrapping row */}
+        <div style={{
+          display: 'flex', gap: 6, marginBottom: 14,
+          opacity: chipsVisible ? 1 : 0, transition: 'opacity 0.35s ease',
+        }}>
+          {GROUPS.map((g) => {
+            const isActiveGroup = activeGroup === g;
+            return (
+              <button key={g} onClick={() => { setActiveGroup(g); setActiveChip(null); setResults(null); setAiReason(''); setTotalCount(0); }} style={{
+                padding: '7px 14px', borderRadius: 10, border: 'none',
+                background: isActiveGroup ? '#2c1f14' : '#f0e9dc',
+                color: isActiveGroup ? '#fff' : '#6b5544',
+                fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
+                transition: 'background 0.2s, color 0.2s',
+              }}>
+                {g}
+              </button>
+            );
+          })}
+        </div>
+
         {/* Chips */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9, marginBottom: 18 }}>
-          {PROBLEMS.map((p, i) => {
+          {PROBLEMS.filter((p) => p.group === activeGroup).map((p, i) => {
             const isActive = activeChip?.label === p.label;
             const isTapping = tapping === i;
             return (
@@ -299,69 +328,91 @@ export default function ProblemSearch({ allProducts = [] }) {
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                  {results.map((product, ri) => {
-                    const price = product.sale_price ?? product.price ?? 0;
-                    const mrp = product.mrp ?? product.original_price ?? 0;
-                    const discount = product.discount_percent || (mrp > price ? Math.round(((mrp - price) / mrp) * 100) : 0);
-                    const img = product.image_url || product.imageUrl || '';
-                    const outOfStock = product.stock === 0;
-                    const waMsg = buildWhatsAppLink(buildBuyNowMessage(product, { quantity: 1, productUrl: buildProductUrl(product.id) }));
-                    const waitlistMsg = buildWhatsAppLink(`Hi SETHI PURSE! ${product.name} out of stock hai. Kab milega? Waitlist mein add karo please.`);
-                    return (
-                      <TiltCard key={product.id} maxTilt={12} scale={1.04} style={{
-                        background: '#faf8f4', borderRadius: 14,
-                        border: '1px solid #ede8df', display: 'flex', flexDirection: 'column',
-                        position: 'relative',
-                        animation: `results-in 0.4s ease ${ri * 0.07}s both`,
+                {(() => {
+                  const [hero, ...alternates] = results;
+                  const heroPrice = hero.sale_price ?? hero.price ?? 0;
+                  const heroMrp = hero.mrp ?? hero.original_price ?? 0;
+                  const heroDiscount = hero.discount_percent || (heroMrp > heroPrice ? Math.round(((heroMrp - heroPrice) / heroMrp) * 100) : 0);
+                  const heroImg = hero.image_url || hero.imageUrl || '';
+                  const heroOut = hero.stock === 0;
+                  const heroWa = buildWhatsAppLink(buildBuyNowMessage(hero, { quantity: 1, productUrl: buildProductUrl(hero.id) }));
+                  const heroWaitlist = buildWhatsAppLink(`Hi SETHI PURSE! ${hero.name} out of stock hai. Kab milega? Waitlist mein add karo please.`);
+                  return (
+                    <>
+                      {/* One confident top pick instead of 4 equal-weight cards */}
+                      <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', color: '#c9a84c', textTransform: 'uppercase', margin: '0 0 8px' }}>Aapke liye best match</p>
+                      <TiltCard maxTilt={12} scale={1.03} style={{
+                        background: '#fff', borderRadius: 16, border: '2px solid #c9a84c', padding: 14,
+                        marginBottom: alternates.length > 0 ? 16 : 4, display: 'flex', gap: 14, alignItems: 'flex-start',
+                        position: 'relative', animation: 'results-in 0.4s ease both',
                       }}>
-                        {/* Badges float above card surface */}
-                        {discount > 0 && (
-                          <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 1, background: '#e53935', color: '#fff', fontSize: 10, fontWeight: 800, padding: '2px 7px', borderRadius: 10, transform: 'translateZ(50px)' }}>
-                            {discount}% OFF
+                        {heroDiscount > 0 && (
+                          <div style={{ position: 'absolute', top: -9, left: 14, background: '#e53935', color: '#fff', fontSize: 10, fontWeight: 800, padding: '3px 9px', borderRadius: 10, transform: 'translateZ(50px)' }}>
+                            {heroDiscount}% OFF
                           </div>
                         )}
-                        {outOfStock && (
-                          <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 1, background: 'rgba(44,31,20,0.75)', color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 10, transform: 'translateZ(50px)' }}>
-                            Out of Stock
-                          </div>
-                        )}
-                        {/* Image clips inside its own overflow:hidden — rounded top corners */}
-                        <Link href={`/product/${product.id}`} style={{ display: 'block', aspectRatio: '4/3', background: '#f5f0e8', overflow: 'hidden', borderRadius: '14px 14px 0 0' }}>
-                          {img
-                            ? <img src={img} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.35s ease' }}
-                                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.06)'}
-                                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'} />
-                            : <div style={{ width: '100%', height: '100%', background: '#f5f0e8' }} />
-                          }
+                        <Link href={`/product/${hero.id}`} style={{ flexShrink: 0 }}>
+                          {heroImg
+                            ? <img src={heroImg} alt={hero.name} style={{ width: 100, height: 100, borderRadius: 12, objectFit: 'cover', background: '#f5f0e8' }} />
+                            : <div style={{ width: 100, height: 100, borderRadius: 12, background: '#f5f0e8' }} />}
                         </Link>
-                        {/* Content lifts above card plane */}
-                        <div style={{ padding: '10px 10px 12px', flex: 1, display: 'flex', flexDirection: 'column', gap: 4, transform: 'translateZ(22px)' }}>
-                          <Link href={`/product/${product.id}`} style={{ textDecoration: 'none' }}>
-                            <p style={{ fontSize: 12.5, fontWeight: 700, color: '#2c1f14', margin: 0, lineHeight: 1.3, WebkitLineClamp: 2, display: '-webkit-box', WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                              {product.name}
-                            </p>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <Link href={`/product/${hero.id}`} style={{ textDecoration: 'none' }}>
+                            <p style={{ fontSize: 15, fontWeight: 700, color: '#2c1f14', margin: '0 0 4px', lineHeight: 1.3 }}>{hero.name}</p>
                           </Link>
-                          <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, flexWrap: 'wrap', transform: 'translateZ(10px)' }}>
-                            <span style={{ fontSize: 14, fontWeight: 800, color: '#c9a84c' }}>{rupee(price)}</span>
-                            {mrp > price && <span style={{ fontSize: 11, color: '#bbb', textDecoration: 'line-through' }}>{rupee(mrp)}</span>}
+                          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                            <span style={{ fontSize: 17, fontWeight: 800, color: '#c9a84c' }}>{rupee(heroPrice)}</span>
+                            {heroMrp > heroPrice && <span style={{ fontSize: 12, color: '#bbb', textDecoration: 'line-through' }}>{rupee(heroMrp)}</span>}
                           </div>
-                          {outOfStock ? (
-                            <a href={waitlistMsg} target="_blank" rel="noopener noreferrer"
-                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, background: '#8a7060', color: '#fff', padding: '7px 4px', borderRadius: 10, fontSize: 11, fontWeight: 700, textDecoration: 'none', marginTop: 'auto', transform: 'translateZ(14px)' }}>
-                              <MessageCircle size={11} /> Waitlist
+                          {heroOut ? (
+                            <a href={heroWaitlist} target="_blank" rel="noopener noreferrer"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#8a7060', color: '#fff', padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 700, textDecoration: 'none' }}>
+                              <MessageCircle size={13} /> Waitlist
                             </a>
                           ) : (
-                            <a href={waMsg} target="_blank" rel="noopener noreferrer"
-                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, background: '#25D366', color: '#fff', padding: '7px 4px', borderRadius: 10, fontSize: 11, fontWeight: 700, textDecoration: 'none', marginTop: 'auto', transform: 'translateZ(14px)' }}>
-                              <MessageCircle size={11} /> Buy on WhatsApp
+                            <a href={heroWa} target="_blank" rel="noopener noreferrer"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#25D366', color: '#fff', padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 700, textDecoration: 'none' }}>
+                              <MessageCircle size={13} /> Buy on WhatsApp
                             </a>
                           )}
                         </div>
                       </TiltCard>
-                    );
-                  })}
-                </div>
+
+                      {alternates.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <p style={{ fontSize: 12, fontWeight: 700, color: '#8a7060', margin: '0 0 2px' }}>More options</p>
+                          {alternates.map((product, ri) => {
+                            const price = product.sale_price ?? product.price ?? 0;
+                            const img = product.image_url || product.imageUrl || '';
+                            const outOfStock = product.stock === 0;
+                            const waMsg = buildWhatsAppLink(buildBuyNowMessage(product, { quantity: 1, productUrl: buildProductUrl(product.id) }));
+                            return (
+                              <Link key={product.id} href={`/product/${product.id}`} style={{
+                                background: '#faf8f4', borderRadius: 12, border: '1px solid #ede8df', padding: 10,
+                                display: 'flex', gap: 10, alignItems: 'center', textDecoration: 'none',
+                                animation: `results-in 0.4s ease ${ri * 0.07}s both`,
+                              }}>
+                                {img
+                                  ? <img src={img} alt={product.name} style={{ width: 52, height: 52, borderRadius: 8, objectFit: 'cover', background: '#f5f0e8', flexShrink: 0 }} />
+                                  : <div style={{ width: 52, height: 52, borderRadius: 8, background: '#f5f0e8', flexShrink: 0 }} />}
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <p style={{ fontSize: 12.5, fontWeight: 700, color: '#2c1f14', margin: '0 0 3px', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{product.name}</p>
+                                  <p style={{ fontSize: 13, fontWeight: 800, color: '#c9a84c', margin: 0 }}>{rupee(price)}</p>
+                                </div>
+                                {!outOfStock && (
+                                  <a href={waMsg} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                                    style={{ fontSize: 11, fontWeight: 700, background: '#25D366', color: '#fff', padding: '6px 10px', borderRadius: 8, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                                    <MessageCircle size={11} /> Buy
+                                  </a>
+                                )}
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
 
                 {totalCount > 4 && (
                   <div style={{ textAlign: 'center', marginTop: 18 }}>
