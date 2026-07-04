@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { ChevronDown, ChevronUp, ImageOff, Loader2, Plus, Sparkles, Trash2, Upload, X } from 'lucide-react';
 import { BRANDS, resolveImage } from '@/lib/constants';
+import { supabaseBrowser } from '@/lib/supabaseClient';
 
 function normalizeColorVariants(initial) {
   const raw = initial?.colors;
@@ -161,8 +162,29 @@ export default function ProductForm({ initial, productId, onSaved }) {
       img.src = url;
     });
 
+  // Videos upload directly from the browser to Supabase Storage via a signed URL —
+  // routing them through the Next.js API route hits Vercel's ~4.5MB serverless
+  // function payload limit (FUNCTION_PAYLOAD_TOO_LARGE) well before the 50MB cap.
+  const uploadFileDirect = async (file) => {
+    if (file.size > 50 * 1024 * 1024) throw new Error('Video must be under 50MB');
+    const sizeKB = Math.round(file.size / 1024);
+    const signRes = await fetch('/api/upload-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contentType: file.type, bucket: 'products' }),
+    });
+    const signData = await signRes.json().catch(() => ({}));
+    if (!signRes.ok) throw new Error(signData.error || 'Could not start video upload');
+    const { error: uploadErr } = await supabaseBrowser.storage
+      .from(signData.bucket)
+      .uploadToSignedUrl(signData.path, signData.token, file, { contentType: file.type });
+    if (uploadErr) throw new Error(uploadErr.message || 'Video upload failed');
+    return { url: signData.url, sizeKB };
+  };
+
   const uploadFile = async (file, isVideo = false) => {
-    const fileToUpload = isVideo ? file : await compressImage(file);
+    if (isVideo) return uploadFileDirect(file);
+    const fileToUpload = await compressImage(file);
     const sizeKB = Math.round(fileToUpload.size / 1024);
     const body = new FormData();
     body.append('file', fileToUpload);

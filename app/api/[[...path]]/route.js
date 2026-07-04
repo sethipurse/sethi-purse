@@ -544,6 +544,26 @@ async function handle(request, { params }) {
     } catch (error) { return json({ error: error.message || 'Upload failed' }, 500); }
   }
 
+  if (segments[0] === 'upload-url' && method === 'POST') {
+    const authError = requireAdmin(request);
+    if (authError) return authError;
+    try {
+      const { contentType, bucket: bucketRaw } = await request.json();
+      const bucket = String(bucketRaw || 'products').replace(/[^a-z0-9_-]/gi, '').toLowerCase();
+      const isVideo = contentType?.startsWith('video/');
+      const isImage = contentType?.startsWith('image/');
+      if (!isImage && !isVideo) return json({ error: 'Only image or video files are allowed' }, 400);
+      let ext;
+      if (isVideo) ext = contentType.includes('webm') ? 'webm' : 'mp4';
+      else ext = contentType.includes('webp') ? 'webp' : contentType.includes('png') ? 'png' : 'jpg';
+      const path = `${Date.now()}-${uuidv4()}.${ext}`;
+      const { data, error } = await supabase.storage.from(bucket).createSignedUploadUrl(path);
+      if (error) return json({ error: error.message }, 500);
+      const { data: pub } = supabase.storage.from(bucket).getPublicUrl(path);
+      return json({ token: data.token, path: data.path, bucket, url: pub.publicUrl }, 201);
+    } catch (error) { return json({ error: error.message || 'Could not start upload' }, 500); }
+  }
+
   if (isMutation && !publicMutation) {
     const authError = requireAdmin(request);
     if (authError) return authError;
