@@ -167,9 +167,19 @@ export default function ProductForm({ initial, productId, onSaved }) {
     const body = new FormData();
     body.append('file', fileToUpload);
     body.append('bucket', 'products');
-    const res = await fetch('/api/upload', { method: 'POST', body });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || 'Upload failed');
+    let res;
+    try {
+      res = await fetch('/api/upload', { method: 'POST', body });
+    } catch (networkErr) {
+      throw new Error(`Network error during upload (${networkErr.message || 'connection failed'}) — the file may be too large for this connection.`);
+    }
+    const rawText = await res.text();
+    let data = {};
+    try { data = rawText ? JSON.parse(rawText) : {}; } catch { /* non-JSON response, e.g. proxy error page */ }
+    if (!res.ok) {
+      const detail = data.error || (rawText ? rawText.slice(0, 200) : `HTTP ${res.status} ${res.statusText}`);
+      throw new Error(`Upload failed: ${detail}`);
+    }
     return { url: data.url, sizeKB };
   };
 

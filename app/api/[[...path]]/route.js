@@ -5,6 +5,8 @@ import { v4 as uuidv4 } from 'uuid';
 import categoriesJson from '@/data/categories.json';
 import { detectCategory } from '@/lib/categoryMatch';
 
+export const maxDuration = 60;
+
 const LOCAL_CATEGORIES = categoriesJson.map((c) => ({
   ...c,
   image_url: c.image_url || c.imageUrl || '',
