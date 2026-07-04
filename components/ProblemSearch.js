@@ -7,18 +7,18 @@ import { categoryPath } from '@/lib/categoryUtils';
 import TiltCard from '@/components/TiltCard';
 
 const PROBLEMS = [
-  { emoji: '💥', label: 'Bag baar baar tootta hai', category: 'LUGGAGE', reason: 'Durable luggage — strong wheels, tough zippers, long-lasting' },
-  { emoji: '🏋️', label: 'Bohot heavy lagta hai', category: 'Backpacks', reason: 'Lightweight bags — easy on shoulders, perfect for daily carry' },
-  { emoji: '✈️', label: 'Flight size nahi pata', category: 'LUGGAGE', reason: 'Cabin-size compliant — fits IndiGo, Air India, SpiceJet bins' },
-  { emoji: '🎒', label: 'Bacche ka school bag', category: 'Backpacks', reason: 'Sturdy school bags — comfy straps, roomy, built to last' },
-  { emoji: '💼', label: 'Office professional bag', category: 'Backpacks', reason: 'Professional look — laptop compartment, sleek design' },
-  { emoji: '🧳', label: 'Shaadi/trip bada set', category: 'LUGGAGE', reason: 'Large travel sets — perfect for long trips and weddings' },
-  { emoji: '🎁', label: 'Gift dena hai kisi ko', category: 'Handbags', reason: 'Premium gift choice — stylish, practical, beautifully presented' },
-  { emoji: '🎓', label: 'College ke liye bag', category: 'Backpacks', reason: 'College-ready — fits laptop, books, water bottle comfortably' },
-  { emoji: '💸', label: 'Budget mein best chahiye', category: null, reason: 'Best value picks — top quality at lowest price in Jalandhar' },
-  { emoji: '✨', label: 'Trendy/fashionable bag', category: 'Party Wear Purse', reason: 'Stylish and trendy — turn heads wherever you go' },
-  { emoji: '👜', label: 'Ladies daily handbag', category: 'Handbags', reason: 'Everyday handbags — spacious, stylish, shoulder-friendly' },
-  { emoji: '👝', label: 'Chhota sling bag chahiye', category: 'Slings', reason: 'Compact sling bags — light, stylish, perfect for short outings' },
+  { emoji: '💥', label: 'Bag baar baar tootta hai', category: 'LUGGAGE', reason: 'Durable luggage — strong wheels, tough zippers, long-lasting', keywords: ['durable', 'strong', 'sturdy', 'wheel', 'zipper', 'tough'] },
+  { emoji: '🏋️', label: 'Bohot heavy lagta hai', category: 'Backpacks', reason: 'Lightweight bags — easy on shoulders, perfect for daily carry', keywords: ['light', 'lightweight', 'daily', 'comfortable'] },
+  { emoji: '✈️', label: 'Flight size nahi pata', category: 'LUGGAGE', reason: 'Cabin-size compliant — fits IndiGo, Air India, SpiceJet bins', keywords: ['cabin', 'flight', 'compliant', 'carry-on', 'carry on'] },
+  { emoji: '🎒', label: 'Bacche ka school bag', category: 'Backpacks', reason: 'Sturdy school bags — comfy straps, roomy, built to last', keywords: ['school', 'student', 'kids', 'child', 'roomy'] },
+  { emoji: '💼', label: 'Office professional bag', category: 'Backpacks', reason: 'Professional look — laptop compartment, sleek design', keywords: ['office', 'professional', 'laptop', 'formal', 'sleek'] },
+  { emoji: '🧳', label: 'Shaadi/trip bada set', category: 'LUGGAGE', reason: 'Large travel sets — perfect for long trips and weddings', keywords: ['set', 'large', 'big', 'trip', 'wedding'] },
+  { emoji: '🎁', label: 'Gift dena hai kisi ko', category: 'Handbags', reason: 'Premium gift choice — stylish, practical, beautifully presented', keywords: ['gift', 'premium', 'elegant'] },
+  { emoji: '🎓', label: 'College ke liye bag', category: 'Backpacks', reason: 'College-ready — fits laptop, books, water bottle comfortably', keywords: ['college', 'laptop', 'student', 'books'] },
+  { emoji: '💸', label: 'Budget mein best chahiye', category: null, reason: 'Best value picks — top quality at lowest price in Jalandhar', keywords: [] },
+  { emoji: '✨', label: 'Trendy/fashionable bag', category: 'Party Wear Purse', reason: 'Stylish and trendy — turn heads wherever you go', keywords: ['trendy', 'stylish', 'fashion'] },
+  { emoji: '👜', label: 'Ladies daily handbag', category: 'Handbags', reason: 'Everyday handbags — spacious, stylish, shoulder-friendly', keywords: ['daily', 'everyday', 'spacious'] },
+  { emoji: '👝', label: 'Chhota sling bag chahiye', category: 'Slings', reason: 'Compact sling bags — light, stylish, perfect for short outings', keywords: ['compact', 'small', 'mini', 'light'] },
 ];
 
 export default function ProblemSearch({ allProducts = [] }) {
@@ -73,10 +73,20 @@ export default function ProblemSearch({ allProducts = [] }) {
     setFreeText('');
     setAiReason(problem.reason);
 
+    // Several chips share a category (e.g. school/office/college all pull
+    // from Backpacks) — rank by how well each product's name/description
+    // matches this specific chip's need first, so different chips surface
+    // different top picks instead of the same featured/discount order.
+    const matchesKeyword = (product) => {
+      const text = `${product.name || ''} ${product.description || ''}`.toLowerCase();
+      return (problem.keywords || []).some((k) => text.includes(k));
+    };
     let filtered = allProducts.filter((p) => {
       if (!problem.category) return true;
       return (p.category || '').toLowerCase() === (problem.category || '').toLowerCase();
     }).sort((a, b) => {
+      const ka = matchesKeyword(a), kb = matchesKeyword(b);
+      if (ka !== kb) return kb ? 1 : -1;
       if (b.featured !== a.featured) return b.featured ? 1 : -1;
       return (b.discount_percent || 0) - (a.discount_percent || 0);
     });
@@ -134,7 +144,10 @@ export default function ProblemSearch({ allProducts = [] }) {
       }}>
 
         {/* Heading — word-mask slide-up + emoji bounce + typewriter subtitle */}
-        <div style={{ marginBottom: 20 }}>
+        <div style={{
+          marginBottom: 20,
+          animation: sectionVisible ? 'finder-blink 1.7s ease-in-out 1.3s infinite' : 'none',
+        }}>
 
           {/* Smart Finder badge with spinner */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
@@ -387,6 +400,10 @@ export default function ProblemSearch({ allProducts = [] }) {
         @keyframes results-in {
           from { opacity: 0; transform: translateY(14px); }
           to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes finder-blink {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.4; }
         }
       `}</style>
     </section>
