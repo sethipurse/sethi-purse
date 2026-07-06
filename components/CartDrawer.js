@@ -3,7 +3,8 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { Minus, MessageCircle, Plus, ShoppingBag, X } from 'lucide-react';
 import Portal from '@/components/Portal';
-import { buildCartOrderMessage, buildWhatsAppLink, cartTotal, productPrice, REPLY_PROMISE, resolveImage, rupee, UPSELL_HEADING } from '@/lib/constants';
+import { buildCartOrderMessage, buildWhatsAppLink, cartTotal, productPrice, REPLY_PROMISE, resolveImage, rupee, SET_DISCOUNT_NOTE, UPSELL_HEADING } from '@/lib/constants';
+import { isLuggageCategory } from '@/lib/categoryUtils';
 import { cachedFetchJson } from '@/lib/clientCache';
 
 const UPSELL_MAX_PRICE = 700;
@@ -110,6 +111,22 @@ export default function CartDrawer() {
     writeCart(next);
   };
 
+  // Cart line items don't carry brand/category — cross-reference against the
+  // (already lazily-fetched) catalog to detect a same-brand luggage set.
+  const hasLuggageSet = useMemo(() => {
+    if (!catalog || catalog.length === 0 || cart.length < 2) return false;
+    const catalogById = new Map(catalog.map((p) => [p.id, p]));
+    const luggageItems = cart
+      .map((item) => catalogById.get(item.id))
+      .filter((p) => p && isLuggageCategory(p.category || p.category_id || ''));
+    const brandCounts = {};
+    luggageItems.forEach((p) => {
+      if (!p.brand) return;
+      brandCounts[p.brand] = (brandCounts[p.brand] || 0) + 1;
+    });
+    return Object.values(brandCounts).some((count) => count >= 2);
+  }, [catalog, cart]);
+
   return (
     <Portal>
       <div
@@ -214,11 +231,16 @@ export default function CartDrawer() {
             )}
 
             <div className="space-y-3 border-t-2 border-[#ede8df] bg-[#faf8f4] px-5 py-4">
+              {hasLuggageSet && (
+                <div className="rounded bg-[#fdf4e3] border border-[#c9a84c] px-3 py-2 text-center text-sm font-bold text-[#a07a28]">
+                  {SET_DISCOUNT_NOTE}
+                </div>
+              )}
               <div className="flex justify-between text-lg font-bold text-[#2c1f14]">
                 <span>Total ({itemCount} item{itemCount > 1 ? 's' : ''})</span>
                 <span className="text-[#c9a84c]">{rupee(cartTotal(cart))}</span>
               </div>
-              <a href={buildWhatsAppLink(buildCartOrderMessage(cart))} target="_blank" rel="noopener noreferrer"
+              <a href={buildWhatsAppLink(buildCartOrderMessage(cart, { hasLuggageSet }))} target="_blank" rel="noopener noreferrer"
                 className="flex w-full items-center justify-center gap-2 rounded bg-[#25D366] py-3.5 text-base font-bold text-white transition-transform hover:bg-[#1ebe5c] active:scale-95">
                 <MessageCircle className="h-5 w-5" /> Order on WhatsApp
               </a>

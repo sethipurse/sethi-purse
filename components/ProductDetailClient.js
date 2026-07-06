@@ -9,7 +9,8 @@ import ProductCard from '@/components/ProductCard';
 import ReviewCard from '@/components/ReviewCard';
 import StarRating from '@/components/StarRating';
 import Portal from '@/components/Portal';
-import { buildBuyNowMessage, buildProductUrl, buildWhatsAppLink, REPLY_PROMISE, resolveImage } from '@/lib/constants';
+import { buildBuyNowMessage, buildProductUrl, buildWhatsAppLink, productPrice, REPLY_PROMISE, resolveImage, SET_DISCOUNT_NOTE } from '@/lib/constants';
+import { isLuggageCategory } from '@/lib/categoryUtils';
 
 function rupee(value) {
   return `Rs.${Number(value || 0).toLocaleString('en-IN')}`;
@@ -322,6 +323,45 @@ export default function ProductDetailClient({ product, related = [], reviews = [
   const productUrl = buildProductUrl(product.id);
   const buyNowMessage = buildBuyNowMessage(product, { quantity: qty, size: selectedSize, color: selectedColor, productUrl });
 
+  // Luggage sells in sets — suggest a same-brand pairing from the already
+  // same-category `related` list, cheaper-or-equal price preferred.
+  const pairCandidate = useMemo(() => {
+    if (!isLuggageCategory(category)) return null;
+    const candidates = related.filter((p) =>
+      p.id !== product.id &&
+      product.brand && p.brand === product.brand &&
+      isLuggageCategory(p.category || p.category_id || '')
+    );
+    if (candidates.length === 0) return null;
+    return [...candidates].sort((a, b) => productPrice(a) - productPrice(b))[0];
+  }, [related, product, category]);
+
+  const addBothToCart = () => {
+    if (!pairCandidate) return;
+    const saved = window.localStorage.getItem('sethi-cart');
+    let updatedCart = [];
+    try { if (saved) updatedCart = JSON.parse(saved); } catch {}
+
+    const currentIndex = updatedCart.findIndex((i) => i.id === product.id && (i.size || '') === selectedSize && (i.color || '') === selectedColor);
+    if (currentIndex >= 0) {
+      updatedCart = updatedCart.map((item, idx) => idx === currentIndex ? { ...item, qty: Math.max(1, Number(item.qty || 1)) + 1 } : item);
+    } else {
+      updatedCart = [...updatedCart, { id: product.id, name: product.name, price: salePrice, qty: 1, image: images[0] || '', size: selectedSize, color: selectedColor }];
+    }
+
+    const pairPrice = productPrice(pairCandidate);
+    const pairIndex = updatedCart.findIndex((i) => i.id === pairCandidate.id && !i.size && !i.color);
+    if (pairIndex >= 0) {
+      updatedCart = updatedCart.map((item, idx) => idx === pairIndex ? { ...item, qty: Math.max(1, Number(item.qty || 1)) + 1 } : item);
+    } else {
+      updatedCart = [...updatedCart, { id: pairCandidate.id, name: pairCandidate.name, price: pairPrice, qty: 1, image: resolveImage(pairCandidate), size: '', color: '' }];
+    }
+
+    window.localStorage.setItem('sethi-cart', JSON.stringify(updatedCart));
+    window.dispatchEvent(new Event('cart-updated'));
+    window.dispatchEvent(new Event('open-cart'));
+  };
+
   const onShare = async () => {
     const url = window.location.href;
     if (navigator.share) { try { await navigator.share({ url }); } catch (e) {} return; }
@@ -483,6 +523,27 @@ export default function ProductDetailClient({ product, related = [], reviews = [
             </div>
           </div>
         </div>
+
+        {pairCandidate && (
+          <section className="rounded bg-white p-6 shadow-sm ring-1 ring-[#ede8df] md:p-8">
+            <h2 className="text-3xl font-bold text-[#c9a84c]">Complete the Set</h2>
+            <div className="mt-4 flex items-center gap-4">
+              {resolveImage(pairCandidate)
+                ? <img src={resolveImage(pairCandidate)} alt={pairCandidate.name} className="h-20 w-20 shrink-0 rounded object-cover bg-[#f5f0e8]" />
+                : <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded bg-[#f5f0e8]"><ShoppingBag className="h-8 w-8 text-[#c9a84c]" /></div>}
+              <div className="min-w-0 flex-1">
+                <div className="line-clamp-2 text-lg font-semibold text-[#2c1f14]">{pairCandidate.name}</div>
+                <div className="text-lg font-bold text-[#c9a84c]">{rupee(productPrice(pairCandidate))}</div>
+              </div>
+            </div>
+            <p className="mt-4 text-xl font-bold text-[#2c1f14]">Dono saath lo: {rupee(salePrice + productPrice(pairCandidate))}</p>
+            <p className="mt-1 text-base font-semibold text-[#c9a84c]">{SET_DISCOUNT_NOTE}</p>
+            <button type="button" onClick={addBothToCart}
+              className="mt-4 flex h-14 w-full items-center justify-center gap-2 rounded bg-[#c9a84c] text-xl font-bold text-white hover:bg-[#a07a28]">
+              <ShoppingBag className="h-5 w-5" /> Add Both to Cart
+            </button>
+          </section>
+        )}
 
         {reviews.length > 0 && (
           <section id="reviews">
