@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { supabase, nowIST } from '@/lib/storage';
 import { clearAdminCookie, makeAdminToken, rateLimit, requireAdmin, setAdminCookie } from '@/lib/security';
 import { v4 as uuidv4 } from 'uuid';
@@ -12,6 +13,38 @@ const LOCAL_CATEGORIES = categoriesJson.map((c) => ({
   image_url: c.image_url || c.imageUrl || '',
   sort_order: c.sort_order ?? 0,
 }));
+
+// On-demand ISR revalidation after admin mutations — a failure here must
+// never fail the mutation response, so each path is revalidated independently
+// inside its own try/catch.
+function revalidatePaths(paths) {
+  for (const entry of paths) {
+    try {
+      if (Array.isArray(entry)) revalidatePath(entry[0], entry[1]);
+      else revalidatePath(entry);
+    } catch (err) {
+      console.error('revalidatePath failed:', entry, err);
+    }
+  }
+}
+
+function revalidateProduct(id) {
+  const paths = ['/', '/products', ['/category/[slug]', 'page']];
+  if (id) paths.push(`/product/${id}`);
+  revalidatePaths(paths);
+}
+
+function revalidateCategories() {
+  revalidatePaths(['/', '/products', ['/category/[slug]', 'page']]);
+}
+
+function revalidateOffers() {
+  revalidatePaths(['/offers', '/']);
+}
+
+function revalidateSlider() {
+  revalidatePaths(['/']);
+}
 
 const VALID_STATUSES = ['new', 'contacted', 'converted', 'closed'];
 
@@ -668,6 +701,7 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
         const slide = { id: uuidv4(), category: String(s.category || '').trim(), headline: String(s.headline || '').trim(), image_url: String(s.imageUrl || s.image_url || '').trim(), badge_icons: Array.isArray(s.badgeIcons || s.badge_icons) ? (s.badgeIcons || s.badge_icons) : [], badge_labels: Array.isArray(s.badgeLabels || s.badge_labels) ? (s.badgeLabels || s.badge_labels) : [], sort_order: Number(s.sortOrder ?? s.sort_order ?? 0), is_active: s.isActive === undefined && s.is_active === undefined ? true : !!(s.isActive ?? s.is_active), created_at: nowIST() };
         const { data, error } = await supabase.from('slider_images').insert([slide]).select().single();
         if (error) return json({ error: error.message }, 500);
+        revalidateSlider();
         return json(data, 201);
       }
     }
@@ -683,9 +717,16 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
         if (s.sortOrder !== undefined || s.sort_order !== undefined) updates.sort_order = Number(s.sortOrder ?? s.sort_order);
         if (s.isActive !== undefined || s.is_active !== undefined) updates.is_active = !!(s.isActive ?? s.is_active);
         const { data, error } = await supabase.from('slider_images').update(updates).eq('id', id).select().single();
-        if (error) return json({ error: error.message }, 500); return json(data);
+        if (error) return json({ error: error.message }, 500);
+        revalidateSlider();
+        return json(data);
       }
-      if (method === 'DELETE') { const { data, error } = await supabase.from('slider_images').delete().eq('id', id).select().single(); if (error) return json({ error: 'Not found' }, 404); return json({ success: true, removed: data }); }
+      if (method === 'DELETE') {
+        const { data, error } = await supabase.from('slider_images').delete().eq('id', id).select().single();
+        if (error) return json({ error: 'Not found' }, 404);
+        revalidateSlider();
+        return json({ success: true, removed: data });
+      }
     }
   }
 
@@ -827,7 +868,8 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
           created_at: nowIST()
         };
         const { data, error } = await supabase.from('products').insert([newProduct]).select().single();
-        if (error) return json({ error: error.message }, 500); 
+        if (error) return json({ error: error.message }, 500);
+        revalidateProduct(data.id);
         return json(data, 201);
       }
     }
@@ -876,10 +918,16 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
         if (p.demo_video_url !== undefined) updates.demo_video_url = String(p.demo_video_url || '').trim() || null;
 
         const { data, error } = await supabase.from('products').update(updates).eq('id', id).select().single();
-        if (error) return json({ error: error.message }, 500); 
+        if (error) return json({ error: error.message }, 500);
+        revalidateProduct(id);
         return json(data);
       }
-      if (method === 'DELETE') { const { data, error } = await supabase.from('products').delete().eq('id', id).select().single(); if (error) return json({ error: 'Not found' }, 404); return json({ success: true, removed: data }); }
+      if (method === 'DELETE') {
+        const { data, error } = await supabase.from('products').delete().eq('id', id).select().single();
+        if (error) return json({ error: 'Not found' }, 404);
+        revalidateProduct(id);
+        return json({ success: true, removed: data });
+      }
     }
   }
 
@@ -892,6 +940,7 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
         const { data, error } = await supabase.from('categories').insert([cat]).select().single();
         if (error) { if (error.code === '23505') return json({ error: 'Category already exists' }, 400); return json({ error: error.message }, 500); }
         categoriesCache = { data: null, expiresAt: 0 };
+        revalidateCategories();
         return json(data, 201);
       }
     }
@@ -904,12 +953,14 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
         const { data, error } = await supabase.from('categories').update(updates).eq('id', id).select().single();
         if (error) return json({ error: error.message }, 500);
         categoriesCache = { data: null, expiresAt: 0 };
+        revalidateCategories();
         return json(data);
       }
       if (method === 'DELETE') {
         const { data, error } = await supabase.from('categories').delete().eq('id', id).select().single();
         if (error) return json({ error: 'Not found' }, 404);
         categoriesCache = { data: null, expiresAt: 0 };
+        revalidateCategories();
         return json({ success: true, removed: data });
       }
     }
@@ -922,13 +973,15 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
         const o = body || {}; if (!o.title) return json({ error: 'Title required' }, 400);
         const offer = { id: uuidv4(), title: String(o.title).trim(), description: String(o.description || '').trim(), banner_url: String(o.bannerUrl || '').trim(), expiry_date: o.expiryDate || null, is_active: o.isActive === undefined ? true : !!o.isActive, created_at: nowIST() };
         const { data, error } = await supabase.from('offers').insert([offer]).select().single();
-        if (error) return json({ error: error.message }, 500); return json(data, 201);
+        if (error) return json({ error: error.message }, 500);
+        revalidateOffers();
+        return json(data, 201);
       }
     }
     if (segments.length === 2) {
       const id = segments[1];
-      if (method === 'PUT') { const o = body || {}; const updates = {}; if (o.title !== undefined) updates.title = String(o.title).trim(); if (o.description !== undefined) updates.description = String(o.description).trim(); if (o.bannerUrl !== undefined) updates.banner_url = String(o.bannerUrl).trim(); if (o.expiryDate !== undefined) updates.expiry_date = o.expiryDate; if (o.isActive !== undefined) updates.is_active = !!o.isActive; const { data, error } = await supabase.from('offers').update(updates).eq('id', id).select().single(); if (error) return json({ error: error.message }, 500); return json(data); }
-      if (method === 'DELETE') { const { data, error } = await supabase.from('offers').delete().eq('id', id).select().single(); if (error) return json({ error: 'Not found' }, 404); return json({ success: true, removed: data }); }
+      if (method === 'PUT') { const o = body || {}; const updates = {}; if (o.title !== undefined) updates.title = String(o.title).trim(); if (o.description !== undefined) updates.description = String(o.description).trim(); if (o.bannerUrl !== undefined) updates.banner_url = String(o.bannerUrl).trim(); if (o.expiryDate !== undefined) updates.expiry_date = o.expiryDate; if (o.isActive !== undefined) updates.is_active = !!o.isActive; const { data, error } = await supabase.from('offers').update(updates).eq('id', id).select().single(); if (error) return json({ error: error.message }, 500); revalidateOffers(); return json(data); }
+      if (method === 'DELETE') { const { data, error } = await supabase.from('offers').delete().eq('id', id).select().single(); if (error) return json({ error: 'Not found' }, 404); revalidateOffers(); return json({ success: true, removed: data }); }
     }
   }
 
