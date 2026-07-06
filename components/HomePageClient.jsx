@@ -2,14 +2,17 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { Award, MessageCircle, RefreshCw, Search, ShieldCheck, ShoppingBag, Sparkles, Truck, X } from 'lucide-react';
+import { Award, RefreshCw, Search, ShieldCheck, Sparkles, Truck, X } from 'lucide-react';
 import HeroSlider from '@/components/HeroSlider';
 import ProductCard from '@/components/ProductCard';
 import OfferCard from '@/components/OfferCard';
 import ReviewCard from '@/components/ReviewCard';
 import Footer from '@/components/Footer';
-import { buildCartOrderMessage, buildWhatsAppLink, cartTotal } from '@/lib/constants';
-import { categoryPath } from '@/lib/categoryUtils';
+import InstagramSection from '@/components/InstagramSection';
+import ProblemSearch from '@/components/ProblemSearch';
+import Portal from '@/components/Portal';
+import { categoryPath, toTitleCase } from '@/lib/categoryUtils';
+import { detectCategory } from '@/lib/categoryMatch';
 
 const C = {
   bg: '#faf8f4',
@@ -31,66 +34,67 @@ function imageOf(item) {
   return item?.image_url || item?.imageUrl || '';
 }
 
-function SkeletonCard() {
-  return <div className="h-[360px] animate-pulse rounded bg-white shadow-sm ring-1 ring-[#ede8df]" />;
-}
-
-export default function HomePageClient({ initialSlides = [] }) {
-  const [slides] = useState(initialSlides);
-  const [categories, setCategories] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [offers, setOffers] = useState([]);
-  const [reviews, setReviews] = useState([]);
-  const [loading, setLoading] = useState(true);
+export default function HomePageClient({ categories, allProducts, featuredProducts, offers, reviews }) {
   const [query, setQuery] = useState('');
-  const [activeCategory, setActiveCategory] = useState('All');
   const [menuOpen, setMenuOpen] = useState(false);
-  const [cartOpen, setCartOpen] = useState(false);
   const [cart, setCart] = useState([]);
 
   useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem('sethi-cart');
-      if (saved) setCart(JSON.parse(saved));
-    } catch {}
+    const readCart = () => {
+      try {
+        const saved = window.localStorage.getItem('sethi-cart');
+        setCart(saved ? JSON.parse(saved) : []);
+      } catch { setCart([]); }
+    };
+    readCart();
+    window.addEventListener('cart-updated', readCart);
+    window.addEventListener('storage', readCart);
+    return () => {
+      window.removeEventListener('cart-updated', readCart);
+      window.removeEventListener('storage', readCart);
+    };
   }, []);
 
-  useEffect(() => {
-    let live = true;
-    async function load() {
-      setLoading(true);
-      const endpoints = ['categories', 'products', 'offers', 'reviews'];
-      const results = await Promise.all(
-        endpoints.map((name) =>
-          fetch(`/api/${name}`, { cache: 'no-store' })
-            .then((r) => r.json())
-            .catch(() => [])
-        )
-      );
-      if (!live) return;
-      const nextCategories = Array.isArray(results[0]) ? results[0] : [];
-      const nextProducts = Array.isArray(results[1]) ? results[1].filter((p) => p.is_active !== false) : [];
-      const nextOffers = Array.isArray(results[2]) ? results[2].filter((o) => o.is_active !== false) : [];
-      const nextReviews = Array.isArray(results[3]) ? results[3].filter((r) => r.is_approved !== false) : [];
-      setCategories(nextCategories);
-      setProducts(nextProducts);
-      setOffers(nextOffers);
-      setReviews(nextReviews);
-      setLoading(false);
-    }
-    load();
-    return () => { live = false; };
-  }, []);
-
-  const filteredProducts = useMemo(() => {
+  // FIX: search across ALL products (not just featured)
+  const searchResults = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return products.filter((product) => {
+    if (!q) return [];
+    const textMatches = allProducts.filter((product) => {
       const productCategory = product.category || product.category_id || '';
-      const categoryMatch = activeCategory === 'All' || productCategory === activeCategory;
       const text = `${product.name || ''} ${product.brand || ''} ${product.description || ''} ${productCategory}`.toLowerCase();
-      return categoryMatch && (!q || text.includes(q));
+      return text.includes(q);
     });
-  }, [activeCategory, products, query]);
+    // Also pull in the whole category the search term implies (e.g. "trolley"
+    // -> LUGGAGE), even for products whose own name/description don't
+    // literally contain that word, so category searches stay relevant
+    // instead of only relying on exact substring matches.
+    const detectedCategory = detectCategory(query, categories.map((c) => c.name));
+    if (detectedCategory === 'Other') return textMatches;
+    const categoryMatches = allProducts.filter(
+      (product) => (product.category || product.category_id || '').toLowerCase() === detectedCategory.toLowerCase()
+    );
+    const merged = new Map();
+    [...textMatches, ...categoryMatches].forEach((p) => merged.set(p.id, p));
+
+    // A category match can pull in dozens of products that only match via
+    // category, not the search text (e.g. many similarly-named backpacks for
+    // "school bag") — rank the ones whose own name/description actually
+    // mention a query word first, so the most relevant one isn't buried in
+    // an arbitrary list of otherwise-identical results.
+    const queryWords = q.split(/\s+/).filter((w) => w.length > 2);
+    const mentionsQuery = (product) => {
+      const text = `${product.name || ''} ${product.description || ''}`.toLowerCase();
+      return queryWords.some((w) => text.includes(w));
+    };
+    return Array.from(merged.values()).sort((a, b) => {
+      const ma = mentionsQuery(a), mb = mentionsQuery(b);
+      if (ma !== mb) return mb ? 1 : -1;
+      if (!!b.featured !== !!a.featured) return b.featured ? 1 : -1;
+      return (b.discount_percent || 0) - (a.discount_percent || 0);
+    });
+  }, [allProducts, categories, query]);
+
+  const isSearching = query.trim().length > 0;
 
   const addToCart = (product) => {
     const next = [...cart, { id: product.id, name: product.name, price: priceOf(product), image: imageOf(product), qty: 1 }];
@@ -98,19 +102,10 @@ export default function HomePageClient({ initialSlides = [] }) {
     window.localStorage.setItem('sethi-cart', JSON.stringify(next));
   };
 
-  // True when user has typed something in the search bar
-  const isSearching = query.trim().length > 0;
-
   return (
     <main style={{ background: C.bg, color: C.brown }}>
-      <HeroSlider
-        slides={slides}
-        cartCount={cart.reduce((s, i) => s + Math.max(1, Number(i.qty || 1)), 0)}
-        onMenuClick={() => setMenuOpen(true)}
-        onCartClick={() => setCartOpen(true)}
-      />
+      <HeroSlider cartCount={cart.reduce((s, i) => s + Math.max(1, Number(i.qty || 1)), 0)} onMenuClick={() => setMenuOpen(true)} onCartClick={() => window.dispatchEvent(new Event('open-cart'))} />
 
-      {/* Trust badges */}
       <section className="mx-auto grid w-full max-w-6xl gap-3 px-4 py-6 sm:grid-cols-2 lg:grid-cols-4">
         {[
           { icon: ShieldCheck, title: 'Original Brands', text: 'Trusted bags and luggage' },
@@ -126,17 +121,17 @@ export default function HomePageClient({ initialSlides = [] }) {
         ))}
       </section>
 
-      {/* ── SEARCH BAR ── */}
+      {/* FIX: Search bar + instant results shown RIGHT BELOW search */}
       <section className="mx-auto w-full max-w-6xl px-4 py-8">
         <div className="relative">
           <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#8a7060]" />
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search bags, luggage, brands..."
+            placeholder="Search bags, luggage, brands, categories..."
             className="h-14 w-full rounded border border-[#ede8df] bg-white pl-12 pr-4 text-lg text-[#2c1f14] shadow-sm outline-none transition focus:border-[#c9a84c] focus:ring-2 focus:ring-[#e8d5a3]"
           />
-          {isSearching && (
+          {query.length > 0 && (
             <button
               type="button"
               onClick={() => setQuery('')}
@@ -147,94 +142,81 @@ export default function HomePageClient({ initialSlides = [] }) {
           )}
         </div>
 
-        {/* ── SEARCH RESULTS — shown immediately below the search bar ── */}
+        {/* FIX: Search results appear immediately below search bar */}
         {isSearching && (
-          <div className="mt-6">
-            <div className="flex items-center justify-between gap-4 mb-4">
-              <div>
-                <h2 className="text-3xl font-bold text-[#c9a84c]">
-                  Results for &ldquo;{query}&rdquo;
-                </h2>
-                <p className="mt-1 text-base text-[#8a7060]">
-                  {loading
-                    ? 'Searching…'
-                    : filteredProducts.length === 0
-                    ? 'No products found'
-                    : `${filteredProducts.length} product${filteredProducts.length > 1 ? 's' : ''} found`}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setQuery('')}
-                className="shrink-0 rounded border border-[#ede8df] bg-white px-4 py-2 text-sm font-semibold text-[#6b5544] hover:border-[#c9a84c] hover:text-[#a07a28] transition"
-              >
-                Clear search
-              </button>
-            </div>
-
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {loading ? (
-                Array.from({ length: 6 }).map((_, index) => <SkeletonCard key={index} />)
-              ) : filteredProducts.length === 0 ? (
-                <div className="col-span-full rounded bg-white p-10 text-center ring-1 ring-[#ede8df]">
-                  <Sparkles className="mx-auto h-10 w-10 text-[#c9a84c]" />
-                  <h3 className="mt-3 text-2xl font-bold">No products found</h3>
-                  <p className="mt-1 text-[#8a7060]">Try a different search term.</p>
-                  <button
-                    type="button"
-                    onClick={() => setQuery('')}
-                    className="mt-4 rounded bg-[#c9a84c] px-6 py-2 text-base font-semibold text-white hover:bg-[#a07a28]"
-                  >
-                    Clear search
-                  </button>
-                </div>
-              ) : (
-                filteredProducts.slice(0, 9).map((product) => (
+          <div className="mt-4">
+            <p className="mb-4 text-base text-[#8a7060]">
+              {searchResults.length === 0
+                ? 'No products found'
+                : `${searchResults.length} product${searchResults.length > 1 ? 's' : ''} found for "${query}"`}
+            </p>
+            {searchResults.length > 0 && (
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {searchResults.slice(0, 9).map((product) => (
                   <ProductCard key={product.id} product={product} onAddToCart={addToCart} />
-                ))
-              )}
-            </div>
+                ))}
+              </div>
+            )}
+            {searchResults.length === 0 && (
+              <div className="rounded bg-white p-10 text-center ring-1 ring-[#ede8df]">
+                <Sparkles className="mx-auto h-10 w-10 text-[#c9a84c]" />
+                <h3 className="mt-3 text-2xl font-bold">No products found</h3>
+                <p className="mt-1 text-[#8a7060]">Try another search term.</p>
+                <button
+                  type="button"
+                  onClick={() => setQuery('')}
+                  className="mt-4 rounded bg-[#c9a84c] px-6 py-2 text-base font-semibold text-white hover:bg-[#a07a28]"
+                >
+                  Clear search
+                </button>
+              </div>
+            )}
           </div>
         )}
       </section>
 
-      {/* ── Everything below is HIDDEN while searching ── */}
+      {/* FIX: hide everything below when searching */}
       {!isSearching && (
         <>
-          {/* Offers */}
-          {offers.length > 0 && (
-            <section className="mx-auto grid w-full max-w-6xl gap-4 px-4 pb-8 md:grid-cols-3">
-              {offers.slice(0, 3).map((offer) => <OfferCard key={offer.id} offer={offer} compact />)}
-            </section>
-          )}
-
-          {/* Category pill filters */}
           <section className="mx-auto w-full max-w-6xl px-4 pb-8">
             <div className="flex gap-3 overflow-x-auto pb-3">
               {['All', ...categories.map((c) => c.name)].map((name) => (
                 name === 'All' ? (
-                  <button
-                    key={name}
-                    type="button"
-                    onClick={() => setActiveCategory(name)}
-                    className={`shrink-0 rounded-full border px-5 py-2 text-base font-semibold transition ${activeCategory === name ? 'border-[#c9a84c] bg-[#c9a84c] text-white' : 'border-[#ede8df] bg-white text-[#6b5544]'}`}
-                  >
-                    {name}
-                  </button>
+                  <Link key={name} href="/products"
+                    className="shrink-0 rounded-full border border-[#ede8df] bg-white px-5 py-2 text-base font-semibold text-[#6b5544] transition hover:border-[#c9a84c] hover:text-[#a07a28]">
+                    All
+                  </Link>
                 ) : (
-                  <Link
-                    key={name}
-                    href={categoryPath(name)}
-                    className="shrink-0 rounded-full border border-[#ede8df] bg-white px-5 py-2 text-base font-semibold text-[#6b5544] transition hover:border-[#c9a84c] hover:text-[#a07a28]"
-                  >
-                    {name}
+                  <Link key={name} href={categoryPath(name)}
+                    className="shrink-0 rounded-full border border-[#ede8df] bg-white px-5 py-2 text-base font-semibold text-[#6b5544] transition hover:border-[#c9a84c] hover:text-[#a07a28]">
+                    {toTitleCase(name)}
                   </Link>
                 )
               ))}
             </div>
           </section>
 
-          {/* Shop by Category grid */}
+          {/* FIX: offers render below the (always-in-place) category row so nav doesn't shift when a promo is live */}
+          {offers.length > 0 && (() => {
+            const shownOffers = offers.slice(0, 3);
+            const cardWidth = shownOffers.length === 1
+              ? 'w-full max-w-sm'
+              : shownOffers.length === 2
+                ? 'w-full max-w-sm sm:w-[calc(50%-0.5rem)]'
+                : 'w-full max-w-sm sm:w-[calc(50%-0.5rem)] md:w-[calc(33.333%-0.667rem)]';
+            return (
+              <section className="mx-auto flex w-full max-w-6xl flex-wrap justify-center gap-4 px-4 pb-8">
+                {shownOffers.map((offer) => (
+                  <div key={offer.id} className={cardWidth}>
+                    <OfferCard offer={offer} compact />
+                  </div>
+                ))}
+              </section>
+            );
+          })()}
+
+          <ProblemSearch allProducts={allProducts} />
+
           <section className="mx-auto w-full max-w-6xl px-4 pb-12">
             <h2 className="text-4xl font-bold text-[#c9a84c]">Shop by Category</h2>
             <div className="mt-5 grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -242,50 +224,35 @@ export default function HomePageClient({ initialSlides = [] }) {
                 <Link key={category.id || category.name} href={categoryPath(category.name)} className="group relative aspect-[4/5] overflow-hidden rounded bg-white text-left shadow-sm ring-1 ring-[#ede8df]">
                   {imageOf(category) ? <img src={imageOf(category)} alt={category.name} className="h-full w-full object-cover transition group-hover:scale-105" /> : <div className="h-full w-full bg-[#f5f0e8]" />}
                   <div className="absolute inset-0 bg-gradient-to-t from-[#2c1f14]/80 to-transparent" />
-                  <span className="absolute bottom-4 left-4 right-4 text-2xl font-bold text-white">{category.name}</span>
+                  <span className="absolute bottom-4 left-4 right-4 text-2xl font-bold text-white">{toTitleCase(category.name)}</span>
                 </Link>
               ))}
             </div>
           </section>
 
-          {/* Featured Products */}
           <section className="mx-auto w-full max-w-6xl px-4 pb-12">
             <div className="flex items-end justify-between gap-4">
               <div>
-                <h2 className="text-4xl font-bold text-[#c9a84c]">
-                  {activeCategory === 'All' ? 'Featured Products' : activeCategory}
-                </h2>
+                <h2 className="text-4xl font-bold text-[#c9a84c]">Featured Products</h2>
                 <p className="mt-1 text-lg text-[#8a7060]">Premium picks from SETHI PURSE Jalandhar.</p>
               </div>
               <Link href="/products" className="hidden text-lg font-semibold text-[#a07a28] hover:underline md:inline">View all</Link>
             </div>
             <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {loading ? (
-                Array.from({ length: 6 }).map((_, index) => <SkeletonCard key={index} />)
-              ) : filteredProducts.length === 0 ? (
+              {featuredProducts.length === 0 ? (
                 <div className="col-span-full rounded bg-white p-10 text-center ring-1 ring-[#ede8df]">
                   <Sparkles className="mx-auto h-10 w-10 text-[#c9a84c]" />
-                  <h3 className="mt-3 text-2xl font-bold">No products found</h3>
-                  <p className="mt-1 text-[#8a7060]">Try another category.</p>
-                  {activeCategory !== 'All' && (
-                    <button
-                      type="button"
-                      onClick={() => setActiveCategory('All')}
-                      className="mt-4 rounded bg-[#c9a84c] px-6 py-2 text-base font-semibold text-white hover:bg-[#a07a28]"
-                    >
-                      Show all products
-                    </button>
-                  )}
+                  <h3 className="mt-3 text-2xl font-bold">No products yet</h3>
+                  <p className="mt-1 text-[#8a7060]">Check back soon!</p>
                 </div>
               ) : (
-                filteredProducts.slice(0, 9).map((product) => (
+                featuredProducts.slice(0, 9).map((product) => (
                   <ProductCard key={product.id} product={product} onAddToCart={addToCart} />
                 ))
               )}
             </div>
           </section>
 
-          {/* Reviews */}
           {reviews.length > 0 && (
             <section className="bg-[#f5f0e8] py-12">
               <div className="mx-auto w-full max-w-6xl px-4">
@@ -296,21 +263,16 @@ export default function HomePageClient({ initialSlides = [] }) {
               </div>
             </section>
           )}
+
+          <InstagramSection />
+          <Footer />
         </>
       )}
 
-      {/* Mobile menu */}
       {menuOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-[#2c1f14]/35"
-          style={{ animation: 'fadeIn 0.2s ease' }}
-          onClick={() => setMenuOpen(false)}
-        >
-          <aside
-            className="h-full w-[310px] bg-white p-6 shadow-xl"
-            style={{ animation: 'slideInLeft 0.3s ease', willChange: 'transform' }}
-            onClick={(event) => event.stopPropagation()}
-          >
+        <Portal>
+        <div className="fixed inset-0 bg-[#2c1f14]/35" style={{ zIndex: 100000 }} onClick={() => setMenuOpen(false)}>
+          <aside className="h-full w-[310px] bg-white p-6 shadow-xl" onClick={(event) => event.stopPropagation()}>
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-2xl font-bold tracking-[0.16em]">SETHI PURSE</div>
@@ -319,118 +281,16 @@ export default function HomePageClient({ initialSlides = [] }) {
               <button type="button" onClick={() => setMenuOpen(false)} aria-label="Close menu"><X className="h-6 w-6" /></button>
             </div>
             <nav className="mt-8 grid gap-3 text-xl font-semibold">
-              <Link href="/products" onClick={() => setMenuOpen(false)}>All Products</Link>
-              {categories.map((category) => (
-                <Link key={category.id || category.name} href={categoryPath(category.name)} onClick={() => setMenuOpen(false)}>
-                  {category.name}
-                </Link>
-              ))}
-              <Link href="/offers" onClick={() => setMenuOpen(false)}>Offers</Link>
-              <Link href="/reviews" onClick={() => setMenuOpen(false)}>Reviews</Link>
-              <Link href="/contact" onClick={() => setMenuOpen(false)}>Contact</Link>
+              <Link href="/products">All Products</Link>
+              {categories.map((category) => <Link key={category.id || category.name} href={categoryPath(category.name)}>{toTitleCase(category.name)}</Link>)}
+              <Link href="/offers">Offers</Link>
+              <Link href="/reviews">Reviews</Link>
+              <Link href="/contact">Contact</Link>
             </nav>
           </aside>
-          <style>{`
-            @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-            @keyframes slideInLeft { from { transform: translateX(-100%); } to { transform: translateX(0); } }
-          `}</style>
         </div>
+        </Portal>
       )}
-
-      {/* Cart drawer */}
-      {cartOpen && (
-        <div className="fixed inset-0 bg-[#2c1f14]/50" onClick={() => setCartOpen(false)} style={{ zIndex: 9998 }}>
-          <aside
-            className="fixed right-0 top-0 h-full w-full max-w-[380px] bg-white shadow-2xl flex flex-col"
-            style={{ zIndex: 9999, position: 'fixed', top: 0, right: 0, height: '100dvh' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-[#ede8df] px-5 py-4 bg-[#2c1f14]">
-              <div className="flex items-center gap-2 text-xl font-bold text-white">
-                <ShoppingBag className="h-5 w-5 text-[#c9a84c]" /> Cart ({cart.reduce((s, i) => s + Math.max(1, Number(i.qty || 1)), 0)})
-              </div>
-              <button type="button" onClick={() => setCartOpen(false)} aria-label="Close cart" className="text-white hover:text-[#c9a84c] w-10 h-10 flex items-center justify-center">
-                <X className="h-6 w-6" />
-              </button>
-            </div>
-
-            {cart.length === 0 ? (
-              <div className="flex flex-1 flex-col items-center justify-center gap-3 text-[#8a7060] px-6">
-                <ShoppingBag className="h-16 w-16 opacity-20" />
-                <p className="text-xl font-bold text-[#2c1f14]">Your cart is empty</p>
-                <p className="text-sm text-center">Browse our products and add items to your cart!</p>
-                <button onClick={() => setCartOpen(false)} className="mt-2 rounded bg-[#c9a84c] px-6 py-2.5 text-sm font-bold text-[#2c1f14] hover:bg-[#a07a28]">
-                  Browse Products
-                </button>
-              </div>
-            ) : (
-              <>
-                <div className="flex-1 overflow-y-auto divide-y divide-[#ede8df]">
-                  {cart.map((item, idx) => {
-                    const buyMsg = `Hi SETHI PURSE, I want to buy: ${item.name} (Rs.${item.price?.toLocaleString('en-IN')}). Please confirm availability.`;
-                    return (
-                      <div key={idx} className="flex gap-3 px-4 py-4">
-                        {item.image
-                          ? <img src={item.image} alt={item.name} className="h-16 w-16 rounded-sm object-cover bg-[#f5f0e8] shrink-0" />
-                          : <div className="h-16 w-16 rounded-sm bg-[#f5f0e8] shrink-0 flex items-center justify-center"><ShoppingBag className="h-6 w-6 text-[#c9a84c]" /></div>
-                        }
-                        <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-[#2c1f14] text-sm leading-snug line-clamp-2">{item.name}</div>
-                          <div className="text-[#c9a84c] font-bold text-sm mt-0.5">Rs.{item.price?.toLocaleString('en-IN')}</div>
-                          <a
-                            href={buildWhatsAppLink(buyMsg)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="mt-2 inline-flex items-center gap-1.5 rounded bg-[#25D366] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#1ebe5c]"
-                          >
-                            <MessageCircle className="h-3.5 w-3.5" /> Buy Now
-                          </a>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const next = cart.filter((_, i) => i !== idx);
-                            setCart(next);
-                            window.localStorage.setItem('sethi-cart', JSON.stringify(next));
-                          }}
-                          className="text-[#8a7060] hover:text-red-500 p-1 self-start mt-1 shrink-0"
-                          aria-label="Remove"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="border-t-2 border-[#ede8df] px-5 py-4 space-y-3 bg-[#faf8f4]">
-                  <div className="flex justify-between font-bold text-[#2c1f14] text-lg">
-                    <span>Total ({cart.length} item{cart.length > 1 ? 's' : ''})</span>
-                    <span className="text-[#c9a84c]">Rs.{cartTotal(cart).toLocaleString('en-IN')}</span>
-                  </div>
-                  <a
-                    href={buildWhatsAppLink(buildCartOrderMessage(cart))}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex w-full items-center justify-center gap-2 rounded bg-[#25D366] py-3.5 text-base font-bold text-white hover:bg-[#1ebe5c] active:scale-95 transition-transform"
-                  >
-                    <MessageCircle className="h-5 w-5" /> Order All via WhatsApp
-                  </a>
-                  <button
-                    type="button"
-                    onClick={() => { setCart([]); window.localStorage.removeItem('sethi-cart'); }}
-                    className="w-full text-sm text-[#8a7060] hover:text-red-500 py-1"
-                  >
-                    Clear cart
-                  </button>
-                </div>
-              </>
-            )}
-          </aside>
-        </div>
-      )}
-
-      <Footer />
     </main>
   );
 }
