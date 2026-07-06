@@ -7,6 +7,7 @@ import { ArrowLeft, Check, ChevronLeft, ChevronRight, MapPin, MessageCircle, Min
 import { toast } from 'sonner';
 import ProductCard from '@/components/ProductCard';
 import ReviewCard from '@/components/ReviewCard';
+import StarRating from '@/components/StarRating';
 import Portal from '@/components/Portal';
 import { buildBuyNowMessage, buildProductUrl, buildWhatsAppLink, REPLY_PROMISE, resolveImage } from '@/lib/constants';
 
@@ -245,6 +246,18 @@ export default function ProductDetailClient({ product, related = [], reviews = [
   })();
   const showLowStock = lowStockCount != null && lowStockCount > 0 && lowStockCount <= 5;
 
+  const reviewStats = useMemo(() => {
+    if (!reviews || reviews.length === 0) return null;
+    const count = reviews.length;
+    const total = reviews.reduce((sum, r) => sum + (Number(r.rating) || 0), 0);
+    return { avg: total / count, count };
+  }, [reviews]);
+
+  const scrollToReviews = (e) => {
+    e.preventDefault();
+    document.getElementById('reviews')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   useEffect(() => {
     if (!product?.id) return;
     fetch(`/api/products/${product.id}/view`, { method: 'POST' }).catch(() => {});
@@ -346,6 +359,13 @@ export default function ProductDetailClient({ product, related = [], reviews = [
               <span className="text-4xl font-bold text-[#2c1f14]">{rupee(salePrice)}</span>
               {mrp > salePrice && <span className="pb-1 text-xl text-[#8a7060] line-through">{rupee(mrp)}</span>}
             </div>
+            {reviewStats && (
+              <a href="#reviews" onClick={scrollToReviews}
+                className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-[#6b5544] hover:text-[#c9a84c]">
+                <StarRating value={Math.round(reviewStats.avg)} size={14} />
+                <span>{reviewStats.avg.toFixed(1)} · {reviewStats.count} review{reviewStats.count > 1 ? 's' : ''}</span>
+              </a>
+            )}
             {discount > 0 && (
               <span className="mt-2 inline-block rounded bg-[#c9a84c] px-3 py-1 text-sm font-bold text-white">{discount}% OFF</span>
             )}
@@ -465,7 +485,7 @@ export default function ProductDetailClient({ product, related = [], reviews = [
         </div>
 
         {reviews.length > 0 && (
-          <section>
+          <section id="reviews">
             <h2 className="flex items-center gap-2 text-4xl font-bold text-[#c9a84c]"><Star className="h-7 w-7 fill-[#c9a84c]" /> Reviews</h2>
             <div className="mt-5 grid gap-5 md:grid-cols-3">{reviews.slice(0, 3).map((review) => <ReviewCard key={review.id} review={review} />)}</div>
           </section>
