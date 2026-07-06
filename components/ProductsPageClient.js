@@ -112,8 +112,9 @@ function ProductsContent({ categories, products }) {
   const [selectedBrands, setSelectedBrands] = useState([]);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortBy, setSortBy] = useState('featured');
 
-  useEffect(() => { setCurrentPage(1); }, [query, activeCategory, selectedPrice, selectedBrands]);
+  useEffect(() => { setCurrentPage(1); }, [query, activeCategory, selectedPrice, selectedBrands, sortBy]);
 
   const handlePriceClick = (range) => setSelectedPrice((prev) => prev?.label === range.label ? null : range);
   const handleBrandClick = (brand) => setSelectedBrands((prev) => prev.includes(brand) ? prev.filter((b) => b !== brand) : [...prev, brand]);
@@ -134,8 +135,27 @@ function ProductsContent({ categories, products }) {
     });
   }, [activeCategory, products, query, selectedPrice, selectedBrands]);
 
-  const totalPages = Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE);
-  const paginatedProducts = filteredProducts.slice(
+  const sortedProducts = useMemo(() => {
+    const list = [...filteredProducts];
+    if (sortBy === 'price-asc') {
+      list.sort((a, b) => effectivePrice(a) - effectivePrice(b));
+    } else if (sortBy === 'price-desc') {
+      list.sort((a, b) => effectivePrice(b) - effectivePrice(a));
+    } else if (sortBy === 'newest') {
+      list.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+    } else {
+      list.sort((a, b) => {
+        const featuredA = a.featured === true || a.featured === 1;
+        const featuredB = b.featured === true || b.featured === 1;
+        if (featuredA !== featuredB) return featuredB ? 1 : -1;
+        return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+      });
+    }
+    return list;
+  }, [filteredProducts, sortBy]);
+
+  const totalPages = Math.ceil(sortedProducts.length / PRODUCTS_PER_PAGE);
+  const paginatedProducts = sortedProducts.slice(
     (currentPage - 1) * PRODUCTS_PER_PAGE,
     currentPage * PRODUCTS_PER_PAGE
   );
@@ -234,9 +254,25 @@ function ProductsContent({ categories, products }) {
           )}
 
           {filteredProducts.length > 0 && (
-            <p className="hidden md:block text-sm text-[#8a7060] mb-4">
-              Showing {(currentPage - 1) * PRODUCTS_PER_PAGE + 1}–{Math.min(currentPage * PRODUCTS_PER_PAGE, filteredProducts.length)} of {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''}
-            </p>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <p className="hidden md:block text-sm text-[#8a7060]">
+                Showing {(currentPage - 1) * PRODUCTS_PER_PAGE + 1}–{Math.min(currentPage * PRODUCTS_PER_PAGE, filteredProducts.length)} of {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''}
+              </p>
+              <div className="ml-auto flex items-center gap-2 md:ml-0">
+                <label htmlFor="sort" className="hidden text-sm text-[#8a7060] sm:inline">Sort by</label>
+                <select
+                  id="sort"
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="h-11 rounded border border-[#ede8df] bg-white px-3 text-sm text-[#2c1f14] shadow-sm outline-none transition focus:border-[#c9a84c] focus:ring-2 focus:ring-[#e8d5a3]"
+                >
+                  <option value="featured">Featured</option>
+                  <option value="price-asc">Price: Low to High</option>
+                  <option value="price-desc">Price: High to Low</option>
+                  <option value="newest">Newest</option>
+                </select>
+              </div>
+            </div>
           )}
 
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
