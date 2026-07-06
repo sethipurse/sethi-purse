@@ -1,9 +1,13 @@
 'use client';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Minus, MessageCircle, Plus, ShoppingBag, X } from 'lucide-react';
 import Portal from '@/components/Portal';
-import { buildCartOrderMessage, buildWhatsAppLink, cartTotal, REPLY_PROMISE, rupee } from '@/lib/constants';
+import { buildCartOrderMessage, buildWhatsAppLink, cartTotal, productPrice, REPLY_PROMISE, resolveImage, rupee, UPSELL_HEADING } from '@/lib/constants';
+import { cachedFetchJson } from '@/lib/clientCache';
+
+const UPSELL_MAX_PRICE = 700;
+const UPSELL_KEYWORDS = ['access', 'pouch', 'tag', 'lock', 'cover'];
 
 function readCart() {
   try {
@@ -23,6 +27,7 @@ function writeCart(next) {
 export default function CartDrawer() {
   const [open, setOpen] = useState(false);
   const [cart, setCart] = useState([]);
+  const [catalog, setCatalog] = useState(null);
 
   useEffect(() => {
     setCart(readCart());
@@ -70,6 +75,40 @@ export default function CartDrawer() {
   };
 
   const itemCount = cart.reduce((s, i) => s + Math.max(1, Number(i.qty || 1)), 0);
+
+  // Lazily fetch the catalog only once the drawer is actually open with
+  // items in it — no point paying for this request on every page load.
+  useEffect(() => {
+    if (open && cart.length > 0 && catalog === null) {
+      cachedFetchJson('/api/products')
+        .then((data) => setCatalog(Array.isArray(data) ? data : []))
+        .catch(() => setCatalog([]));
+    }
+  }, [open, cart.length, catalog]);
+
+  const upsellCandidates = useMemo(() => {
+    if (!catalog || catalog.length === 0 || cart.length === 0) return [];
+    const cartIds = new Set(cart.map((i) => i.id));
+    const eligible = catalog.filter((p) =>
+      p.is_active !== false &&
+      !cartIds.has(p.id) &&
+      productPrice(p) > 0 &&
+      productPrice(p) <= UPSELL_MAX_PRICE
+    );
+    const isAccessory = (p) => {
+      const category = String(p.category || p.category_id || '').toLowerCase();
+      return UPSELL_KEYWORDS.some((k) => category.includes(k));
+    };
+    const accessoryMatches = eligible.filter(isAccessory);
+    const pool = accessoryMatches.length > 0 ? accessoryMatches : eligible;
+    return [...pool].sort((a, b) => productPrice(a) - productPrice(b)).slice(0, 2);
+  }, [catalog, cart]);
+
+  const addUpsellToCart = (product) => {
+    const next = [...cart, { id: product.id, name: product.name, price: productPrice(product), qty: 1, image: resolveImage(product) }];
+    setCart(next);
+    writeCart(next);
+  };
 
   return (
     <Portal>
@@ -148,6 +187,32 @@ export default function CartDrawer() {
                 );
               })}
             </div>
+
+            {upsellCandidates.length > 0 && (
+              <div className="border-t border-[#ede8df] bg-white px-5 py-3">
+                <p className="mb-2.5 text-sm font-bold text-[#2c1f14]">{UPSELL_HEADING}</p>
+                <div className="flex gap-3 overflow-x-auto">
+                  {upsellCandidates.map((product) => {
+                    const price = productPrice(product);
+                    const img = resolveImage(product);
+                    return (
+                      <div key={product.id} className="flex w-28 shrink-0 flex-col gap-1.5 rounded-lg border border-[#ede8df] p-2">
+                        {img
+                          ? <img src={img} alt={product.name} className="h-14 w-full rounded object-cover bg-[#f5f0e8]" />
+                          : <div className="h-14 w-full rounded bg-[#f5f0e8]" />}
+                        <div className="line-clamp-1 text-xs font-semibold text-[#2c1f14]">{product.name}</div>
+                        <div className="text-xs font-bold text-[#c9a84c]">{rupee(price)}</div>
+                        <button type="button" onClick={() => addUpsellToCart(product)}
+                          className="rounded bg-[#f5f0e8] py-1 text-xs font-bold text-[#a07a28] hover:bg-[#c9a84c] hover:text-white">
+                          + Add
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="space-y-3 border-t-2 border-[#ede8df] bg-[#faf8f4] px-5 py-4">
               <div className="flex justify-between text-lg font-bold text-[#2c1f14]">
                 <span>Total ({itemCount} item{itemCount > 1 ? 's' : ''})</span>
