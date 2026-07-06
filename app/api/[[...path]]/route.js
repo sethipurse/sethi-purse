@@ -788,9 +788,11 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
     if (segments.length === 1) {
       if (method === 'GET') { const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false }); if (error) return json([]); return json(data || []); }
       if (method === 'POST') {
-        const p = body || {}; 
+        const p = body || {};
         const saleValue = p.salePrice ?? p.sale_price ?? p.price;
-        if (!p.name || !(p.category || p.category_id) || !saleValue) return json({ error: 'Missing required fields' }, 400);
+        // Falsy check here would wrongly reject a legitimate Rs.0 sale price
+        // (same bug class as the historical rating-0 bug) — check presence.
+        if (!p.name || !(p.category || p.category_id) || saleValue === undefined || saleValue === null || saleValue === '') return json({ error: 'Missing required fields' }, 400);
         
         const newProduct = { 
           id: uuidv4(), 

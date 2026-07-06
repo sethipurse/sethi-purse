@@ -14,7 +14,9 @@ function normalizeColorVariants(initial) {
     return raw.map((c) => ({ name: c.name || '', images: Array.isArray(c.images) ? c.images : [], inStock: c.inStock !== false }));
   }
   if (Array.isArray(raw)) return raw.map((name) => ({ name: String(name), images: [], inStock: true }));
-  return [];
+  // Legacy: colors stored as a comma-separated string — same fallback
+  // already used for sizes/tags/gallery_images, previously missing here.
+  return String(raw).split(',').map((v) => v.trim()).filter(Boolean).map((name) => ({ name, images: [], inStock: true }));
 }
 
 const SCARCITY_MODES = [
@@ -57,6 +59,9 @@ export default function ProductForm({ initial, productId, onSaved }) {
   const router = useRouter();
   const [categories, setCategories] = useState([]);
   const videoInputRef = useRef(null);
+  const nameRef = useRef(null);
+  const categoryRef = useRef(null);
+  const salePriceRef = useRef(null);
 
   const [form, setForm] = useState({
     name: '', brand: '', category: '', mrp: '', salePrice: '', stock: '',
@@ -303,18 +308,37 @@ export default function ProductForm({ initial, productId, onSaved }) {
   const removeColorPhoto = (colorIndex, photoIndex) =>
     setColorVariants((prev) => prev.map((c, i) => i === colorIndex ? { ...c, images: c.images.filter((_, pi) => pi !== photoIndex) } : c));
 
+  const focusField = (ref) => {
+    ref.current?.focus();
+    ref.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
   const submit = async (e) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.category || !form.salePrice) { toast.error('Name, category and sale price are required'); return; }
+    if (!form.name.trim()) { toast.error('Product name is required'); focusField(nameRef); return; }
+    if (!form.category) { toast.error('Category is required'); focusField(categoryRef); return; }
+    if (!form.salePrice) { toast.error('Sale price is required'); focusField(salePriceRef); return; }
     setBusy(true);
+
+    // Flush any pending custom-size/custom-color text that was typed but
+    // never confirmed with "Add" or Enter — it must not be silently lost.
+    const pendingSize = customSize.trim();
+    const finalSizes = pendingSize && !sizes.includes(pendingSize) ? [...sizes, pendingSize] : sizes;
+
+    const pendingColorName = newColorName.trim();
+    const pendingColorExists = colorVariants.some((c) => c.name.toLowerCase() === pendingColorName.toLowerCase());
+    const finalColorVariants = pendingColorName && !pendingColorExists
+      ? [...colorVariants, { name: pendingColorName, images: [], inStock: true }]
+      : colorVariants;
+
     const payload = {
       ...form,
       mrp: form.mrp === '' ? 0 : Number(form.mrp),
       salePrice: Number(form.salePrice),
       discount_percent: discountPct,
       gallery_images: galleryImages,
-      sizes,
-      colors: colorVariants,
+      sizes: finalSizes,
+      colors: finalColorVariants,
       tags,
       stock: form.stock === '' ? null : Number(form.stock),
       display_stock: form.display_stock === '' ? null : Number(form.display_stock),
@@ -347,7 +371,7 @@ export default function ProductForm({ initial, productId, onSaved }) {
       <Section title="Basic Info" icon="📋" subtitle="Name, brand and category">
         <div className="md:col-span-2">
           <label className="block text-sm font-medium mb-1.5">Product Name *</label>
-          <input value={form.name} onChange={(e) => update('name', e.target.value)}
+          <input ref={nameRef} value={form.name} onChange={(e) => update('name', e.target.value)}
             className="input-sethi" placeholder="e.g. American Tourister Trolley 24 inch" required />
         </div>
         <div>
@@ -358,7 +382,7 @@ export default function ProductForm({ initial, productId, onSaved }) {
         </div>
         <div>
           <label className="block text-sm font-medium mb-1.5">Category *</label>
-          <select value={form.category} onChange={(e) => update('category', e.target.value)} className="input-sethi" required>
+          <select ref={categoryRef} value={form.category} onChange={(e) => update('category', e.target.value)} className="input-sethi" required>
             <option value="">Select a category</option>
             {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
           </select>
@@ -389,7 +413,7 @@ export default function ProductForm({ initial, productId, onSaved }) {
           <label className="block text-sm font-medium mb-1.5">Sale Price *</label>
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sethi-gray500 text-sm">Rs.</span>
-            <input type="number" min="0" value={form.salePrice} onChange={(e) => update('salePrice', e.target.value)}
+            <input ref={salePriceRef} type="number" min="0" value={form.salePrice} onChange={(e) => update('salePrice', e.target.value)}
               className="input-sethi !pl-12" placeholder="0" required />
           </div>
         </div>
