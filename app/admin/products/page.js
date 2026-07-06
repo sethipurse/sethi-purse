@@ -1,10 +1,13 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import AdminShell from '@/components/AdminShell';
 import { toast } from 'sonner';
-import { Trash2, Edit, Plus, Search, CheckSquare, Square, Loader2, Package, Star } from 'lucide-react';
+import { Trash2, Edit, Plus, Search, CheckSquare, Square, Loader2, Package, Star, ChevronDown, ChevronRight, List, LayoutGrid } from 'lucide-react';
 import { resolveImage } from '@/lib/constants';
+
+const VIEW_STORAGE_KEY = 'sethi-admin-products-view';
+const COLLAPSED_STORAGE_KEY = 'sethi-admin-products-collapsed';
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState([]);
@@ -17,6 +20,10 @@ export default function AdminProductsPage() {
   const [selected, setSelected] = useState(new Set());
   const [bulkConfirm, setBulkConfirm] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  // View mode: 'list' (existing behavior, default) or 'grouped' (category-wise)
+  const [view, setView] = useState('list');
+  const [collapsedGroups, setCollapsedGroups] = useState(new Set());
 
   // Inline stock edit state: { [productId]: { value, saving } }
   const [stockEdits, setStockEdits] = useState({});
@@ -44,6 +51,25 @@ export default function AdminProductsPage() {
   };
   useEffect(() => { load(); }, []);
 
+  // Restore view mode + collapsed groups once on mount (client-only — kept
+  // out of useState initializers to avoid an SSR/client hydration mismatch).
+  useEffect(() => {
+    try {
+      const savedView = window.localStorage.getItem(VIEW_STORAGE_KEY);
+      if (savedView === 'list' || savedView === 'grouped') setView(savedView);
+      const savedCollapsed = JSON.parse(window.localStorage.getItem(COLLAPSED_STORAGE_KEY) || '[]');
+      if (Array.isArray(savedCollapsed)) setCollapsedGroups(new Set(savedCollapsed));
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try { window.localStorage.setItem(VIEW_STORAGE_KEY, view); } catch {}
+  }, [view]);
+
+  useEffect(() => {
+    try { window.localStorage.setItem(COLLAPSED_STORAGE_KEY, JSON.stringify([...collapsedGroups])); } catch {}
+  }, [collapsedGroups]);
+
   const filtered = useMemo(() => {
     let list = [...products];
     if (cat !== 'All') list = list.filter((p) => p.category === cat);
@@ -59,6 +85,30 @@ export default function AdminProductsPage() {
     }
     return list;
   }, [products, q, cat, sort]);
+
+  // Groups the already-filtered/sorted list by category, ordered by the
+  // categories list order (falling back to alphabetical for anything not in
+  // that list) with Uncategorized always last.
+  const grouped = useMemo(() => {
+    const map = new Map();
+    filtered.forEach((p) => {
+      const key = p.category && p.category.trim() ? p.category : 'Uncategorized';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(p);
+    });
+    const knownOrder = categories.map((c) => c.name);
+    const keys = Array.from(map.keys()).filter((k) => k !== 'Uncategorized');
+    keys.sort((a, b) => {
+      const ia = knownOrder.indexOf(a);
+      const ib = knownOrder.indexOf(b);
+      if (ia !== -1 && ib !== -1) return ia - ib;
+      if (ia !== -1) return -1;
+      if (ib !== -1) return 1;
+      return a.localeCompare(b);
+    });
+    if (map.has('Uncategorized')) keys.push('Uncategorized');
+    return keys.map((key) => ({ key, products: map.get(key) }));
+  }, [filtered, categories]);
 
   // ── Selection helpers ──
   const allFilteredIds = filtered.map((p) => p.id);
@@ -78,6 +128,23 @@ export default function AdminProductsPage() {
       setSelected((prev) => { const next = new Set(prev); allFilteredIds.forEach((id) => next.add(id)); return next; });
     }
   };
+
+  const toggleGroupSelection = (groupProducts) => {
+    const ids = groupProducts.map((p) => p.id);
+    const allIn = ids.length > 0 && ids.every((id) => selected.has(id));
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allIn) ids.forEach((id) => next.delete(id));
+      else ids.forEach((id) => next.add(id));
+      return next;
+    });
+  };
+
+  const toggleGroupCollapse = (key) => setCollapsedGroups((prev) => {
+    const next = new Set(prev);
+    next.has(key) ? next.delete(key) : next.add(key);
+    return next;
+  });
 
   const clearSelection = () => setSelected(new Set());
 
@@ -219,6 +286,131 @@ export default function AdminProductsPage() {
     );
   };
 
+  // Reused verbatim by both the flat list view and each category group in
+  // grouped mode, so selection/edit/delete/feature behavior never diverges.
+  const DesktopProductRow = ({ p }) => (
+    <tr className={`border-t border-sethi-gray200 transition-colors ${selected.has(p.id) ? 'bg-sethi-gold/5' : 'hover:bg-sethi-gray100/50'}`}>
+      <td className="px-4 py-3">
+        <button onClick={() => toggleOne(p.id)} className="text-sethi-gray500 hover:text-sethi-gold transition-colors">
+          {selected.has(p.id) ? <CheckSquare className="w-5 h-5 text-sethi-gold" /> : <Square className="w-5 h-5" />}
+        </button>
+      </td>
+      <td className="px-4 py-3">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={resolveImage(p)} alt="" className="w-12 h-12 object-cover rounded-sm bg-sethi-gray100" />
+      </td>
+      <td className="px-4 py-3 font-medium">{p.name}</td>
+      <td className="px-4 py-3 text-sethi-gray500">{p.brand}</td>
+      <td className="px-4 py-3">{p.category}</td>
+      <td className="px-4 py-3 font-semibold">Rs.{p.salePrice ?? p.sale_price ?? p.price}</td>
+      <td className="px-4 py-3"><StockCell p={p} /></td>
+      <td className="px-4 py-3">
+        <button
+          onClick={() => toggleFeatured(p)}
+          title={p.featured ? 'Remove from featured' : 'Mark as featured'}
+          className={`flex items-center justify-center w-9 h-9 rounded-full transition-all ${p.featured ? 'bg-sethi-gold text-sethi-black' : 'bg-sethi-gray100 text-sethi-gray400 hover:bg-sethi-gold/20 hover:text-sethi-gold'}`}
+        >
+          <Star className={`w-4 h-4 ${p.featured ? 'fill-sethi-black' : ''}`} />
+        </button>
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Link href={`/admin/products/edit/${p.id}`} className="inline-flex items-center gap-1 border border-sethi-gold text-sethi-gold px-3 py-1 rounded-sm hover:bg-sethi-gold hover:text-sethi-black transition-colors">
+            <Edit className="w-3.5 h-3.5" /> Edit
+          </Link>
+          <button onClick={() => setConfirm(p)} className="inline-flex items-center gap-1 border border-red-500 text-red-600 px-3 py-1 rounded-sm hover:bg-red-500 hover:text-white transition-colors">
+            <Trash2 className="w-3.5 h-3.5" /> Delete
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+
+  const MobileProductCard = ({ p }) => (
+    <div className={`p-4 flex gap-3 ${selected.has(p.id) ? 'bg-sethi-gold/5' : ''}`}>
+      <button onClick={() => toggleOne(p.id)} className="mt-1 shrink-0">
+        {selected.has(p.id) ? <CheckSquare className="w-5 h-5 text-sethi-gold" /> : <Square className="w-5 h-5 text-sethi-gray400" />}
+      </button>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={resolveImage(p)} alt="" className="w-16 h-16 object-cover rounded-sm bg-sethi-gray100 shrink-0" />
+      <div className="flex-1 min-w-0">
+        <div className="font-medium truncate">{p.name}</div>
+        <div className="text-xs text-sethi-gray500">{p.brand} • {p.category}</div>
+        <div className="flex items-center gap-3 mt-1 text-sm flex-wrap">
+          <span className="font-semibold">Rs.{p.salePrice ?? p.sale_price ?? p.price}</span>
+          <StockCell p={p} />
+        </div>
+        <div className="flex gap-2 mt-2 flex-wrap items-center">
+          <button
+            onClick={() => toggleFeatured(p)}
+            className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${p.featured ? 'bg-sethi-gold text-sethi-black' : 'bg-sethi-gray100 text-sethi-gray500'}`}
+          >
+            <Star className={`w-3 h-3 ${p.featured ? 'fill-sethi-black' : ''}`} />
+            {p.featured ? 'Featured' : 'Feature'}
+          </button>
+          <Link href={`/admin/products/edit/${p.id}`} className="text-sm text-sethi-gold underline">Edit</Link>
+          <button onClick={() => setConfirm(p)} className="text-sm text-red-600 underline">Delete</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Native checkbox (not the custom Square/CheckSquare buttons used
+  // elsewhere) because "indeterminate" is a DOM property only settable via
+  // a ref, not a JSX attribute.
+  const GroupCheckbox = ({ checked, indeterminate, onChange, label }) => {
+    const ref = useRef(null);
+    useEffect(() => { if (ref.current) ref.current.indeterminate = indeterminate; }, [indeterminate]);
+    return (
+      <input
+        ref={ref}
+        type="checkbox"
+        checked={checked}
+        onChange={onChange}
+        aria-label={label}
+        className="w-[18px] h-[18px] accent-sethi-gold cursor-pointer shrink-0"
+      />
+    );
+  };
+
+  const GroupHeaderRow = ({ groupKey, groupProducts }) => {
+    const ids = groupProducts.map((p) => p.id);
+    const allIn = ids.length > 0 && ids.every((id) => selected.has(id));
+    const someIn = ids.some((id) => selected.has(id));
+    const collapsed = collapsedGroups.has(groupKey);
+    return (
+      <tr className="bg-sethi-gray100 border-t border-sethi-gray200">
+        <td className="px-4 py-2.5" colSpan={9}>
+          <div className="flex items-center gap-3">
+            <GroupCheckbox checked={allIn} indeterminate={!allIn && someIn} onChange={() => toggleGroupSelection(groupProducts)} label={`Select all in ${groupKey}`} />
+            <button onClick={() => toggleGroupCollapse(groupKey)} className="flex items-center gap-2 font-semibold text-sethi-black">
+              {collapsed ? <ChevronRight className="w-4 h-4 text-sethi-gray500" /> : <ChevronDown className="w-4 h-4 text-sethi-gray500" />}
+              {groupKey}
+              <span className="inline-flex items-center justify-center text-xs font-bold bg-sethi-gold/20 text-sethi-gold-dark rounded-full px-2 py-0.5">{groupProducts.length}</span>
+            </button>
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
+  const GroupHeaderMobile = ({ groupKey, groupProducts }) => {
+    const ids = groupProducts.map((p) => p.id);
+    const allIn = ids.length > 0 && ids.every((id) => selected.has(id));
+    const someIn = ids.some((id) => selected.has(id));
+    const collapsed = collapsedGroups.has(groupKey);
+    return (
+      <div className="px-4 py-3 flex items-center gap-3 bg-sethi-gray100">
+        <GroupCheckbox checked={allIn} indeterminate={!allIn && someIn} onChange={() => toggleGroupSelection(groupProducts)} label={`Select all in ${groupKey}`} />
+        <button onClick={() => toggleGroupCollapse(groupKey)} className="flex items-center gap-2 font-semibold text-sm flex-1 min-w-0">
+          {collapsed ? <ChevronRight className="w-4 h-4 shrink-0 text-sethi-gray500" /> : <ChevronDown className="w-4 h-4 shrink-0 text-sethi-gray500" />}
+          <span className="truncate">{groupKey}</span>
+          <span className="inline-flex items-center justify-center text-xs font-bold bg-sethi-gold/20 text-sethi-gold-dark rounded-full px-2 py-0.5 shrink-0">{groupProducts.length}</span>
+        </button>
+      </div>
+    );
+  };
+
   return (
     <AdminShell>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
@@ -242,6 +434,31 @@ export default function AdminProductsPage() {
           <option value="price_asc">Price: Low to High</option>
           <option value="price_desc">Price: High to Low</option>
         </select>
+      </div>
+
+      {/* View toggle */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div className="inline-flex rounded-sm border border-sethi-gray200 overflow-hidden shrink-0">
+          <button
+            onClick={() => setView('list')}
+            className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm font-semibold transition-colors ${view === 'list' ? 'bg-sethi-gold text-sethi-black' : 'bg-white text-sethi-gray500 hover:bg-sethi-gray100'}`}
+          >
+            <List className="w-3.5 h-3.5" /> List
+          </button>
+          <button
+            onClick={() => setView('grouped')}
+            className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm font-semibold transition-colors border-l border-sethi-gray200 ${view === 'grouped' ? 'bg-sethi-gold text-sethi-black' : 'bg-white text-sethi-gray500 hover:bg-sethi-gray100'}`}
+          >
+            <LayoutGrid className="w-3.5 h-3.5" /> Category-wise
+          </button>
+        </div>
+        {view === 'grouped' && (
+          <div className="flex items-center gap-3 text-sm">
+            <button onClick={() => setCollapsedGroups(new Set())} className="font-semibold text-sethi-gold hover:underline">Expand all</button>
+            <span className="text-sethi-gray300">|</span>
+            <button onClick={() => setCollapsedGroups(new Set(grouped.map((g) => g.key)))} className="font-semibold text-sethi-gold hover:underline">Collapse all</button>
+          </div>
+        )}
       </div>
 
       {/* Bulk action bar */}
@@ -285,43 +502,16 @@ export default function AdminProductsPage() {
                 <tr><td colSpan="9" className="text-center p-8 text-sethi-gray500">Loading...</td></tr>
               ) : filtered.length === 0 ? (
                 <tr><td colSpan="9" className="text-center p-8 text-sethi-gray500">No products found.</td></tr>
-              ) : filtered.map((p) => (
-                <tr key={p.id} className={`border-t border-sethi-gray200 transition-colors ${selected.has(p.id) ? 'bg-sethi-gold/5' : 'hover:bg-sethi-gray100/50'}`}>
-                  <td className="px-4 py-3">
-                    <button onClick={() => toggleOne(p.id)} className="text-sethi-gray500 hover:text-sethi-gold transition-colors">
-                      {selected.has(p.id) ? <CheckSquare className="w-5 h-5 text-sethi-gold" /> : <Square className="w-5 h-5" />}
-                    </button>
-                  </td>
-                  <td className="px-4 py-3">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={resolveImage(p)} alt="" className="w-12 h-12 object-cover rounded-sm bg-sethi-gray100" />
-                  </td>
-                  <td className="px-4 py-3 font-medium">{p.name}</td>
-                  <td className="px-4 py-3 text-sethi-gray500">{p.brand}</td>
-                  <td className="px-4 py-3">{p.category}</td>
-                  <td className="px-4 py-3 font-semibold">Rs.{p.salePrice ?? p.sale_price ?? p.price}</td>
-                  <td className="px-4 py-3"><StockCell p={p} /></td>
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => toggleFeatured(p)}
-                      title={p.featured ? 'Remove from featured' : 'Mark as featured'}
-                      className={`flex items-center justify-center w-9 h-9 rounded-full transition-all ${p.featured ? 'bg-sethi-gold text-sethi-black' : 'bg-sethi-gray100 text-sethi-gray400 hover:bg-sethi-gold/20 hover:text-sethi-gold'}`}
-                    >
-                      <Star className={`w-4 h-4 ${p.featured ? 'fill-sethi-black' : ''}`} />
-                    </button>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <Link href={`/admin/products/edit/${p.id}`} className="inline-flex items-center gap-1 border border-sethi-gold text-sethi-gold px-3 py-1 rounded-sm hover:bg-sethi-gold hover:text-sethi-black transition-colors">
-                        <Edit className="w-3.5 h-3.5" /> Edit
-                      </Link>
-                      <button onClick={() => setConfirm(p)} className="inline-flex items-center gap-1 border border-red-500 text-red-600 px-3 py-1 rounded-sm hover:bg-red-500 hover:text-white transition-colors">
-                        <Trash2 className="w-3.5 h-3.5" /> Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              ) : view === 'list' ? (
+                filtered.map((p) => <DesktopProductRow key={p.id} p={p} />)
+              ) : (
+                grouped.map(({ key, products: groupProducts }) => (
+                  <Fragment key={key}>
+                    <GroupHeaderRow groupKey={key} groupProducts={groupProducts} />
+                    {!collapsedGroups.has(key) && groupProducts.map((p) => <DesktopProductRow key={p.id} p={p} />)}
+                  </Fragment>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -341,34 +531,16 @@ export default function AdminProductsPage() {
             <div className="p-6 text-sethi-gray500 text-center">Loading...</div>
           ) : filtered.length === 0 ? (
             <div className="p-6 text-sethi-gray500 text-center">No products found.</div>
-          ) : filtered.map((p) => (
-            <div key={p.id} className={`p-4 flex gap-3 ${selected.has(p.id) ? 'bg-sethi-gold/5' : ''}`}>
-              <button onClick={() => toggleOne(p.id)} className="mt-1 shrink-0">
-                {selected.has(p.id) ? <CheckSquare className="w-5 h-5 text-sethi-gold" /> : <Square className="w-5 h-5 text-sethi-gray400" />}
-              </button>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={resolveImage(p)} alt="" className="w-16 h-16 object-cover rounded-sm bg-sethi-gray100 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="font-medium truncate">{p.name}</div>
-                <div className="text-xs text-sethi-gray500">{p.brand} • {p.category}</div>
-                <div className="flex items-center gap-3 mt-1 text-sm flex-wrap">
-                  <span className="font-semibold">Rs.{p.salePrice ?? p.sale_price ?? p.price}</span>
-                  <StockCell p={p} />
-                </div>
-                <div className="flex gap-2 mt-2 flex-wrap items-center">
-                  <button
-                    onClick={() => toggleFeatured(p)}
-                    className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${p.featured ? 'bg-sethi-gold text-sethi-black' : 'bg-sethi-gray100 text-sethi-gray500'}`}
-                  >
-                    <Star className={`w-3 h-3 ${p.featured ? 'fill-sethi-black' : ''}`} />
-                    {p.featured ? 'Featured' : 'Feature'}
-                  </button>
-                  <Link href={`/admin/products/edit/${p.id}`} className="text-sm text-sethi-gold underline">Edit</Link>
-                  <button onClick={() => setConfirm(p)} className="text-sm text-red-600 underline">Delete</button>
-                </div>
-              </div>
-            </div>
-          ))}
+          ) : view === 'list' ? (
+            filtered.map((p) => <MobileProductCard key={p.id} p={p} />)
+          ) : (
+            grouped.map(({ key, products: groupProducts }) => (
+              <Fragment key={key}>
+                <GroupHeaderMobile groupKey={key} groupProducts={groupProducts} />
+                {!collapsedGroups.has(key) && groupProducts.map((p) => <MobileProductCard key={p.id} p={p} />)}
+              </Fragment>
+            ))
+          )}
         </div>
       </div>
 
