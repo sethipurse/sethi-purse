@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, Clock, Eye, Flame, MapPin, MessageCircle, Minus, Plus, Share2, ShoppingBag, Star, TrendingUp, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, MapPin, MessageCircle, Minus, Plus, Share2, ShoppingBag, Star, TrendingUp, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import ProductCard from '@/components/ProductCard';
 import ReviewCard from '@/components/ReviewCard';
@@ -32,57 +32,6 @@ function getDefaultImages(product) {
   const parsed = Array.isArray(gallery) ? gallery : String(gallery || '').split(',').map((v) => v.trim()).filter(Boolean);
   const all = [resolveImage(product), ...parsed].filter(Boolean);
   return [...new Set(all)];
-}
-
-function useScarcity(product) {
-  const [viewers, setViewers] = useState(null);
-  const [displayStock, setDisplayStock] = useState(null);
-  const [timeLeft, setTimeLeft] = useState(null);
-
-  useEffect(() => {
-    const mode = product.scarcity_mode || 'off';
-    if (mode === 'off') return;
-
-    const min = product.viewing_min ?? 3;
-    const max = product.viewing_max ?? 12;
-    setViewers(Math.floor(Math.random() * (max - min + 1)) + min);
-
-    // Simulate viewers fluctuating every 20-40s
-    const interval = setInterval(() => {
-      const delta = Math.random() > 0.5 ? 1 : -1;
-      setViewers((v) => Math.max(min, Math.min(max + 3, (v || min) + delta)));
-    }, (20 + Math.random() * 20) * 1000);
-
-    if (product.display_stock != null) {
-      const decay = product.stock_decay_speed || 0;
-      const decayed = Math.max(1, product.display_stock - Math.floor(Math.random() * decay));
-      setDisplayStock(decayed);
-    }
-
-    if (product.price_lock_hours > 0) {
-      const key = `price_lock_${product.id}`;
-      let expiry = localStorage.getItem(key);
-      if (!expiry) {
-        expiry = Date.now() + product.price_lock_hours * 60 * 60 * 1000;
-        localStorage.setItem(key, expiry);
-      }
-      const tick = () => {
-        const remaining = parseInt(expiry) - Date.now();
-        if (remaining <= 0) { setTimeLeft(null); return; }
-        const h = Math.floor(remaining / 3600000);
-        const m = Math.floor((remaining % 3600000) / 60000);
-        const s = Math.floor((remaining % 60000) / 1000);
-        setTimeLeft(`${h > 0 ? h + 'h ' : ''}${m}m ${s}s`);
-      };
-      tick();
-      const timerInterval = setInterval(tick, 1000);
-      return () => { clearInterval(interval); clearInterval(timerInterval); };
-    }
-
-    return () => clearInterval(interval);
-  }, [product]);
-
-  return { viewers, displayStock, timeLeft };
 }
 
 function ZoomImage({ src, alt }) {
@@ -283,7 +232,11 @@ function ImageGallery({ images, alt }) {
 export default function ProductDetailClient({ product, related = [], reviews = [] }) {
   const colorVariants = useMemo(() => normalizeColors(product), [product]);
   const defaultImages = useMemo(() => getDefaultImages(product), [product]);
-  const { viewers, displayStock, timeLeft } = useScarcity(product);
+  const lowStockCount = (() => {
+    const n = product.display_stock ?? product.stock;
+    return typeof n === 'number' ? n : null;
+  })();
+  const showLowStock = lowStockCount != null && lowStockCount > 0 && lowStockCount <= 5;
 
   useEffect(() => {
     if (!product?.id) return;
@@ -398,24 +351,14 @@ export default function ProductDetailClient({ product, related = [], reviews = [
                     <TrendingUp className="w-4 h-4" /> {product.scarcity_label}
                   </div>
                 )}
-                {displayStock != null && (
+                {showLowStock && (
                   <div className="flex items-center gap-2 text-sm font-semibold text-red-600">
-                    <AlertCircle className="w-4 h-4" /> Only {displayStock} left in stock — order soon!
-                  </div>
-                )}
-                {viewers != null && (
-                  <div className="flex items-center gap-2 text-sm text-[#6b5544]">
-                    <Eye className="w-4 h-4" /> {viewers} people are viewing this right now
+                    <AlertCircle className="w-4 h-4" /> Only {lowStockCount} left in stock — order soon!
                   </div>
                 )}
                 {product.local_scarcity && (
                   <div className="flex items-center gap-2 text-sm text-[#6b5544]">
                     <MapPin className="w-4 h-4" /> High demand in your area
-                  </div>
-                )}
-                {timeLeft && (
-                  <div className="flex items-center gap-2 text-sm font-bold text-orange-600">
-                    <Clock className="w-4 h-4" /> Price locked for: {timeLeft}
                   </div>
                 )}
               </div>
