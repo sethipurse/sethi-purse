@@ -1,9 +1,48 @@
 'use client';
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { usePathname } from 'next/navigation';
+import { RotateCcw } from 'lucide-react';
 import { buildWhatsAppLink } from '@/lib/constants';
 import { productMatchesCategorySlug } from '@/lib/categoryUtils';
 import { cachedFetchJson } from '@/lib/clientCache';
+
+const CHAT_STORAGE_KEY = 'sethi-chat';
+const MAX_STORED_MESSAGES = 40;
+
+const WELCOME_MESSAGE = {
+  role: 'assistant',
+  content: `Sat Sri Akal! 🙏 Welcome to **SETHI PURSE**!\n\nAsk me anything about our bags, luggage, prices, or store. I'm here to help!`,
+};
+
+function makeSessionId() {
+  return (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : `sess_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+}
+
+// sessionStorage (not localStorage) is intentional — a conversation should
+// last the browsing session, not forever.
+function loadStoredChat() {
+  try {
+    const raw = window.sessionStorage.getItem(CHAT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.messages) || parsed.messages.length === 0) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function saveStoredChat(sessionId, messages, contactCaptured) {
+  try {
+    window.sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify({
+      sessionId,
+      messages: messages.slice(-MAX_STORED_MESSAGES),
+      contactCaptured,
+    }));
+  } catch {}
+}
 
 function WhatsAppIcon() {
   return (
@@ -74,28 +113,34 @@ function MicIcon() {
 }
 
 function AIChatPanel({ onClose, products, pageContext }) {
-  const [messages, setMessages] = useState([
-    {
-      role: 'assistant',
-      content: `Sat Sri Akal! 🙏 Welcome to **SETHI PURSE**!\n\nAsk me anything about our bags, luggage, prices, or store. I'm here to help!`,
-    },
-  ]);
+  const [initialChat] = useState(() => loadStoredChat());
+  const [messages, setMessages] = useState(() => (initialChat?.messages?.length ? initialChat.messages : [WELCOME_MESSAGE]));
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingSlow, setLoadingSlow] = useState(false);
-  const [contactCaptured, setContactCaptured] = useState(false);
+  const [contactCaptured, setContactCaptured] = useState(() => !!initialChat?.contactCaptured);
   const [whatsappPrefill, setWhatsappPrefill] = useState(null);
   const slowTimerRef = useRef(null);
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef(null);
-  const sessionIdRef = useRef(null);
+  const sessionIdRef = useRef(initialChat?.sessionId || null);
   if (!sessionIdRef.current) {
-    sessionIdRef.current = (typeof crypto !== 'undefined' && crypto.randomUUID)
-      ? crypto.randomUUID()
-      : `sess_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    sessionIdRef.current = makeSessionId();
   }
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
+
+  useEffect(() => {
+    saveStoredChat(sessionIdRef.current, messages, contactCaptured);
+  }, [messages, contactCaptured]);
+
+  function startNewChat() {
+    try { window.sessionStorage.removeItem(CHAT_STORAGE_KEY); } catch {}
+    sessionIdRef.current = makeSessionId();
+    setMessages([WELCOME_MESSAGE]);
+    setContactCaptured(false);
+    setWhatsappPrefill(null);
+  }
 
   useEffect(() => {
     setTimeout(() => inputRef.current?.focus(), 300);
@@ -245,10 +290,16 @@ function AIChatPanel({ onClose, products, pageContext }) {
             </div>
           </div>
         </div>
-        <button onClick={onClose} aria-label="Close"
-          style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff' }}>
-          <CloseIcon size={16} />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button onClick={startNewChat} aria-label="New chat" title="New chat"
+            style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff' }}>
+            <RotateCcw size={15} />
+          </button>
+          <button onClick={onClose} aria-label="Close"
+            style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff' }}>
+            <CloseIcon size={16} />
+          </button>
+        </div>
       </div>
 
       {/* Messages */}
