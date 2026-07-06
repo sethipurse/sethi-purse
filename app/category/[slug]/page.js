@@ -1,8 +1,9 @@
 import Link from 'next/link';
-import { Sparkles } from 'lucide-react';
+import { MessageCircle, Sparkles } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
+import { buildWhatsAppLink } from '@/lib/constants';
 import { getCategories, getProducts } from '@/lib/data';
 import { categoryPath, findCategoryBySlug, productMatchesCategorySlug, titleFromSlug, toTitleCase } from '@/lib/categoryUtils';
 
@@ -87,9 +88,19 @@ export default async function CategoryPage({ params }) {
               <p className="mx-auto mt-2 max-w-xl text-[#8a7060]">
                 This category is empty right now. Browse all products or contact us on WhatsApp for the latest in-store arrivals.
               </p>
-              <Link href="/products" className="mt-5 inline-flex h-11 items-center justify-center rounded bg-[#c9a84c] px-6 font-semibold text-white transition hover:bg-[#a07a28]">
-                Browse products
-              </Link>
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+                <Link href="/products" className="inline-flex h-11 items-center justify-center rounded bg-[#c9a84c] px-6 font-semibold text-white transition hover:bg-[#a07a28]">
+                  Browse products
+                </Link>
+                <a
+                  href={buildWhatsAppLink(`Hi! Mujhe ${title} mein options chahiye. Kya available hai?`)}
+                  target="_blank"
+                  rel="noopener"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded bg-[#25D366] px-6 font-semibold text-white transition hover:bg-[#1ebe5c]"
+                >
+                  <MessageCircle className="h-5 w-5" /> Ask stock on WhatsApp
+                </a>
+              </div>
             </div>
           ) : (
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
