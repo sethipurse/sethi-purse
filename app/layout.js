@@ -5,6 +5,7 @@ import BackToTop from '@/components/BackToTop';
 import MobileStickyCTA from '@/components/MobileStickyCTA';
 import PWAInstall from '@/components/PWAInstall';
 import DecideForMeTeaser from '@/components/DecideForMeTeaser';
+import CartDrawer from '@/components/CartDrawer';
 
 const OG_IMAGE =
   'https://bbdatviaaiqpfvwumkkd.supabase.co/storage/v1/object/public/products/og-default.jpg';
@@ -74,6 +75,7 @@ export default function RootLayout({ children }) {
         <MobileStickyCTA />
         <BackToTop />
         <DecideForMeTeaser />
+        <CartDrawer />
         <Toaster position="top-center" richColors />
       </body>
     </html>

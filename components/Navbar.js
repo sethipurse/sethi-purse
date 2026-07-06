@@ -67,7 +67,7 @@ export default function Navbar() {
   }, [open]);
 
   const waLink = getWALinkForPath(pathname);
-  const isHome = pathname === '/';
+  const openCart = () => window.dispatchEvent(new Event('open-cart'));
 
   return (
     <>
@@ -90,16 +90,15 @@ export default function Navbar() {
 
           {/* Desktop right */}
           <div className="hidden lg:flex items-center gap-3">
-            {!isHome && (
-              <Link href="/#products" className="relative inline-flex items-center justify-center w-11 h-11 text-sethi-gold hover:text-[#a07a28] transition-colors">
-                <ShoppingBag className="w-6 h-6" />
-                {cartCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-sethi-gold text-[#2c1f14] text-[11px] font-bold flex items-center justify-center">
-                    {cartCount}
-                  </span>
-                )}
-              </Link>
-            )}
+            <button type="button" onClick={openCart} aria-label="Open cart"
+              className="relative inline-flex items-center justify-center w-11 h-11 text-sethi-gold hover:text-[#a07a28] transition-colors">
+              <ShoppingBag className="w-6 h-6" />
+              {cartCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-sethi-gold text-[#2c1f14] text-[11px] font-bold flex items-center justify-center">
+                  {cartCount}
+                </span>
+              )}
+            </button>
             <a href={waLink} target="_blank" rel="noopener noreferrer" className="btn-primary !min-h-[44px] !px-5 !py-2 text-sm">
               <MessageCircle className="w-4 h-4" /> WhatsApp Us
             </a>
@@ -111,17 +110,15 @@ export default function Navbar() {
               className="inline-flex items-center justify-center w-12 h-12 rounded-full text-sethi-gold active:bg-sethi-gold/10">
               <MessageCircle className="w-6 h-6" />
             </a>
-            {!isHome && (
-              <Link href="/#products" aria-label="Cart"
-                className="relative inline-flex items-center justify-center w-12 h-12 rounded-full text-sethi-gold active:bg-sethi-gold/10">
-                <ShoppingBag className="w-6 h-6" />
-                {cartCount > 0 && (
-                  <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-sethi-gold text-[#2c1f14] text-[11px] font-bold flex items-center justify-center">
-                    {cartCount}
-                  </span>
-                )}
-              </Link>
-            )}
+            <button type="button" onClick={openCart} aria-label="Open cart"
+              className="relative inline-flex items-center justify-center w-12 h-12 rounded-full text-sethi-gold active:bg-sethi-gold/10">
+              <ShoppingBag className="w-6 h-6" />
+              {cartCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-sethi-gold text-[#2c1f14] text-[11px] font-bold flex items-center justify-center">
+                  {cartCount}
+                </span>
+              )}
+            </button>
             <button aria-label="Open menu" onClick={() => setOpen(true)}
               className="inline-flex items-center justify-center w-12 h-12 rounded-full text-sethi-gold active:bg-sethi-gold/10">
               <Menu className="w-7 h-7" />
