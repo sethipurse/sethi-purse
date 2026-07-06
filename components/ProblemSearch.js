@@ -1,9 +1,10 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { MessageCircle, Search, X, Check } from 'lucide-react';
-import { buildWhatsAppLink, buildBuyNowMessage, buildProductUrl, rupee } from '@/lib/constants';
+import { MessageCircle, Mic, Search, X, Check } from 'lucide-react';
+import { buildWhatsAppLink, buildBuyNowMessage, buildProductUrl, rupee, VOICE_SEARCH_HINT, VOICE_SEARCH_PLACEHOLDER } from '@/lib/constants';
 import { categoryPath } from '@/lib/categoryUtils';
+import { useSpeech } from '@/lib/useSpeech';
 import TiltCard from '@/components/TiltCard';
 
 const GROUPS = ['Travel', 'Daily & Work', 'Style & Gifting'];
@@ -110,15 +111,15 @@ export default function ProblemSearch({ allProducts = [] }) {
     }, 120);
   }
 
-  async function handleFreeText(e) {
-    e.preventDefault();
-    if (!freeText.trim()) return;
+  async function runSearch(text) {
+    const trimmed = (text || '').trim();
+    if (!trimmed) return;
     setAiLoading(true); setActiveChip(null); setResults(null); setAiReason(''); setTotalCount(0);
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: freeText }], products: allProducts }),
+        body: JSON.stringify({ messages: [{ role: 'user', content: trimmed }], products: allProducts }),
       });
       const data = await res.json();
       const matched = Array.isArray(data.products) && data.products.length > 0
@@ -135,6 +136,35 @@ export default function ProblemSearch({ allProducts = [] }) {
         if (window.innerWidth < 1024) resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 120);
     }
+  }
+
+  function handleFreeText(e) {
+    e.preventDefault();
+    runSearch(freeText);
+  }
+
+  // Punjabi first (this is a Jalandhar shop) — Chrome's Web Speech API has
+  // spotty pa-IN support, so any failure (unsupported language, no speech
+  // detected, mic denied, etc.) gets one automatic retry in Hindi.
+  const voiceRetriedRef = useRef(false);
+  const { supported: micSupported, listening: micListening, start: startVoice } = useSpeech({
+    lang: 'pa-IN',
+    onResult: (transcript) => {
+      voiceRetriedRef.current = false;
+      setFreeText(transcript);
+      runSearch(transcript);
+    },
+    onError: () => {
+      if (!voiceRetriedRef.current) {
+        voiceRetriedRef.current = true;
+        startVoice('hi-IN');
+      }
+    },
+  });
+
+  function handleMicClick() {
+    voiceRetriedRef.current = false;
+    startVoice();
   }
 
   const seeAllHref = activeChip?.category ? categoryPath(activeChip.category) : '/products';
@@ -269,15 +299,15 @@ export default function ProblemSearch({ allProducts = [] }) {
           transform: sectionVisible ? 'translateY(0)' : 'translateY(16px)',
           transition: 'opacity 0.6s ease 0.35s, transform 0.6s ease 0.35s',
         }}>
-          <form onSubmit={handleFreeText} style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+          <form onSubmit={handleFreeText} style={{ display: 'flex', gap: 8, marginBottom: micSupported ? 8 : 24 }}>
             <div style={{ flex: 1, position: 'relative' }}>
               <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#8a7060' }} />
               <input
                 value={freeText}
                 onChange={(e) => { setFreeText(e.target.value); setActiveChip(null); setResults(null); setTotalCount(0); }}
-                placeholder="Ya apni problem likhein — Hindi ya English mein…"
+                placeholder={micListening ? VOICE_SEARCH_PLACEHOLDER : 'Ya apni problem likhein — Hindi ya English mein…'}
                 style={{
-                  width: '100%', padding: '11px 36px 11px 36px', borderRadius: 12,
+                  width: '100%', padding: `11px ${micSupported ? 80 : 36}px 11px 36px`, borderRadius: 12,
                   border: '1px solid #ede8df', background: '#faf8f4', fontSize: 14, color: '#2c1f14',
                   outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.2s',
                 }}
@@ -286,8 +316,24 @@ export default function ProblemSearch({ allProducts = [] }) {
               />
               {freeText && (
                 <button type="button" onClick={() => { setFreeText(''); setResults(null); setAiReason(''); setTotalCount(0); }}
-                  style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                  style={{ position: 'absolute', right: micSupported ? 46 : 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer' }}>
                   <X size={14} color="#8a7060" />
+                </button>
+              )}
+              {micSupported && (
+                <button type="button" onClick={handleMicClick} aria-label="Search by voice"
+                  style={{
+                    position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)',
+                    width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: 'none', border: 'none', cursor: 'pointer',
+                  }}>
+                  <Mic size={18} color={micListening ? '#e53935' : '#c9a84c'} />
+                  {micListening && (
+                    <span style={{
+                      position: 'absolute', top: 9, right: 11, width: 8, height: 8, borderRadius: '50%',
+                      background: '#e53935', animation: 'mic-dot-pulse 1s ease-in-out infinite',
+                    }} />
+                  )}
                 </button>
               )}
             </div>
@@ -301,6 +347,9 @@ export default function ProblemSearch({ allProducts = [] }) {
               {aiLoading ? '…' : 'Dhundho'}
             </button>
           </form>
+          {micSupported && (
+            <p style={{ fontSize: 11, color: '#8a7060', margin: '0 0 24px', textAlign: 'center' }}>{VOICE_SEARCH_HINT}</p>
+          )}
         </div>
 
         {/* Results */}
@@ -455,6 +504,10 @@ export default function ProblemSearch({ allProducts = [] }) {
         @keyframes finder-blink {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.4; }
+        }
+        @keyframes mic-dot-pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.4; transform: scale(1.3); }
         }
       `}</style>
     </section>

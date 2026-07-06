@@ -5,6 +5,7 @@ import { RotateCcw } from 'lucide-react';
 import { buildWhatsAppLink, REPLY_PROMISE } from '@/lib/constants';
 import { productMatchesCategorySlug } from '@/lib/categoryUtils';
 import { cachedFetchJson } from '@/lib/clientCache';
+import { useSpeech } from '@/lib/useSpeech';
 
 const CHAT_STORAGE_KEY = 'sethi-chat';
 const MAX_STORED_MESSAGES = 40;
@@ -121,8 +122,6 @@ function AIChatPanel({ onClose, products, pageContext }) {
   const [contactCaptured, setContactCaptured] = useState(() => !!initialChat?.contactCaptured);
   const [whatsappPrefill, setWhatsappPrefill] = useState(null);
   const slowTimerRef = useRef(null);
-  const [listening, setListening] = useState(false);
-  const recognitionRef = useRef(null);
   const sessionIdRef = useRef(initialChat?.sessionId || null);
   if (!sessionIdRef.current) {
     sessionIdRef.current = makeSessionId();
@@ -198,31 +197,16 @@ function AIChatPanel({ onClose, products, pageContext }) {
     }
   }
 
-  const hasSpeech = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
+  const { supported: hasSpeech, listening, start: startVoice, stop: stopVoice } = useSpeech({
+    lang: 'hi-IN',
+    onResult: (transcript) => {
+      setInput(transcript);
+      setTimeout(() => sendMessage(transcript), 80);
+    },
+  });
 
   function toggleVoice() {
-    if (!hasSpeech) return;
-    if (listening) {
-      recognitionRef.current?.stop();
-      setListening(false);
-      return;
-    }
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const rec = new SR();
-    rec.lang = 'hi-IN';
-    rec.interimResults = false;
-    rec.maxAlternatives = 1;
-    rec.onresult = (e) => {
-      const transcript = e.results[0][0].transcript;
-      setInput(transcript);
-      setListening(false);
-      setTimeout(() => sendMessage(transcript), 80);
-    };
-    rec.onerror = () => setListening(false);
-    rec.onend = () => setListening(false);
-    recognitionRef.current = rec;
-    rec.start();
-    setListening(true);
+    if (listening) stopVoice(); else startVoice();
   }
 
   function fmt(text) {
