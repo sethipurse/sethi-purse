@@ -70,6 +70,18 @@ export default function AdminProductsPage() {
     try { window.localStorage.setItem(COLLAPSED_STORAGE_KEY, JSON.stringify([...collapsedGroups])); } catch {}
   }, [collapsedGroups]);
 
+  // Counts always reflect the FULL product list (not the search-filtered
+  // one), so the owner can spot empty categories via a "(0)" count.
+  const categoryCounts = useMemo(() => {
+    const map = new Map();
+    products.forEach((p) => {
+      const key = p.category || '';
+      if (!key) return;
+      map.set(key, (map.get(key) || 0) + 1);
+    });
+    return map;
+  }, [products]);
+
   const filtered = useMemo(() => {
     let list = [...products];
     if (cat !== 'All') list = list.filter((p) => p.category === cat);
@@ -418,22 +430,30 @@ export default function AdminProductsPage() {
         <Link href="/admin/products/add" className="btn-primary"><Plus className="w-4 h-4" /> Add New Product</Link>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white border border-sethi-gray200 rounded-sm p-4 mb-4 grid gap-3 md:grid-cols-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-sethi-gray500" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or brand..." className="input-sethi !pl-10" />
+      {/* Filters — category is the primary control, shown first and full-width */}
+      <div className="bg-white border border-sethi-gray200 rounded-sm p-4 mb-4">
+        <select
+          value={cat}
+          onChange={(e) => setCat(e.target.value)}
+          className="input-sethi mb-3 font-semibold border-sethi-gold/40"
+        >
+          <option value="All">All ({products.length})</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.name}>{c.name} ({categoryCounts.get(c.name) || 0})</option>
+          ))}
+        </select>
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-sethi-gray500" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or brand..." className="input-sethi !pl-10" />
+          </div>
+          <select value={sort} onChange={(e) => setSort(e.target.value)} className="input-sethi">
+            <option value="newest">Newest First</option>
+            <option value="oldest">Oldest First</option>
+            <option value="price_asc">Price: Low to High</option>
+            <option value="price_desc">Price: High to Low</option>
+          </select>
         </div>
-        <select value={cat} onChange={(e) => setCat(e.target.value)} className="input-sethi">
-          <option>All</option>
-          {categories.map((c) => <option key={c.id}>{c.name}</option>)}
-        </select>
-        <select value={sort} onChange={(e) => setSort(e.target.value)} className="input-sethi">
-          <option value="newest">Newest First</option>
-          <option value="oldest">Oldest First</option>
-          <option value="price_asc">Price: Low to High</option>
-          <option value="price_desc">Price: High to Low</option>
-        </select>
       </div>
 
       {/* View toggle */}
