@@ -9,6 +9,7 @@ import ProductCard from '@/components/ProductCard';
 import ReviewCard from '@/components/ReviewCard';
 import StarRating from '@/components/StarRating';
 import CabinCheck from '@/components/CabinCheck';
+import DealsAlertButton from '@/components/DealsAlertButton';
 import Portal from '@/components/Portal';
 import { buildBuyNowMessage, buildProductUrl, buildWhatsAppLink, productPrice, REPLY_PROMISE, resolveImage, SET_DISCOUNT_NOTE } from '@/lib/constants';
 import { isLuggageCategory } from '@/lib/categoryUtils';
@@ -410,6 +411,9 @@ export default function ProductDetailClient({ product, related = [], reviews = [
             {discount > 0 && (
               <span className="mt-2 inline-block rounded bg-[#c9a84c] px-3 py-1 text-sm font-bold text-white">{discount}% OFF</span>
             )}
+            <div className="mt-3">
+              <DealsAlertButton product={product} />
+            </div>
 
             {/* Trust strip */}
             <div className="mt-4 grid grid-cols-3 gap-1.5">

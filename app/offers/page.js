@@ -2,6 +2,7 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import OfferCard from '@/components/OfferCard';
 import SectionHeading from '@/components/SectionHeading';
+import DealsAlertButton from '@/components/DealsAlertButton';
 import { getOffers } from '@/lib/data';
 
 export const revalidate = 0;
@@ -35,6 +36,9 @@ export default async function OffersPage() {
       <main className="section-pad">
         <div className="container-sethi">
           <SectionHeading title="Special Offers" subtitle="Limited-time deals you don't want to miss." />
+          <div className="mb-6 flex justify-center md:justify-start">
+            <DealsAlertButton />
+          </div>
           {offers.length === 0 ? (
             <p className="text-center text-sethi-gray500 py-12">No active offers at the moment.</p>
           ) : (
