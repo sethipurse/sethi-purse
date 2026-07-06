@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { MessageCircle, Mic, Search, X, Check } from 'lucide-react';
-import { buildWhatsAppLink, buildBuyNowMessage, buildProductUrl, rupee, VOICE_SEARCH_HINT, VOICE_SEARCH_PLACEHOLDER } from '@/lib/constants';
+import { buildWhatsAppLink, buildBuyNowMessage, buildProductUrl, FALLBACK_SEARCH_NOTICE, rupee, VOICE_SEARCH_HINT, VOICE_SEARCH_PLACEHOLDER } from '@/lib/constants';
 import { categoryPath } from '@/lib/categoryUtils';
 import { useSpeech } from '@/lib/useSpeech';
 import TiltCard from '@/components/TiltCard';
@@ -31,6 +31,7 @@ export default function ProblemSearch({ allProducts = [] }) {
   const [freeText, setFreeText] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [aiReason, setAiReason] = useState('');
+  const [isFallback, setIsFallback] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [tapping, setTapping] = useState(null);
   const resultsRef = useRef(null);
@@ -68,7 +69,7 @@ export default function ProblemSearch({ allProducts = [] }) {
 
   function filterByProblem(problem, idx) {
     if (activeChip?.label === problem.label) {
-      setActiveChip(null); setResults(null); setAiReason(''); setTotalCount(0);
+      setActiveChip(null); setResults(null); setAiReason(''); setTotalCount(0); setIsFallback(false);
       return;
     }
     setTapping(idx);
@@ -114,7 +115,7 @@ export default function ProblemSearch({ allProducts = [] }) {
   async function runSearch(text) {
     const trimmed = (text || '').trim();
     if (!trimmed) return;
-    setAiLoading(true); setActiveChip(null); setResults(null); setAiReason(''); setTotalCount(0);
+    setAiLoading(true); setActiveChip(null); setResults(null); setAiReason(''); setTotalCount(0); setIsFallback(false);
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -122,14 +123,18 @@ export default function ProblemSearch({ allProducts = [] }) {
         body: JSON.stringify({ messages: [{ role: 'user', content: trimmed }], products: allProducts }),
       });
       const data = await res.json();
-      const matched = Array.isArray(data.products) && data.products.length > 0
-        ? data.products : allProducts.filter((p) => p.featured).slice(0, 4);
+      const hasServerMatches = Array.isArray(data.products) && data.products.length > 0;
+      const matched = hasServerMatches ? data.products : allProducts.filter((p) => p.featured).slice(0, 4);
       setResults(matched.slice(0, 4));
       setTotalCount(matched.length);
       setAiReason(data.reply ? data.reply.replace(/<[^>]+>/g, '').slice(0, 120) : 'Top matches for your need');
+      // Not a confident match either if the server flagged it, or if there
+      // were no server matches at all and we substituted our own featured picks.
+      setIsFallback(!!data.isFallback || !hasServerMatches);
     } catch {
       setResults(allProducts.filter((p) => p.featured).slice(0, 4));
       setAiReason('Top picks from our collection');
+      setIsFallback(true);
     } finally {
       setAiLoading(false);
       setTimeout(() => {
@@ -249,7 +254,7 @@ export default function ProblemSearch({ allProducts = [] }) {
           {GROUPS.map((g) => {
             const isActiveGroup = activeGroup === g;
             return (
-              <button key={g} onClick={() => { setActiveGroup(g); setActiveChip(null); setResults(null); setAiReason(''); setTotalCount(0); }} style={{
+              <button key={g} onClick={() => { setActiveGroup(g); setActiveChip(null); setResults(null); setAiReason(''); setTotalCount(0); setIsFallback(false); }} style={{
                 padding: '7px 14px', borderRadius: 10, border: 'none',
                 background: isActiveGroup ? '#2c1f14' : '#f0e9dc',
                 color: isActiveGroup ? '#fff' : '#6b5544',
@@ -315,7 +320,7 @@ export default function ProblemSearch({ allProducts = [] }) {
                 onBlur={(e) => e.target.style.borderColor = '#ede8df'}
               />
               {freeText && (
-                <button type="button" onClick={() => { setFreeText(''); setResults(null); setAiReason(''); setTotalCount(0); }}
+                <button type="button" onClick={() => { setFreeText(''); setResults(null); setAiReason(''); setTotalCount(0); setIsFallback(false); }}
                   style={{ position: 'absolute', right: micSupported ? 46 : 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer' }}>
                   <X size={14} color="#8a7060" />
                 </button>
@@ -355,6 +360,17 @@ export default function ProblemSearch({ allProducts = [] }) {
         {/* Results */}
         {results !== null && (
           <div ref={resultsRef} style={{ animation: 'results-in 0.4s ease forwards' }}>
+            {isFallback && results.length > 0 && (
+              <p style={{
+                fontSize: 13, fontWeight: 700, color: '#a07a28', background: '#fdf6e3',
+                padding: '8px 14px', borderRadius: 10, marginBottom: 12,
+                display: 'inline-block', border: '1px solid #e8d5a3',
+                animation: 'results-in 0.4s ease both',
+              }}>
+                {FALLBACK_SEARCH_NOTICE}
+              </p>
+            )}
+
             {aiReason && (
               <p style={{
                 fontSize: 13, color: '#6b5544', background: '#faf8f4',

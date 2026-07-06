@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { usePathname } from 'next/navigation';
 import { RotateCcw } from 'lucide-react';
-import { buildWhatsAppLink, REPLY_PROMISE } from '@/lib/constants';
+import { buildWhatsAppLink, FALLBACK_CHAT_NOTICE, REPLY_PROMISE } from '@/lib/constants';
 import { productMatchesCategorySlug } from '@/lib/categoryUtils';
 import { cachedFetchJson } from '@/lib/clientCache';
 import { useSpeech } from '@/lib/useSpeech';
@@ -186,6 +186,7 @@ function AIChatPanel({ onClose, products, pageContext }) {
           role: 'assistant',
           content: cleanReply,
           products: Array.isArray(data.products) ? data.products : [],
+          isFallback: !!data.isFallback,
         },
       ]);
     } catch {
@@ -307,6 +308,11 @@ function AIChatPanel({ onClose, products, pageContext }) {
 
             {Array.isArray(msg.products) && msg.products.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: '88%', width: '100%' }}>
+                {msg.isFallback && (
+                  <span style={{ fontSize: 11, color: '#8a7060', fontFamily: 'system-ui, sans-serif' }}>
+                    {FALLBACK_CHAT_NOTICE}
+                  </span>
+                )}
                 {msg.products.map((p) => {
                   const price = p.sale_price ?? p.salePrice ?? p.price ?? 0;
                   const img = p.image_url || p.imageUrl || '';

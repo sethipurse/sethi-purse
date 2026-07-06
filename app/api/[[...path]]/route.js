@@ -503,8 +503,13 @@ Be their trusted friend who knows bags — warm, helpful, local! 😊`;
 
     const verifiedIds = productIds.filter((id) => topProductIds.has(String(id)));
     let matchedProducts = Array.isArray(products) ? products.filter((p) => verifiedIds.includes(String(p.id))) : [];
+    // True whenever the products shown are NOT a confident catalog match —
+    // either the search itself found nothing relevant (noDirectMatch), or the
+    // AI's reply failed to cite real matches and we substituted top picks.
+    let isFallback = noDirectMatch;
     if (matchedProducts.length === 0 && fallbackProducts.length > 0) {
       matchedProducts = fallbackProducts.slice(0, 3);
+      isFallback = true;
       console.log(`ℹ️ AI reply had no valid PRODUCTS: line — falling back to top ${matchedProducts.length} matched products`);
     }
     const outOfStockMatches = matchedProducts.filter((p) => p.stock === 0 || p.in_stock === false);
@@ -530,7 +535,7 @@ Be their trusted friend who knows bags — warm, helpful, local! 😊`;
       }
     } catch (e) { console.error('Inquiry logging failed:', e); }
 
-    const resp = json({ reply, products: matchedProducts, sessionId, contactCaptured: !!contactCaptured || !!phoneFound, aiModel: result.usedAPI, language, whatsappPrefill, waitlistProductId });
+    const resp = json({ reply, products: matchedProducts, isFallback, sessionId, contactCaptured: !!contactCaptured || !!phoneFound, aiModel: result.usedAPI, language, whatsappPrefill, waitlistProductId });
     resp.cookies.set('sethi_chat_session', sessionId, { maxAge: 60 * 60 * 24 * 30, httpOnly: true, sameSite: 'lax' });
     return resp;
   }
