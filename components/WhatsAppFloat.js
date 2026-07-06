@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { usePathname } from 'next/navigation';
 import { RotateCcw } from 'lucide-react';
-import { buildWhatsAppLink } from '@/lib/constants';
+import { buildWhatsAppLink, REPLY_PROMISE } from '@/lib/constants';
 import { productMatchesCategorySlug } from '@/lib/categoryUtils';
 import { cachedFetchJson } from '@/lib/clientCache';
 
@@ -384,16 +384,21 @@ function AIChatPanel({ onClose, products, pageContext }) {
 
         {/* Buy on WhatsApp CTA — shown when AI detects buy intent */}
         {waPrefillLink && !loading && (
-          <a href={waPrefillLink} target="_blank" rel="noopener noreferrer" style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            backgroundColor: '#25D366', color: '#fff',
-            padding: '10px 14px', borderRadius: 12, textDecoration: 'none',
-            fontSize: 13, fontWeight: 700, fontFamily: 'system-ui, sans-serif',
-            boxShadow: '0 2px 10px rgba(37,211,102,0.3)', alignSelf: 'flex-start',
-          }}>
-            <WhatsAppIcon />
-            Buy on WhatsApp
-          </a>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignSelf: 'flex-start' }}>
+            <a href={waPrefillLink} target="_blank" rel="noopener noreferrer" style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              backgroundColor: '#25D366', color: '#fff',
+              padding: '10px 14px', borderRadius: 12, textDecoration: 'none',
+              fontSize: 13, fontWeight: 700, fontFamily: 'system-ui, sans-serif',
+              boxShadow: '0 2px 10px rgba(37,211,102,0.3)',
+            }}>
+              <WhatsAppIcon />
+              Buy on WhatsApp
+            </a>
+            <span style={{ fontSize: 10.5, color: '#8a7060', fontFamily: 'system-ui, sans-serif', paddingLeft: 4 }}>
+              {REPLY_PROMISE}
+            </span>
+          </div>
         )}
 
         <div ref={bottomRef} />

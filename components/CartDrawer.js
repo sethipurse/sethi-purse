@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Minus, MessageCircle, Plus, ShoppingBag, X } from 'lucide-react';
 import Portal from '@/components/Portal';
-import { buildCartOrderMessage, buildWhatsAppLink, cartTotal, rupee } from '@/lib/constants';
+import { buildCartOrderMessage, buildWhatsAppLink, cartTotal, REPLY_PROMISE, rupee } from '@/lib/constants';
 
 function readCart() {
   try {
@@ -157,6 +157,7 @@ export default function CartDrawer() {
                 className="flex w-full items-center justify-center gap-2 rounded bg-[#25D366] py-3.5 text-base font-bold text-white transition-transform hover:bg-[#1ebe5c] active:scale-95">
                 <MessageCircle className="h-5 w-5" /> Order on WhatsApp
               </a>
+              <p className="text-center text-xs text-[#8a7060]">{REPLY_PROMISE}</p>
               <button type="button" onClick={clearCart} className="w-full py-1 text-sm text-[#8a7060] hover:text-red-500">
                 Clear cart
               </button>

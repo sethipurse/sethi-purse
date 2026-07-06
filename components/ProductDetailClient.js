@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import ProductCard from '@/components/ProductCard';
 import ReviewCard from '@/components/ReviewCard';
 import Portal from '@/components/Portal';
-import { buildBuyNowMessage, buildProductUrl, buildWhatsAppLink, resolveImage } from '@/lib/constants';
+import { buildBuyNowMessage, buildProductUrl, buildWhatsAppLink, REPLY_PROMISE, resolveImage } from '@/lib/constants';
 
 function rupee(value) {
   return `Rs.${Number(value || 0).toLocaleString('en-IN')}`;
@@ -452,6 +452,7 @@ export default function ProductDetailClient({ product, related = [], reviews = [
                 <MessageCircle className="h-5 w-5" /> Buy Now
               </a>
             </div>
+            <p className="mt-2 text-center text-sm text-[#8a7060]">{REPLY_PROMISE}</p>
             <button type="button" onClick={onShare} className="mt-3 flex h-12 items-center gap-2 text-lg font-semibold text-[#6b5544] hover:text-[#c9a84c]">
               <Share2 className="h-4 w-4" /> Share product
             </button>
