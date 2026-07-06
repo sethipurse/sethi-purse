@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, MapPin, MessageCircle, Minus, Plus, Share2, ShoppingBag, Star, TrendingUp, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, MapPin, MessageCircle, Minus, Plus, RefreshCw, Share2, ShieldCheck, ShoppingBag, Star, TrendingUp, AlertCircle, Truck } from 'lucide-react';
 import { toast } from 'sonner';
 import ProductCard from '@/components/ProductCard';
 import ReviewCard from '@/components/ReviewCard';
@@ -229,6 +229,13 @@ function ImageGallery({ images, alt }) {
   );
 }
 
+const TRUST_ITEMS = [
+  { icon: Truck, text: 'Fast delivery across Punjab' },
+  { icon: RefreshCw, text: 'Easy 7-day exchange' },
+  { icon: ShieldCheck, text: 'Genuine brand warranty' },
+];
+const STORE_VISIT_TEXT = 'Visit our store: Inside Mai Hiran Gate, Near Books Market, Jalandhar';
+
 export default function ProductDetailClient({ product, related = [], reviews = [] }) {
   const colorVariants = useMemo(() => normalizeColors(product), [product]);
   const defaultImages = useMemo(() => getDefaultImages(product), [product]);
@@ -342,6 +349,19 @@ export default function ProductDetailClient({ product, related = [], reviews = [
             {discount > 0 && (
               <span className="mt-2 inline-block rounded bg-[#c9a84c] px-3 py-1 text-sm font-bold text-white">{discount}% OFF</span>
             )}
+
+            {/* Trust strip */}
+            <div className="mt-4 grid grid-cols-3 gap-1.5">
+              {TRUST_ITEMS.map(({ icon: Icon, text }) => (
+                <div key={text} className="flex flex-col items-center gap-1 rounded-lg bg-[#f5f0e8] px-1.5 py-2.5 text-center">
+                  <Icon className="h-4 w-4 shrink-0 text-[#a07a28]" />
+                  <span className="text-[10px] font-semibold leading-tight text-[#2c1f14]">{text}</span>
+                </div>
+              ))}
+            </div>
+            <Link href="/contact" className="mt-2 flex items-center justify-center gap-1.5 text-center text-xs font-semibold text-[#6b5544] hover:text-[#c9a84c]">
+              <MapPin className="h-3.5 w-3.5 shrink-0 text-[#a07a28]" /> {STORE_VISIT_TEXT}
+            </Link>
 
             {/* Scarcity signals block */}
             {isScarcityOn && !outOfStock && (
