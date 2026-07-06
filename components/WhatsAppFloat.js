@@ -530,6 +530,13 @@ export default function WhatsAppFloat() {
     };
   }, []);
 
+  // Visitors who land and never scroll should still see the bubble — show it
+  // after 7s regardless, without disturbing the scroll-based show/hide above.
+  useEffect(() => {
+    const timer = setTimeout(() => setVisible(true), 7000);
+    return () => clearTimeout(timer);
+  }, []);
+
   // Ground the chat in whatever the customer is actually looking at, so a
   // vague message like "what's the price?" on a product/category page still
   // gets matched against that product's category instead of the whole catalog.
