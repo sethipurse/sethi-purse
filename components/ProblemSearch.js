@@ -32,6 +32,7 @@ export default function ProblemSearch({ allProducts = [] }) {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiReason, setAiReason] = useState('');
   const [isFallback, setIsFallback] = useState(false);
+  const [offTopic, setOffTopic] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [tapping, setTapping] = useState(null);
   const resultsRef = useRef(null);
@@ -115,7 +116,7 @@ export default function ProblemSearch({ allProducts = [] }) {
   async function runSearch(text) {
     const trimmed = (text || '').trim();
     if (!trimmed) return;
-    setAiLoading(true); setActiveChip(null); setResults(null); setAiReason(''); setTotalCount(0); setIsFallback(false);
+    setAiLoading(true); setActiveChip(null); setResults(null); setAiReason(''); setTotalCount(0); setIsFallback(false); setOffTopic(false);
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -123,6 +124,15 @@ export default function ProblemSearch({ allProducts = [] }) {
         body: JSON.stringify({ messages: [{ role: 'user', content: trimmed }], products: allProducts }),
       });
       const data = await res.json();
+      if (data.offTopic) {
+        // Genuinely irrelevant query (e.g. "biscuits") — no product cards,
+        // no "similar options" line, just the honest reply.
+        setOffTopic(true);
+        setResults([]);
+        setTotalCount(0);
+        setAiReason(data.reply ? data.reply.replace(/<[^>]+>/g, '').slice(0, 200) : '');
+        return;
+      }
       const hasServerMatches = Array.isArray(data.products) && data.products.length > 0;
       const matched = hasServerMatches ? data.products : allProducts.filter((p) => p.featured).slice(0, 4);
       setResults(matched.slice(0, 4));
@@ -360,29 +370,39 @@ export default function ProblemSearch({ allProducts = [] }) {
         {/* Results */}
         {results !== null && (
           <div ref={resultsRef} style={{ animation: 'results-in 0.4s ease forwards' }}>
-            {isFallback && results.length > 0 && (
+            {offTopic ? (
               <p style={{
-                fontSize: 13, fontWeight: 700, color: '#a07a28', background: '#fdf6e3',
-                padding: '8px 14px', borderRadius: 10, marginBottom: 12,
-                display: 'inline-block', border: '1px solid #e8d5a3',
-                animation: 'results-in 0.4s ease both',
+                fontSize: 14, color: '#6b5544', background: '#faf8f4',
+                padding: '14px 18px', borderRadius: 12,
+                border: '1px solid #ede8df', animation: 'results-in 0.4s ease both',
               }}>
-                {FALLBACK_SEARCH_NOTICE}
+                {aiReason}
               </p>
-            )}
+            ) : (
+              <>
+                {isFallback && results.length > 0 && (
+                  <p style={{
+                    fontSize: 13, fontWeight: 700, color: '#a07a28', background: '#fdf6e3',
+                    padding: '8px 14px', borderRadius: 10, marginBottom: 12,
+                    display: 'inline-block', border: '1px solid #e8d5a3',
+                    animation: 'results-in 0.4s ease both',
+                  }}>
+                    {FALLBACK_SEARCH_NOTICE}
+                  </p>
+                )}
 
-            {aiReason && (
-              <p style={{
-                fontSize: 13, color: '#6b5544', background: '#faf8f4',
-                padding: '8px 14px', borderRadius: 10, marginBottom: 16,
-                display: 'inline-block', border: '1px solid #ede8df',
-                animation: 'results-in 0.5s ease 0.1s both',
-              }}>
-                💡 {aiReason}
-              </p>
-            )}
+                {aiReason && (
+                  <p style={{
+                    fontSize: 13, color: '#6b5544', background: '#faf8f4',
+                    padding: '8px 14px', borderRadius: 10, marginBottom: 16,
+                    display: 'inline-block', border: '1px solid #ede8df',
+                    animation: 'results-in 0.5s ease 0.1s both',
+                  }}>
+                    💡 {aiReason}
+                  </p>
+                )}
 
-            {results.length === 0 ? (
+                {results.length === 0 ? (
               <div style={{ background: '#faf8f4', borderRadius: 16, padding: '24px 20px', textAlign: 'center', border: '1px solid #ede8df' }}>
                 <p style={{ fontSize: 15, fontWeight: 700, color: '#2c1f14', margin: '0 0 6px' }}>Yeh category abhi available nahi</p>
                 <p style={{ fontSize: 13, color: '#8a7060', margin: '0 0 16px' }}>Koi baat nahi — WhatsApp karein, hum personally help karenge!</p>
@@ -492,6 +512,8 @@ export default function ProblemSearch({ allProducts = [] }) {
                 )}
               </>
             )}
+          </>
+        )}
           </div>
         )}
       </div>
