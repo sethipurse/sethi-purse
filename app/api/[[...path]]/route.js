@@ -4,7 +4,8 @@ import { supabase, nowIST } from '@/lib/storage';
 import { clearAdminCookie, makeAdminToken, rateLimit, requireAdmin, setAdminCookie } from '@/lib/security';
 import { v4 as uuidv4 } from 'uuid';
 import categoriesJson from '@/data/categories.json';
-import { detectCategory } from '@/lib/categoryMatch';
+import { detectCategory, findBrandHit, findCategoryHit } from '@/lib/categoryMatch';
+import { BRANDS, buildCategoryUpdatingReply } from '@/lib/constants';
 
 export const maxDuration = 60;
 
@@ -161,38 +162,7 @@ function pruneCatalogCache() {
   for (const [k, v] of catalogCache.entries()) { if (v.expiresAt < now) catalogCache.delete(k); }
 }
 
-function matchProducts(query, products, priceRange, limit = 10, dbCategories = [], contextCategory = null) {
-  if (!Array.isArray(products) || products.length === 0) return { matched: [], upsells: [] };
-
-  const lower = (query || '').toLowerCase();
-  // If the message itself doesn't name a category, fall back to whatever
-  // product/category page the customer is currently viewing — an explicit
-  // category in the message always wins over page context.
-  let detectedCat = detectCategory(query, dbCategories);
-  const usedPageContext = detectedCat === 'Other' && !!contextCategory;
-  if (usedPageContext) detectedCat = contextCategory;
-
-  console.log(`📦 matchProducts: query="${lower}" | detectedCategory="${detectedCat}"${usedPageContext ? ' (from page context)' : ''} | totalProducts=${products.length}`);
-
-  let categoryFiltered = products;
-  if (detectedCat !== 'Other') {
-    categoryFiltered = products.filter((p) => {
-      const productCat = (p.category || '').trim();
-      const match = productCat.toLowerCase() === detectedCat.toLowerCase();
-      if (!match) console.log(`  ❌ Skip: "${p.name}" (category: "${productCat}" ≠ "${detectedCat}")`);
-      return match;
-    });
-    console.log(`  ✅ Category filtered: ${categoryFiltered.length}/${products.length} products match "${detectedCat}"`);
-  } else {
-    console.log(`  ⚠️ No category detected, using all products`);
-  }
-
-  if (categoryFiltered.length === 0) {
-    console.log(`  ⚠️ No products in category "${detectedCat}", falling back to featured products`);
-    const featured = products.filter((p) => p.featured && p.stock !== 0).slice(0, 5);
-    return { matched: featured.map((p) => ({ ...p, matchScore: 10 })), upsells: [] };
-  }
-
+function scoreAndSort(categoryFiltered, lower, priceRange, limit) {
   const scored = categoryFiltered.map((p) => {
     let score = 50;
     const price = p.sale_price || p.salePrice || p.price || 0;
@@ -209,7 +179,6 @@ function matchProducts(query, products, priceRange, limit = 10, dbCategories = [
   });
 
   const matched = scored.filter((p) => p.matchScore > 0).sort((a, b) => b.matchScore - a.matchScore).slice(0, limit);
-  console.log(`  ✅ Matched ${matched.length} products after scoring`);
 
   let upsells = [];
   if (matched.length > 0 && priceRange?.max) {
@@ -220,10 +189,71 @@ function matchProducts(query, products, priceRange, limit = 10, dbCategories = [
       })
       .sort((a, b) => (a.sale_price || 0) - (b.sale_price || 0))
       .slice(0, 2);
-    console.log(`  🔼 Found ${upsells.length} upsell opportunities`);
   }
 
   return { matched, upsells };
+}
+
+function matchProducts(query, products, priceRange, limit = 10, dbCategories = [], contextCategory = null) {
+  if (!Array.isArray(products) || products.length === 0) return { matched: [], upsells: [], zeroInCategoryHit: false, categoryHit: null };
+
+  const lower = (query || '').toLowerCase();
+
+  // Category/brand-first matching (token overlap) — takes priority over the
+  // legacy detectCategory() pass below, and is tolerant of spacing/singular-
+  // plural mismatches between the categories table and product.category
+  // (candidates pool BOTH sources, since a mismatch between them is exactly
+  // what caused "party wear purse" to silently fall back to unrelated
+  // featured products before).
+  const categoryCandidates = [...new Set([...(dbCategories || []), ...products.map((p) => (p.category || '').trim())].filter(Boolean))];
+  const categoryHit = findCategoryHit(query, categoryCandidates);
+  const brandHit = !categoryHit ? findBrandHit(query, BRANDS) : null;
+
+  if (categoryHit) {
+    const categoryFiltered = products.filter((p) => (p.category || '').trim().toLowerCase() === categoryHit.toLowerCase() && p.is_active !== false);
+    console.log(`📦 matchProducts: category hit "${categoryHit}" — ${categoryFiltered.length}/${products.length} products`);
+    if (categoryFiltered.length === 0) {
+      // The category is real (it exists in the categories table or on some
+      // product) but genuinely has nothing active right now — honest
+      // "updating" response, not a silent fallback to unrelated products.
+      return { matched: [], upsells: [], zeroInCategoryHit: true, categoryHit };
+    }
+    const { matched, upsells } = scoreAndSort(categoryFiltered, lower, priceRange, limit);
+    return { matched, upsells, zeroInCategoryHit: false, categoryHit };
+  }
+
+  if (brandHit) {
+    const brandFiltered = products.filter((p) => (p.brand || '').trim().toLowerCase() === brandHit.toLowerCase() && p.is_active !== false);
+    if (brandFiltered.length > 0) {
+      const { matched, upsells } = scoreAndSort(brandFiltered, lower, priceRange, limit);
+      return { matched, upsells, zeroInCategoryHit: false, categoryHit: null };
+    }
+  }
+
+  // No category/brand hit (or the brand hit had zero active products) —
+  // legacy detectCategory()-driven path, unchanged from before.
+  let detectedCat = detectCategory(query, dbCategories);
+  const usedPageContext = detectedCat === 'Other' && !!contextCategory;
+  if (usedPageContext) detectedCat = contextCategory;
+
+  console.log(`📦 matchProducts: query="${lower}" | detectedCategory="${detectedCat}"${usedPageContext ? ' (from page context)' : ''} | totalProducts=${products.length}`);
+
+  let categoryFiltered = products;
+  if (detectedCat !== 'Other') {
+    categoryFiltered = products.filter((p) => (p.category || '').trim().toLowerCase() === detectedCat.toLowerCase());
+    console.log(`  ✅ Category filtered: ${categoryFiltered.length}/${products.length} products match "${detectedCat}"`);
+  } else {
+    console.log(`  ⚠️ No category detected, using all products`);
+  }
+
+  if (categoryFiltered.length === 0) {
+    console.log(`  ⚠️ No products in category "${detectedCat}", falling back to featured products`);
+    const featured = products.filter((p) => p.featured && p.stock !== 0).slice(0, 5);
+    return { matched: featured.map((p) => ({ ...p, matchScore: 10 })), upsells: [], zeroInCategoryHit: false, categoryHit: null };
+  }
+
+  const { matched, upsells } = scoreAndSort(categoryFiltered, lower, priceRange, limit);
+  return { matched, upsells, zeroInCategoryHit: false, categoryHit: detectedCat !== 'Other' ? detectedCat : null };
 }
 
 const GROQ_MS = 10000;
@@ -380,38 +410,52 @@ async function handleChat(body, cookieSessionId) {
   let outOfStockAsked = [];
   let fallbackProducts = [];
 
-  if (cached && cached.key === cacheKey && cached.expiresAt > Date.now()) {
-    catalogText = cached.catalogText; upsellText = cached.upsellText; topProductIds = cached.topProductIds; fallbackProducts = cached.fallbackProducts || [];
-  } else if (Array.isArray(products) && products.length > 0) {
-    const { matched, upsells } = matchProducts(lastUserMsg?.content || '', products, priceRange, 8, dbCategories, contextCategory);
-    upsellProducts = upsells;
-    if (matched.length === 0) {
-      noDirectMatch = true;
-      const featured = products.filter((p) => p.featured && p.stock !== 0).slice(0, 5);
-      topProductIds = new Set(featured.map((p) => String(p.id)));
-      fallbackProducts = featured.slice(0, 5);
-      catalogText = `NO DIRECT MATCH. Ask a clarifying question.\n` +
-        (featured.length > 0 ? `Popular alternatives:\n` + featured.map((p) => `- ID:${p.id} | ${p.name} | Rs.${p.sale_price || p.price || 0}`).join('\n') : '');
+  if (Array.isArray(products) && products.length > 0) {
+    // A category/brand hit resolving to zero active products is a cheap,
+    // deterministic check that must reflect THIS message, not a stale
+    // cached catalog from an earlier, differently-scoped question — so it's
+    // always computed fresh, before ever consulting the session cache.
+    const gate = matchProducts(lastUserMsg?.content || '', products, priceRange, 8, dbCategories, contextCategory);
+
+    if (gate.zeroInCategoryHit) {
+      const resp = json({ reply: buildCategoryUpdatingReply(gate.categoryHit), products: [], isFallback: false, sessionId, contactCaptured: !!contactCaptured, aiModel: 'none', language });
+      resp.cookies.set('sethi_chat_session', sessionId, { maxAge: 60 * 60 * 24 * 30, httpOnly: true, sameSite: 'lax' });
+      return resp;
+    }
+
+    if (cached && cached.key === cacheKey && cached.expiresAt > Date.now()) {
+      catalogText = cached.catalogText; upsellText = cached.upsellText; topProductIds = cached.topProductIds; fallbackProducts = cached.fallbackProducts || [];
     } else {
-      outOfStockAsked = matched.filter((p) => p.stock === 0 || p.in_stock === false);
-      topProductIds = new Set(matched.map((p) => String(p.id)));
-      fallbackProducts = matched.slice(0, 5);
-      catalogText = matched.map((p) => {
-        const price = p.sale_price || p.salePrice || p.price || 0;
-        const stock = p.stock === 0 || p.in_stock === false ? 'Out of Stock' : 'In Stock';
-        const disc = p.discount_percent ? ` | ${p.discount_percent}% OFF` : '';
-        const feat = p.featured ? ' | ⭐ Best Seller' : '';
-        const sizes = Array.isArray(p.sizes) && p.sizes.length > 0 ? ` | Sizes: ${p.sizes.join(', ')}` : '';
-        const colors = Array.isArray(p.colors) && p.colors.length > 0 ? ` | Colors: ${p.colors.join(', ')}` : '';
-        return `- ID:${p.id} | ${p.name} | Brand: ${p.brand || ''} | Category: ${p.category || ''} | Price: Rs.${price}${disc}${feat} | ${stock}${sizes}${colors}`;
-      }).join('\n');
+      const { matched, upsells } = gate;
+      upsellProducts = upsells;
+      if (matched.length === 0) {
+        noDirectMatch = true;
+        const featured = products.filter((p) => p.featured && p.stock !== 0).slice(0, 5);
+        topProductIds = new Set(featured.map((p) => String(p.id)));
+        fallbackProducts = featured.slice(0, 5);
+        catalogText = `NO DIRECT MATCH. Ask a clarifying question.\n` +
+          (featured.length > 0 ? `Popular alternatives:\n` + featured.map((p) => `- ID:${p.id} | ${p.name} | Rs.${p.sale_price || p.price || 0}`).join('\n') : '');
+      } else {
+        outOfStockAsked = matched.filter((p) => p.stock === 0 || p.in_stock === false);
+        topProductIds = new Set(matched.map((p) => String(p.id)));
+        fallbackProducts = matched.slice(0, 5);
+        catalogText = matched.map((p) => {
+          const price = p.sale_price || p.salePrice || p.price || 0;
+          const stock = p.stock === 0 || p.in_stock === false ? 'Out of Stock' : 'In Stock';
+          const disc = p.discount_percent ? ` | ${p.discount_percent}% OFF` : '';
+          const feat = p.featured ? ' | ⭐ Best Seller' : '';
+          const sizes = Array.isArray(p.sizes) && p.sizes.length > 0 ? ` | Sizes: ${p.sizes.join(', ')}` : '';
+          const colors = Array.isArray(p.colors) && p.colors.length > 0 ? ` | Colors: ${p.colors.join(', ')}` : '';
+          return `- ID:${p.id} | ${p.name} | Brand: ${p.brand || ''} | Category: ${p.category || ''} | Price: Rs.${price}${disc}${feat} | ${stock}${sizes}${colors}`;
+        }).join('\n');
+      }
+      if (upsells.length > 0) {
+        upsellText = `\n\n🔼 UPSELL (slightly above budget but better value):\n` +
+          upsells.map((p) => `- ID:${p.id} | ${p.name} | Rs.${p.sale_price || p.price || 0} | ⭐`).join('\n');
+        for (const p of upsells) topProductIds.add(String(p.id));
+      }
+      catalogCache.set(sessionId, { key: cacheKey, catalogText, upsellText, topProductIds, fallbackProducts, expiresAt: Date.now() + CATALOG_TTL });
     }
-    if (upsells.length > 0) {
-      upsellText = `\n\n🔼 UPSELL (slightly above budget but better value):\n` +
-        upsells.map((p) => `- ID:${p.id} | ${p.name} | Rs.${p.sale_price || p.price || 0} | ⭐`).join('\n');
-      for (const p of upsells) topProductIds.add(String(p.id));
-    }
-    catalogCache.set(sessionId, { key: cacheKey, catalogText, upsellText, topProductIds, fallbackProducts, expiresAt: Date.now() + CATALOG_TTL });
   }
 
   let offersText = 'No active offers.';
