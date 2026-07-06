@@ -6,7 +6,7 @@ import ProductCard from '@/components/ProductCard';
 import { getCategories, getProducts } from '@/lib/data';
 import { categoryPath, findCategoryBySlug, productMatchesCategorySlug, titleFromSlug, toTitleCase } from '@/lib/categoryUtils';
 
-export const revalidate = 0;
+export const revalidate = 60;
 
 function matchesCategory(product, category, slug) {
   if (productMatchesCategorySlug(product, slug)) return true;
