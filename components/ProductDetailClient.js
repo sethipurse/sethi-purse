@@ -323,6 +323,8 @@ export default function ProductDetailClient({ product, related = [], reviews = [
   const noInStockColorSelected = colorVariants.length > 0 && !selectedColor;
   const cannotPurchase = outOfStock || colorOutOfStock || noInStockColorSelected;
 
+  const viewCartAction = { label: 'View Cart →', onClick: () => window.dispatchEvent(new Event('open-cart')) };
+
   const addToCart = () => {
     if (cannotPurchase) return;
     const saved = window.localStorage.getItem('sethi-cart');
@@ -332,10 +334,10 @@ export default function ProductDetailClient({ product, related = [], reviews = [
     let updatedCart;
     if (existingIndex >= 0) {
       updatedCart = cart.map((item, idx) => idx === existingIndex ? { ...item, qty: Math.max(1, Number(item.qty || 1)) + qty } : item);
-      toast.success(`Quantity updated to ${Math.max(1, Number(cart[existingIndex].qty || 1)) + qty}`);
+      toast.success(`Quantity updated to ${Math.max(1, Number(cart[existingIndex].qty || 1)) + qty}`, { action: viewCartAction });
     } else {
       updatedCart = [...cart, { id: product.id, name: product.name, price: salePrice, qty, image: images[0] || '', size: selectedSize, color: selectedColor }];
-      toast.success(`${product.name} added to cart!`);
+      toast.success(`${product.name} added to cart!`, { action: viewCartAction });
     }
     window.localStorage.setItem('sethi-cart', JSON.stringify(updatedCart));
     window.dispatchEvent(new Event('cart-updated'));
@@ -477,7 +479,7 @@ export default function ProductDetailClient({ product, related = [], reviews = [
             </div>
 
             <div className="mt-7 grid gap-3 sm:grid-cols-2">
-              <button type="button" onClick={addToCart} disabled={cannotPurchase}
+              <button type="button" onClick={added ? viewCartAction.onClick : addToCart} disabled={cannotPurchase}
                 className={`flex h-14 items-center justify-center gap-2 rounded text-xl font-bold transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed ${added ? 'bg-green-500 text-white scale-95' : 'bg-[#c9a84c] text-white hover:bg-[#a07a28]'}`}>
                 {added ? <><Check className="h-5 w-5" /> Added!</> : <><ShoppingBag className="h-5 w-5" /> {cannotPurchase && !added ? 'Out of Stock' : 'Add to Cart'}</>}
               </button>
