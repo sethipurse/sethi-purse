@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import ProductCard from '@/components/ProductCard';
 import ReviewCard from '@/components/ReviewCard';
 import StarRating from '@/components/StarRating';
+import CabinCheck from '@/components/CabinCheck';
 import Portal from '@/components/Portal';
 import { buildBuyNowMessage, buildProductUrl, buildWhatsAppLink, productPrice, REPLY_PROMISE, resolveImage, SET_DISCOUNT_NOTE } from '@/lib/constants';
 import { isLuggageCategory } from '@/lib/categoryUtils';
@@ -422,6 +423,8 @@ export default function ProductDetailClient({ product, related = [], reviews = [
             <Link href="/contact" className="mt-2 flex items-center justify-center gap-1.5 text-center text-xs font-semibold text-[#6b5544] hover:text-[#c9a84c]">
               <MapPin className="h-3.5 w-3.5 shrink-0 text-[#a07a28]" /> {STORE_VISIT_TEXT}
             </Link>
+
+            {isLuggageCategory(category) && <CabinCheck product={product} selectedSize={selectedSize} />}
 
             {/* Scarcity signals block */}
             {isScarcityOn && !outOfStock && (
