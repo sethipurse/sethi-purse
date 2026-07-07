@@ -353,8 +353,11 @@ async function handleChat(body, cookieSessionId) {
 
     // Belt-and-braces: even a key match must be distrusted if the gate just
     // resolved a real category hit that disagrees with what the cached entry
-    // was actually built for.
+    // was actually built for, or if the entry predates the resolvedCategory
+    // field entirely (an old-schema entry has nothing to compare against, so
+    // it can never be trusted to agree with a fresh categoryHit).
     const cacheIsValid = !!cached && cached.key === cacheKey && cached.expiresAt > Date.now()
+      && cached.resolvedCategory !== undefined
       && !(gate.categoryHit && cached.resolvedCategory !== gate.categoryHit);
 
     if (cacheIsValid) {
