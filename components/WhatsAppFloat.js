@@ -243,7 +243,6 @@ function AIChatPanel({ onClose, products, pageContext }) {
       boxShadow: '0 8px 40px rgba(44,31,20,0.25)',
       display: 'flex',
       flexDirection: 'column',
-      maxHeight: '72vh',
       backgroundColor: '#faf8f4',
       border: '1px solid rgba(201,168,76,0.3)',
     }}>
@@ -641,6 +640,9 @@ export default function WhatsAppFloat() {
         }
         .wa-chat-panel {
           bottom: 192px;
+          bottom: calc(192px + env(safe-area-inset-bottom));
+          max-height: 72vh;
+          max-height: min(72dvh, calc(100dvh - 204px - env(safe-area-inset-bottom)));
         }
         @media (min-width: 768px) {
           .wa-float-fab {
@@ -648,6 +650,9 @@ export default function WhatsAppFloat() {
           }
           .wa-chat-panel {
             bottom: 132px;
+            bottom: calc(132px + env(safe-area-inset-bottom));
+            max-height: 72vh;
+            max-height: min(72dvh, calc(100dvh - 144px - env(safe-area-inset-bottom)));
           }
         }
       `}</style>
