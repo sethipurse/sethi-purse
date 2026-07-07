@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import categoriesJson from '@/data/categories.json';
 import { detectCategory } from '@/lib/categoryMatch';
 import { buildCategoryUpdatingReply, OFF_TOPIC_REPLY } from '@/lib/constants';
-import { matchProducts } from '@/lib/searchMatch';
+import { matchProducts, shouldSkipOffTopicGate } from '@/lib/searchMatch';
 
 export const maxDuration = 60;
 
@@ -324,7 +324,12 @@ async function handleChat(body, cookieSessionId) {
     // always computed fresh, before ever consulting the session cache.
     const gate = matchProducts(lastUserMsg?.content || '', products, priceRange, 8, dbCategories, contextCategory);
 
-    if (gate.offTopic) {
+    // The gate is meant to catch a first, substantive message with zero
+    // shopping intent (e.g. biscuits) — not to re-police every turn of an
+    // ongoing conversation, a page-context chat, or a one-word greeting.
+    const skipOffTopicGate = shouldSkipOffTopicGate({ userMsgCount, contextCategory, message: lastUserMsg?.content || '' });
+
+    if (gate.offTopic && !skipOffTopicGate) {
       const resp = json({ reply: OFF_TOPIC_REPLY, products: [], offTopic: true, isFallback: false, sessionId, contactCaptured: !!contactCaptured, aiModel: 'none', language });
       resp.cookies.set('sethi_chat_session', sessionId, { maxAge: 60 * 60 * 24 * 30, httpOnly: true, sameSite: 'lax' });
       return resp;
