@@ -4,8 +4,9 @@ import { supabase, nowIST } from '@/lib/storage';
 import { clearAdminCookie, makeAdminToken, rateLimit, requireAdmin, setAdminCookie } from '@/lib/security';
 import { v4 as uuidv4 } from 'uuid';
 import categoriesJson from '@/data/categories.json';
-import { detectCategory, findBrandHit, findCategoryHit } from '@/lib/categoryMatch';
-import { BRANDS, buildCategoryUpdatingReply, CATEGORY_FAMILIES, FAMILY_INTENT_TERMS, OFF_TOPIC_REPLY, SHOP_INTENT_TERMS } from '@/lib/constants';
+import { detectCategory } from '@/lib/categoryMatch';
+import { buildCategoryUpdatingReply, OFF_TOPIC_REPLY } from '@/lib/constants';
+import { matchProducts } from '@/lib/searchMatch';
 
 export const maxDuration = 60;
 
@@ -160,148 +161,6 @@ const CATALOG_TTL = 60 * 1000;
 function pruneCatalogCache() {
   const now = Date.now();
   for (const [k, v] of catalogCache.entries()) { if (v.expiresAt < now) catalogCache.delete(k); }
-}
-
-function scoreAndSort(categoryFiltered, lower, priceRange, limit) {
-  const scored = categoryFiltered.map((p) => {
-    let score = 50;
-    const price = p.sale_price || p.salePrice || p.price || 0;
-    if (p.name.toLowerCase() === lower) score += 100;
-    if (p.name.toLowerCase().includes(lower)) score += 40;
-    if ((p.brand || '').toLowerCase().includes(lower)) score += 25;
-    if (p.featured) score += 30;
-    if (p.stock !== 0 && p.in_stock !== false) score += 20;
-    if (priceRange) {
-      if (priceRange.max && price <= priceRange.max) score += 25;
-      if (priceRange.min && price >= priceRange.min) score += 15;
-    }
-    return { ...p, matchScore: score, price };
-  });
-
-  const matched = scored.filter((p) => p.matchScore > 0).sort((a, b) => b.matchScore - a.matchScore).slice(0, limit);
-
-  let upsells = [];
-  if (matched.length > 0 && priceRange?.max) {
-    upsells = categoryFiltered
-      .filter((p) => {
-        const price = p.sale_price || p.salePrice || p.price || 0;
-        return price > priceRange.max && price <= priceRange.max * 1.5 && p.featured && p.stock !== 0;
-      })
-      .sort((a, b) => (a.sale_price || 0) - (b.sale_price || 0))
-      .slice(0, 2);
-  }
-
-  return { matched, upsells };
-}
-
-// Whether the query shows any genuine shopping intent at all — gates product
-// cards off entirely for something like "ਬਿਸਕੁਟ ਮਿਲ ਜਾਣਗੇ" (biscuits),
-// which would otherwise "match" every product because of the flat scoring
-// baseline in scoreAndSort().
-function hasShopIntent(lower, products, categoryHit, brandHit) {
-  if (categoryHit || brandHit) return true;
-  if (SHOP_INTENT_TERMS.some((term) => lower.includes(term.toLowerCase()))) return true;
-  const queryTokens = lower.split(/[^a-z0-9਀-੿]+/i).filter((t) => t.length >= 3);
-  if (queryTokens.length === 0 || !Array.isArray(products)) return false;
-  return products.some((p) => {
-    const name = (p.name || '').toLowerCase();
-    return queryTokens.some((t) => name.includes(t));
-  });
-}
-
-// Infers a category "family" from whichever intent term(s) the query hit, so
-// a fallback (nothing matched directly) stays within that family instead of
-// the whole catalog — a purse query must never fall back to a backpack.
-function inferFamily(lower) {
-  for (const [family, terms] of Object.entries(FAMILY_INTENT_TERMS)) {
-    if (terms.some((t) => lower.includes(t.toLowerCase()))) return family;
-  }
-  return null;
-}
-
-function matchProducts(query, products, priceRange, limit = 10, dbCategories = [], contextCategory = null) {
-  if (!Array.isArray(products) || products.length === 0) {
-    return { matched: [], upsells: [], offTopic: false, zeroInCategoryHit: false, categoryHit: null, usedFamilyFallback: false };
-  }
-
-  const lower = (query || '').toLowerCase();
-
-  // Category/brand-first matching (token overlap) — takes priority over the
-  // legacy detectCategory() pass below, and is tolerant of spacing/singular-
-  // plural mismatches between the categories table and product.category
-  // (candidates pool BOTH sources, since a mismatch between them is exactly
-  // what caused "party wear purse" to silently fall back to unrelated
-  // featured products before).
-  const categoryCandidates = [...new Set([...(dbCategories || []), ...products.map((p) => (p.category || '').trim())].filter(Boolean))];
-  const categoryHit = findCategoryHit(query, categoryCandidates);
-  const brandHit = !categoryHit ? findBrandHit(query, BRANDS) : null;
-
-  // Relevance gate — an off-topic query must never show product cards.
-  if (!hasShopIntent(lower, products, categoryHit, brandHit)) {
-    console.log(`🚫 matchProducts: no shop intent detected in query="${lower}" — off-topic`);
-    return { matched: [], upsells: [], offTopic: true, zeroInCategoryHit: false, categoryHit: null, usedFamilyFallback: false };
-  }
-
-  if (categoryHit) {
-    const categoryFiltered = products.filter((p) => (p.category || '').trim().toLowerCase() === categoryHit.toLowerCase() && p.is_active !== false);
-    console.log(`📦 matchProducts: category hit "${categoryHit}" — ${categoryFiltered.length}/${products.length} products`);
-    if (categoryFiltered.length === 0) {
-      // The category is real (it exists in the categories table or on some
-      // product) but genuinely has nothing active right now — honest
-      // "updating" response, not a silent fallback to unrelated products.
-      return { matched: [], upsells: [], offTopic: false, zeroInCategoryHit: true, categoryHit, usedFamilyFallback: false };
-    }
-    const { matched, upsells } = scoreAndSort(categoryFiltered, lower, priceRange, limit);
-    return { matched, upsells, offTopic: false, zeroInCategoryHit: false, categoryHit, usedFamilyFallback: false };
-  }
-
-  if (brandHit) {
-    const brandFiltered = products.filter((p) => (p.brand || '').trim().toLowerCase() === brandHit.toLowerCase() && p.is_active !== false);
-    if (brandFiltered.length > 0) {
-      const { matched, upsells } = scoreAndSort(brandFiltered, lower, priceRange, limit);
-      return { matched, upsells, offTopic: false, zeroInCategoryHit: false, categoryHit: null, usedFamilyFallback: false };
-    }
-  }
-
-  // No category/brand hit (or the brand hit had zero active products) —
-  // legacy detectCategory()-driven path, unchanged from before.
-  let detectedCat = detectCategory(query, dbCategories);
-  const usedPageContext = detectedCat === 'Other' && !!contextCategory;
-  if (usedPageContext) detectedCat = contextCategory;
-
-  console.log(`📦 matchProducts: query="${lower}" | detectedCategory="${detectedCat}"${usedPageContext ? ' (from page context)' : ''} | totalProducts=${products.length}`);
-
-  let categoryFiltered = products;
-  if (detectedCat !== 'Other') {
-    categoryFiltered = products.filter((p) => (p.category || '').trim().toLowerCase() === detectedCat.toLowerCase());
-    console.log(`  ✅ Category filtered: ${categoryFiltered.length}/${products.length} products match "${detectedCat}"`);
-  } else {
-    console.log(`  ⚠️ No category detected, using all products`);
-  }
-
-  if (categoryFiltered.length === 0) {
-    // Family-aware fallback so a purse query never surfaces a backpack, and
-    // vice versa. Only when no family can be inferred does this fall back
-    // to the whole catalog's featured picks.
-    const family = inferFamily(lower);
-    const familyCats = family ? (CATEGORY_FAMILIES[family] || []) : [];
-    const familyPool = familyCats.length > 0
-      ? products.filter((p) => p.is_active !== false && p.stock !== 0 && familyCats.some((c) => c.toLowerCase() === (p.category || '').trim().toLowerCase()))
-      : [];
-    const pool = familyPool.length > 0 ? familyPool : products.filter((p) => p.featured && p.stock !== 0 && p.is_active !== false);
-    console.log(`  ⚠️ No products in category "${detectedCat}" — ${familyPool.length > 0 ? `family "${family}" fallback` : 'featured fallback'} (${pool.length} products)`);
-    return {
-      matched: pool.slice(0, 5).map((p) => ({ ...p, matchScore: 10 })),
-      upsells: [],
-      offTopic: false,
-      zeroInCategoryHit: false,
-      categoryHit: null,
-      usedFamilyFallback: true,
-    };
-  }
-
-  const { matched, upsells } = scoreAndSort(categoryFiltered, lower, priceRange, limit);
-  return { matched, upsells, offTopic: false, zeroInCategoryHit: false, categoryHit: detectedCat !== 'Other' ? detectedCat : null, usedFamilyFallback: false };
 }
 
 const GROQ_MS = 10000;
