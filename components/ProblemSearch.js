@@ -5,6 +5,7 @@ import { MessageCircle, Mic, Search, X, Check } from 'lucide-react';
 import { buildWhatsAppLink, buildBuyNowMessage, buildProductUrl, FALLBACK_SEARCH_NOTICE, rupee, VOICE_SEARCH_HINT, VOICE_SEARCH_PLACEHOLDER } from '@/lib/constants';
 import { categoryPath } from '@/lib/categoryUtils';
 import { useSpeech } from '@/lib/useSpeech';
+import { cachedFetchJson } from '@/lib/clientCache';
 import TiltCard from '@/components/TiltCard';
 
 const GROUPS = ['Travel', 'Daily & Work', 'Style & Gifting'];
@@ -40,8 +41,25 @@ export default function ProblemSearch({ allProducts = [] }) {
   const [sectionVisible, setSectionVisible] = useState(false);
   const [chipsVisible, setChipsVisible] = useState(false);
   const [subtitleText, setSubtitleText] = useState('');
+  // The `allProducts` prop is baked into the homepage's ISR-cached render
+  // (see app/page.js's `revalidate = 60`) and never refreshes for the
+  // lifetime of this page load. That let AI chat (which fetches /api/products
+  // live) resolve a newly added/edited category correctly while this
+  // free-text search kept showing stale results for the same query — so
+  // search requests prefer this live fetch (same pattern as WhatsAppFloat)
+  // and only fall back to the prop if it hasn't loaded yet.
+  const [liveProducts, setLiveProducts] = useState(null);
 
   const SUBTITLE = 'Tap karo — hum sahi bag dhundhenge';
+
+  useEffect(() => {
+    cachedFetchJson('/api/products')
+      .then((data) => {
+        const list = Array.isArray(data) ? data : data?.products || data?.data || [];
+        if (list.length > 0) setLiveProducts(list);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     let typeTimer;
@@ -117,11 +135,12 @@ export default function ProblemSearch({ allProducts = [] }) {
     const trimmed = (text || '').trim();
     if (!trimmed) return;
     setAiLoading(true); setActiveChip(null); setResults(null); setAiReason(''); setTotalCount(0); setIsFallback(false); setOffTopic(false);
+    const searchProducts = liveProducts && liveProducts.length > 0 ? liveProducts : allProducts;
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: trimmed }], products: allProducts }),
+        body: JSON.stringify({ messages: [{ role: 'user', content: trimmed }], products: searchProducts }),
       });
       const data = await res.json();
       if (data.offTopic) {
@@ -134,7 +153,7 @@ export default function ProblemSearch({ allProducts = [] }) {
         return;
       }
       const hasServerMatches = Array.isArray(data.products) && data.products.length > 0;
-      const matched = hasServerMatches ? data.products : allProducts.filter((p) => p.featured).slice(0, 4);
+      const matched = hasServerMatches ? data.products : searchProducts.filter((p) => p.featured).slice(0, 4);
       setResults(matched.slice(0, 4));
       setTotalCount(matched.length);
       setAiReason(data.reply ? data.reply.replace(/<[^>]+>/g, '').slice(0, 120) : 'Top matches for your need');
@@ -142,7 +161,7 @@ export default function ProblemSearch({ allProducts = [] }) {
       // were no server matches at all and we substituted our own featured picks.
       setIsFallback(!!data.isFallback || !hasServerMatches);
     } catch {
-      setResults(allProducts.filter((p) => p.featured).slice(0, 4));
+      setResults(searchProducts.filter((p) => p.featured).slice(0, 4));
       setAiReason('Top picks from our collection');
       setIsFallback(true);
     } finally {
