@@ -358,7 +358,7 @@ async function handleChat(body, cookieSessionId) {
       && !(gate.categoryHit && cached.resolvedCategory !== gate.categoryHit);
 
     if (cacheIsValid) {
-      catalogText = cached.catalogText; upsellText = cached.upsellText; topProductIds = cached.topProductIds; fallbackProducts = cached.fallbackProducts || [];
+      catalogText = cached.catalogText; upsellText = cached.upsellText; topProductIds = cached.topProductIds; fallbackProducts = cached.fallbackProducts || []; noDirectMatch = !!cached.noDirectMatch;
     } else {
       const { matched, upsells, usedFamilyFallback } = gate;
       upsellProducts = upsells;
@@ -390,7 +390,7 @@ async function handleChat(body, cookieSessionId) {
           upsells.map((p) => `- ID:${p.id} | ${p.name} | Rs.${p.sale_price || p.price || 0} | ⭐`).join('\n');
         for (const p of upsells) topProductIds.add(String(p.id));
       }
-      catalogCache.set(sessionId, { key: cacheKey, resolvedCategory, catalogText, upsellText, topProductIds, fallbackProducts, expiresAt: Date.now() + CATALOG_TTL });
+      catalogCache.set(sessionId, { key: cacheKey, resolvedCategory, catalogText, upsellText, topProductIds, fallbackProducts, noDirectMatch, expiresAt: Date.now() + CATALOG_TTL });
     }
   }
 
