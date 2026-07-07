@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import AdminShell from '@/components/AdminShell';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import { toast } from 'sonner';
 import { Plus, Trash2, Edit, ImageOff, Loader2, Eye, EyeOff, X, Upload } from 'lucide-react';
 import { formatDateShort } from '@/lib/constants';
@@ -307,18 +308,14 @@ export default function AdminOffersPage() {
         </div>
       )}
 
-      {confirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 md:pl-[260px]">
-          <div className="bg-white rounded-sm p-6 max-w-md w-full">
-            <h3 className="font-serif text-xl mb-2">Delete offer?</h3>
-            <p className="text-sethi-gray500 text-sm mb-5">Are you sure you want to delete "{confirm.title}"?</p>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setConfirm(null)} className="btn-ghost">Cancel</button>
-              <button onClick={() => doDelete(confirm.id)} className="inline-flex items-center gap-2 min-h-[48px] px-6 bg-red-600 text-white font-semibold rounded-sm hover:bg-red-700">Delete</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={!!confirm}
+        title="Delete offer?"
+        message={`Are you sure you want to delete "${confirm?.title}"?`}
+        confirmLabel="Delete"
+        onConfirm={() => doDelete(confirm.id)}
+        onCancel={() => setConfirm(null)}
+      />
     </AdminShell>
   );
 }

@@ -2,6 +2,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import AdminShell from '@/components/AdminShell';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import { toast } from 'sonner';
 import { Trash2, Edit, Plus, Search, CheckSquare, Square, Loader2, Package, Star, ChevronDown, ChevronRight, List, LayoutGrid } from 'lucide-react';
 import { resolveImage } from '@/lib/constants';
@@ -565,36 +566,25 @@ export default function AdminProductsPage() {
       </div>
 
       {/* Single delete confirm */}
-      {confirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 md:pl-[260px]">
-          <div className="bg-white rounded-sm p-6 max-w-md w-full">
-            <h3 className="font-serif text-xl mb-2">Delete product?</h3>
-            <p className="text-sethi-gray500 text-sm mb-5">Are you sure you want to delete "<strong>{confirm.name}</strong>"? This cannot be undone.</p>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setConfirm(null)} className="btn-ghost">Cancel</button>
-              <button onClick={() => doDelete(confirm.id)} className="inline-flex items-center gap-2 min-h-[48px] px-6 bg-red-600 text-white font-semibold rounded-sm hover:bg-red-700">
-                <Trash2 className="w-4 h-4" /> Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={!!confirm}
+        title="Delete product?"
+        message={<>Are you sure you want to delete "<strong>{confirm?.name}</strong>"? This cannot be undone.</>}
+        confirmLabel={<><Trash2 className="w-4 h-4" /> Delete</>}
+        onConfirm={() => doDelete(confirm.id)}
+        onCancel={() => setConfirm(null)}
+      />
 
       {/* Bulk delete confirm */}
-      {bulkConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 md:pl-[260px]">
-          <div className="bg-white rounded-sm p-6 max-w-md w-full">
-            <h3 className="font-serif text-xl mb-2 text-red-700">Delete {selectedCount} products?</h3>
-            <p className="text-sethi-gray500 text-sm mb-5">You are about to permanently delete <strong>{selectedCount} product{selectedCount > 1 ? 's' : ''}</strong>. This cannot be undone.</p>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setBulkConfirm(false)} disabled={bulkDeleting} className="btn-ghost">Cancel</button>
-              <button onClick={doBulkDelete} disabled={bulkDeleting} className="inline-flex items-center gap-2 min-h-[48px] px-6 bg-red-600 text-white font-semibold rounded-sm hover:bg-red-700 disabled:opacity-60">
-                {bulkDeleting ? <><Loader2 className="w-4 h-4 animate-spin" /> Deleting...</> : <><Trash2 className="w-4 h-4" /> Delete {selectedCount}</>}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={bulkConfirm}
+        title={<span className="text-red-700">Delete {selectedCount} products?</span>}
+        message={<>You are about to permanently delete <strong>{selectedCount} product{selectedCount > 1 ? 's' : ''}</strong>. This cannot be undone.</>}
+        confirmLabel={bulkDeleting ? <><Loader2 className="w-4 h-4 animate-spin" /> Deleting...</> : <><Trash2 className="w-4 h-4" /> Delete {selectedCount}</>}
+        loading={bulkDeleting}
+        onConfirm={doBulkDelete}
+        onCancel={() => setBulkConfirm(false)}
+      />
     </AdminShell>
   );
 }

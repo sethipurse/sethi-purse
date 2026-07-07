@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import AdminShell from '@/components/AdminShell';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import { Plus, Trash2, Pencil, GripVertical, Eye, EyeOff, ImageIcon, X, Check, ChevronUp, ChevronDown } from 'lucide-react';
 
 // ─── small helpers ────────────────────────────────────────────────────────────
@@ -221,6 +222,7 @@ export default function AdminSliderPage() {
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [toast, setToast] = useState('');
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
@@ -309,13 +311,13 @@ export default function AdminSliderPage() {
 
   // ── Delete ──
   const handleDelete = async (id) => {
-    if (!confirm('Delete this slide?')) return;
     setDeletingId(id);
     try {
       const res = await fetch(`/api/slider-images/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed');
       setSlides((prev) => prev.filter((s) => s.id !== id));
       showToast('✅ Slide deleted');
+      setConfirmDeleteId(null);
     } catch (e) {
       showToast('❌ ' + e.message);
     } finally {
@@ -445,7 +447,7 @@ export default function AdminSliderPage() {
                         {slide.is_active ? 'Hide' : 'Show'}
                       </button>
                       <button
-                        onClick={() => handleDelete(slide.id)}
+                        onClick={() => setConfirmDeleteId(slide.id)}
                         disabled={deletingId === slide.id}
                         className="flex items-center gap-1 text-xs font-semibold text-red-400 hover:text-red-600 transition px-2 py-1 rounded hover:bg-red-50 disabled:opacity-50"
                       >
@@ -473,6 +475,16 @@ export default function AdminSliderPage() {
           </ul>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={!!confirmDeleteId}
+        title="Delete this slide?"
+        message="This cannot be undone."
+        confirmLabel={deletingId === confirmDeleteId ? 'Deleting…' : 'Delete'}
+        loading={deletingId === confirmDeleteId}
+        onConfirm={() => handleDelete(confirmDeleteId)}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </AdminShell>
   );
 }

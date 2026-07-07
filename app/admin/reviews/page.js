@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import AdminShell from '@/components/AdminShell';
 import StarRating from '@/components/StarRating';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import { toast } from 'sonner';
 import { Plus, Trash2, Edit, ImageOff, Loader2, Star as StarIcon, X, Square, CheckSquare } from 'lucide-react';
 import { getInitials } from '@/lib/constants';
@@ -291,35 +292,24 @@ export default function AdminReviewsPage() {
         </div>
       )}
 
-      {confirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 md:pl-[260px]">
-          <div className="bg-white rounded-sm p-6 max-w-md w-full">
-            <h3 className="font-serif text-xl mb-2">Delete review?</h3>
-            <p className="text-sethi-gray500 text-sm mb-5">Are you sure you want to delete the review from <strong>{confirm ? getName(confirm) : ''}</strong>? This cannot be undone.</p>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setConfirm(null)} className="btn-ghost">Cancel</button>
-              <button onClick={() => doDelete(confirm.id)} className="inline-flex items-center gap-2 min-h-[48px] px-6 bg-red-600 text-white font-semibold rounded-sm hover:bg-red-700">Delete</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={!!confirm}
+        title="Delete review?"
+        message={<>Are you sure you want to delete the review from <strong>{confirm ? getName(confirm) : ''}</strong>? This cannot be undone.</>}
+        confirmLabel="Delete"
+        onConfirm={() => doDelete(confirm.id)}
+        onCancel={() => setConfirm(null)}
+      />
 
-      {bulkConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 md:pl-[260px]">
-          <div className="bg-white rounded-sm p-6 max-w-md w-full">
-            <h3 className="font-serif text-xl mb-2 text-red-700">Delete {selectedCount} review{selectedCount > 1 ? 's' : ''}?</h3>
-            <p className="text-sethi-gray500 text-sm mb-5">You are about to permanently delete <strong>{selectedCount} review{selectedCount > 1 ? 's' : ''}</strong>. This cannot be undone.</p>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setBulkConfirm(false)} disabled={bulkDeleting} className="btn-ghost">Cancel</button>
-              <button onClick={doBulkDelete} disabled={bulkDeleting} className="inline-flex items-center gap-2 min-h-[48px] px-6 bg-red-600 text-white font-semibold rounded-sm hover:bg-red-700 disabled:opacity-60">
-                {bulkDeleting
-                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Deleting…</>
-                  : <><Trash2 className="w-4 h-4" /> Delete {selectedCount}</>}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={bulkConfirm}
+        title={<span className="text-red-700">Delete {selectedCount} review{selectedCount > 1 ? 's' : ''}?</span>}
+        message={<>You are about to permanently delete <strong>{selectedCount} review{selectedCount > 1 ? 's' : ''}</strong>. This cannot be undone.</>}
+        confirmLabel={bulkDeleting ? <><Loader2 className="w-4 h-4 animate-spin" /> Deleting…</> : <><Trash2 className="w-4 h-4" /> Delete {selectedCount}</>}
+        loading={bulkDeleting}
+        onConfirm={doBulkDelete}
+        onCancel={() => setBulkConfirm(false)}
+      />
     </AdminShell>
   );
 }
