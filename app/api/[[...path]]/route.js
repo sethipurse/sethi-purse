@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import categoriesJson from '@/data/categories.json';
 import { detectCategory } from '@/lib/categoryMatch';
 import { buildCategoryUpdatingReply, OFF_TOPIC_REPLY } from '@/lib/constants';
-import { matchProducts, shouldSkipOffTopicGate } from '@/lib/searchMatch';
+import { matchProducts, shouldSkipOffTopicGate, deriveCacheCategory } from '@/lib/searchMatch';
 
 export const maxDuration = 60;
 
@@ -304,10 +304,6 @@ async function handleChat(body, cookieSessionId) {
 
   pruneCatalogCache();
   const msgCategory = detectCategory(lastUserMsg?.content || '', dbCategories);
-  // Include contextCategory in the cache key too — otherwise a generic
-  // message like "price?" sent from two different product pages in the same
-  // session could incorrectly reuse the other page's cached catalog.
-  const cacheKey = `${msgCategory === 'Other' ? (contextCategory || 'Other') : msgCategory}|${priceRange?.min || ''}|${priceRange?.max || ''}`;
   const cached = catalogCache.get(sessionId);
   let catalogText = 'No products loaded.';
   let upsellText = '';
@@ -316,6 +312,9 @@ async function handleChat(body, cookieSessionId) {
   let noDirectMatch = false;
   let outOfStockAsked = [];
   let fallbackProducts = [];
+  // Captured from the gate below (if it runs) so inquiry logging further
+  // down can prefer it over the legacy detectCategory() pass.
+  let gateCategoryHit = null;
 
   if (Array.isArray(products) && products.length > 0) {
     // A category/brand hit resolving to zero active products is a cheap,
@@ -323,6 +322,7 @@ async function handleChat(body, cookieSessionId) {
     // cached catalog from an earlier, differently-scoped question — so it's
     // always computed fresh, before ever consulting the session cache.
     const gate = matchProducts(lastUserMsg?.content || '', products, priceRange, 8, dbCategories, contextCategory);
+    gateCategoryHit = gate.categoryHit;
 
     // The gate is meant to catch a first, substantive message with zero
     // shopping intent (e.g. biscuits) — not to re-police every turn of an
@@ -341,7 +341,23 @@ async function handleChat(body, cookieSessionId) {
       return resp;
     }
 
-    if (cached && cached.key === cacheKey && cached.expiresAt > Date.now()) {
+    // Cache key follows the gate's own fresh category resolution first —
+    // never the legacy detectCategory()-only msgCategory — so a query the
+    // gate resolves differently from an earlier one can never share a cache
+    // entry with it. (Include contextCategory in the last-resort fallback
+    // too — otherwise a generic message like "price?" sent from two
+    // different product pages in the same session could incorrectly reuse
+    // the other page's cached catalog.)
+    const resolvedCategory = deriveCacheCategory(gate, msgCategory, contextCategory);
+    const cacheKey = `${resolvedCategory}|${priceRange?.min || ''}|${priceRange?.max || ''}`;
+
+    // Belt-and-braces: even a key match must be distrusted if the gate just
+    // resolved a real category hit that disagrees with what the cached entry
+    // was actually built for.
+    const cacheIsValid = !!cached && cached.key === cacheKey && cached.expiresAt > Date.now()
+      && !(gate.categoryHit && cached.resolvedCategory !== gate.categoryHit);
+
+    if (cacheIsValid) {
       catalogText = cached.catalogText; upsellText = cached.upsellText; topProductIds = cached.topProductIds; fallbackProducts = cached.fallbackProducts || [];
     } else {
       const { matched, upsells, usedFamilyFallback } = gate;
@@ -374,7 +390,7 @@ async function handleChat(body, cookieSessionId) {
           upsells.map((p) => `- ID:${p.id} | ${p.name} | Rs.${p.sale_price || p.price || 0} | ⭐`).join('\n');
         for (const p of upsells) topProductIds.add(String(p.id));
       }
-      catalogCache.set(sessionId, { key: cacheKey, catalogText, upsellText, topProductIds, fallbackProducts, expiresAt: Date.now() + CATALOG_TTL });
+      catalogCache.set(sessionId, { key: cacheKey, resolvedCategory, catalogText, upsellText, topProductIds, fallbackProducts, expiresAt: Date.now() + CATALOG_TTL });
     }
   }
 
@@ -480,7 +496,7 @@ Be their trusted friend who knows bags — warm, helpful, local! 😊`;
 
     try {
       if (lastUserMsg) {
-        const detCat = detectCategory(`${lastUserMsg.content} ${reply}`, dbCategories);
+        const detCat = gateCategoryHit || detectCategory(`${lastUserMsg.content} ${reply}`, dbCategories);
         const { data: ex } = await supabase.from('inquiries').select('id, product_interest, name, phone').eq('session_id', sessionId).maybeSingle();
         const interest = Array.from(new Set([...(ex?.product_interest ? ex.product_interest.split(', ').filter(Boolean) : []), ...matchedProducts.map((p) => p.name)])).join(', ') || 'General enquiry';
         const transcript = `User: "${lastUserMsg.content}" | AI (${result.usedAPI}): "${reply.slice(0, 250)}"`;
