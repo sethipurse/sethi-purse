@@ -60,7 +60,7 @@ export default function AdminShell({ children }) {
       } catch (e) { /* ignore */ }
     };
     fetchCount();
-    const t = setInterval(fetchCount, 30000);
+    const t = setInterval(fetchCount, 60000);
     return () => { cancelled = true; clearInterval(t); };
   }, [ready, pathname]);
 
@@ -95,7 +95,7 @@ export default function AdminShell({ children }) {
       <Icon className="w-5 h-5" />
       <span className="flex-1">{label}</span>
       {hasBadge && newInquiries > 0 && (
-        <span className={`inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full text-[11px] font-bold ${isActive(href) ? 'bg-sethi-black text-sethi-gold' : 'bg-red-600 text-white'}`}>
+        <span className={`inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full text-[11px] font-bold ${isActive(href) ? 'bg-sethi-black text-sethi-gold' : 'bg-sethi-gold text-sethi-black'}`}>
           {newInquiries}
         </span>
       )}

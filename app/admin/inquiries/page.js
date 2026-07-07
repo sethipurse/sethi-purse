@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import AdminShell from '@/components/AdminShell';
 import { toast } from 'sonner';
-import { Phone, MessageCircle, Trash2, ChevronDown, ChevronUp, Search, Square, CheckSquare, Loader2 } from 'lucide-react';
+import { Phone, MessageCircle, Trash2, ChevronDown, ChevronUp, Search, Square, CheckSquare, Loader2, Check } from 'lucide-react';
 import { formatIST } from '@/lib/constants';
 
 const STATUSES = ['new', 'contacted', 'converted', 'closed'];
@@ -13,13 +13,19 @@ const STATUS_STYLES = {
   closed:    'bg-sethi-gray200 text-sethi-gray800 border-sethi-gray200',
 };
 const STATUS_ORDER = { new: 0, contacted: 1, converted: 2, closed: 3 };
+const NEXT_STATUS = { new: 'contacted' };
+const SORT_STORAGE_KEY = 'sethi-admin-inq-sort';
+const SORT_VALUES = ['unread', 'newest', 'oldest', 'status'];
+
+// Deals-alert flow posts inquiries with this fixed name/phone convention
+const isDealsAlert = (i) => i.name === 'Deals Alert' && i.phone === '0000000000';
 
 export default function AdminInquiriesPage() {
   const [items,       setItems]       = useState([]);
   const [loading,     setLoading]     = useState(true);
   const [filter,      setFilter]      = useState('All');
   const [search,      setSearch]      = useState('');
-  const [sort,        setSort]        = useState('newest');
+  const [sort,        setSort]        = useState('unread');
   const [expanded,    setExpanded]    = useState({});
   const [confirm,     setConfirm]     = useState(null);
   const [selected,    setSelected]    = useState(new Set());
@@ -43,6 +49,16 @@ export default function AdminInquiriesPage() {
   };
   useEffect(() => { load(); }, []);
 
+  useEffect(() => {
+    const saved = window.localStorage.getItem(SORT_STORAGE_KEY);
+    if (saved && SORT_VALUES.includes(saved)) setSort(saved);
+  }, []);
+
+  const handleSortChange = (value) => {
+    setSort(value);
+    window.localStorage.setItem(SORT_STORAGE_KEY, value);
+  };
+
   const counts = useMemo(() => {
     const c = { new: 0, contacted: 0, converted: 0, closed: 0 };
     items.forEach((i) => { if (c[i.status] !== undefined) c[i.status]++; });
@@ -59,7 +75,15 @@ export default function AdminInquiriesPage() {
       );
     }
     list = [...list];
-    if      (sort === 'newest') list.sort((a, b) => new Date(b.created_at ?? b.createdAt) - new Date(a.created_at ?? a.createdAt));
+    if (sort === 'unread') {
+      list.sort((a, b) => {
+        const au = a.status === 'new' ? 0 : 1;
+        const bu = b.status === 'new' ? 0 : 1;
+        if (au !== bu) return au - bu;
+        return new Date(b.created_at ?? b.createdAt) - new Date(a.created_at ?? a.createdAt);
+      });
+    }
+    else if (sort === 'newest') list.sort((a, b) => new Date(b.created_at ?? b.createdAt) - new Date(a.created_at ?? a.createdAt));
     else if (sort === 'oldest') list.sort((a, b) => new Date(a.created_at ?? a.createdAt) - new Date(b.created_at ?? b.createdAt));
     else if (sort === 'status') list.sort((a, b) => (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99));
     return list;
@@ -86,7 +110,9 @@ export default function AdminInquiriesPage() {
     }
   };
 
-  const changeStatus = async (id, status) => {
+  const changeStatus = async (id, status, { optimistic = false } = {}) => {
+    const prevStatus = items.find((i) => i.id === id)?.status;
+    if (optimistic) setItems((curr) => curr.map((i) => i.id === id ? { ...i, status } : i));
     try {
       const res  = await fetch(`/api/inquiries/${encodeURIComponent(id)}`, {
         method: 'PUT',
@@ -94,11 +120,16 @@ export default function AdminInquiriesPage() {
         body: JSON.stringify({ status }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) { toast.error(data.error || 'Failed to update'); return; }
+      if (!res.ok) {
+        if (optimistic) setItems((curr) => curr.map((i) => i.id === id ? { ...i, status: prevStatus } : i));
+        toast.error(data.error || 'Failed to update');
+        return;
+      }
       toast.success('Status updated');
       setItems((curr) => curr.map((i) => i.id === id ? { ...i, status } : i));
     } catch (err) {
       console.error(err);
+      if (optimistic) setItems((curr) => curr.map((i) => i.id === id ? { ...i, status: prevStatus } : i));
       toast.error('Network error');
     }
   };
@@ -183,9 +214,10 @@ export default function AdminInquiriesPage() {
           </div>
           <select
             value={sort}
-            onChange={(e) => setSort(e.target.value)}
+            onChange={(e) => handleSortChange(e.target.value)}
             className="text-sm border border-sethi-gray200 rounded-sm px-3 py-2 bg-white focus:outline-none focus:border-sethi-gold"
           >
+            <option value="unread">New first</option>
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
             <option value="status">By status</option>
@@ -254,8 +286,10 @@ export default function AdminInquiriesPage() {
               </thead>
               <tbody className="divide-y divide-sethi-gray200">
                 {displayed.map((i) => {
-                  const isOpen   = expanded[i.id];
-                  const isSel    = selected.has(i.id);
+                  const isOpen    = expanded[i.id];
+                  const isSel     = selected.has(i.id);
+                  const isUnread  = i.status === 'new';
+                  const isDeals   = isDealsAlert(i);
                   const waLink   = `https://wa.me/91${i.phone}`;
                   const telLink  = `tel:+91${i.phone}`;
                   const interest = i.product_interest ?? i.productInterest ?? '—';
@@ -271,9 +305,17 @@ export default function AdminInquiriesPage() {
                         </button>
                       </td>
 
-                      <td className="px-4 py-3">
-                        <div className="font-semibold text-sethi-black leading-tight">{i.name}</div>
+                      <td className={`px-4 py-3 ${isUnread ? 'border-l-4 border-l-sethi-gold rounded-l-none' : ''}`}>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className={`leading-tight ${isUnread ? 'font-bold text-sethi-black' : 'font-semibold text-sethi-black'}`}>{i.name}</span>
+                          {isUnread && (
+                            <span className="inline-block bg-sethi-gold text-sethi-black text-[9px] font-bold tracking-wider uppercase px-1.5 py-0.5 rounded-sm">New</span>
+                          )}
+                        </div>
                         <div className="text-xs text-sethi-gray500 mt-0.5">{i.city}</div>
+                        {isDeals && (
+                          <div className="text-[10px] text-amber-700 mt-0.5">🔔 Price interest</div>
+                        )}
                       </td>
 
                       <td className="px-4 py-3">
@@ -314,6 +356,14 @@ export default function AdminInquiriesPage() {
                         >
                           {STATUSES.map((s) => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
                         </select>
+                        {isUnread && NEXT_STATUS[i.status] && (
+                          <button
+                            onClick={() => changeStatus(i.id, NEXT_STATUS[i.status], { optimistic: true })}
+                            className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-sethi-gold border border-sethi-gold px-2 py-1 rounded-sm hover:bg-sethi-gold hover:text-sethi-black transition-colors"
+                          >
+                            <Check className="w-3 h-3" /> Mark {NEXT_STATUS[i.status]}
+                          </button>
+                        )}
                       </td>
 
                       <td className="px-4 py-3">
@@ -346,12 +396,14 @@ export default function AdminInquiriesPage() {
             </div>
             <div className="grid gap-4">
               {displayed.map((i) => {
-                const isOpen  = expanded[i.id];
-                const isSel   = selected.has(i.id);
+                const isOpen   = expanded[i.id];
+                const isSel    = selected.has(i.id);
+                const isUnread = i.status === 'new';
+                const isDeals  = isDealsAlert(i);
                 const waLink  = `https://wa.me/91${i.phone}`;
                 const telLink = `tel:+91${i.phone}`;
                 return (
-                  <div key={i.id} className={`bg-white border rounded-sm p-5 transition-colors ${isSel ? 'border-sethi-gold bg-sethi-gold/5' : 'border-sethi-gray200'}`}>
+                  <div key={i.id} className={`bg-white border rounded-sm p-5 transition-colors ${isUnread ? 'border-l-4 border-l-sethi-gold rounded-l-none' : ''} ${isSel ? 'border-sethi-gold bg-sethi-gold/5' : 'border-sethi-gray200'}`}>
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="flex items-start gap-3 min-w-0">
                         <button onClick={() => toggleSelect(i.id)} className="mt-1 shrink-0 text-sethi-gray500 hover:text-sethi-black">
@@ -359,10 +411,16 @@ export default function AdminInquiriesPage() {
                         </button>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="font-semibold text-lg">{i.name}</h3>
+                            <h3 className={`text-lg ${isUnread ? 'font-bold' : 'font-semibold'}`}>{i.name}</h3>
                             <span className="text-sm text-sethi-gray500">· {i.city}</span>
+                            {isUnread && (
+                              <span className="inline-block bg-sethi-gold text-sethi-black text-[9px] font-bold tracking-wider uppercase px-1.5 py-0.5 rounded-sm">New</span>
+                            )}
                           </div>
                           <div className="text-xs text-sethi-gray500 mt-0.5">{formatIST(i.created_at ?? i.createdAt)}</div>
+                          {isDeals && (
+                            <div className="text-[10px] text-amber-700 mt-0.5">🔔 Price interest</div>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2 flex-wrap">
@@ -376,6 +434,14 @@ export default function AdminInquiriesPage() {
                         >
                           {STATUSES.map((s) => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
                         </select>
+                        {isUnread && NEXT_STATUS[i.status] && (
+                          <button
+                            onClick={() => changeStatus(i.id, NEXT_STATUS[i.status], { optimistic: true })}
+                            className="inline-flex items-center gap-1 text-sethi-gold border border-sethi-gold px-2.5 py-1 rounded-sm hover:bg-sethi-gold hover:text-sethi-black text-xs"
+                          >
+                            <Check className="w-3 h-3" /> Mark {NEXT_STATUS[i.status]}
+                          </button>
+                        )}
                         <button
                           onClick={() => setConfirm(i)}
                           className="inline-flex items-center gap-1 border border-red-500 text-red-600 px-2.5 py-1 rounded-sm hover:bg-red-500 hover:text-white text-xs"
