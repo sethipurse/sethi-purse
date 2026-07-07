@@ -32,6 +32,7 @@ export default function AdminInquiriesPage() {
   const [selected,    setSelected]    = useState(new Set());
   const [bulkConfirm, setBulkConfirm] = useState(false);
   const [bulkDeleting,setBulkDeleting]= useState(false);
+  const [bulkStatusRunning, setBulkStatusRunning] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -61,13 +62,19 @@ export default function AdminInquiriesPage() {
   };
 
   const counts = useMemo(() => {
-    const c = { new: 0, contacted: 0, converted: 0, closed: 0 };
-    items.forEach((i) => { if (c[i.status] !== undefined) c[i.status]++; });
+    const c = { new: 0, contacted: 0, converted: 0, closed: 0, human: 0, dealsAlert: 0 };
+    items.forEach((i) => {
+      if (c[i.status] !== undefined) c[i.status]++;
+      if (isDealsAlert(i)) c.dealsAlert++; else c.human++;
+    });
     return c;
   }, [items]);
 
   const displayed = useMemo(() => {
-    let list = filter === 'All' ? items : items.filter((i) => i.status === filter);
+    let list = filter === 'All' ? items
+      : filter === 'human' ? items.filter((i) => !isDealsAlert(i))
+      : filter === 'dealsAlert' ? items.filter((i) => isDealsAlert(i))
+      : items.filter((i) => i.status === filter);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter((i) =>
@@ -166,6 +173,59 @@ export default function AdminInquiriesPage() {
     load();
   };
 
+  // Runs `worker` over `list` with at most `limit` in flight at once —
+  // avoids firing 100+ parallel PUTs on a large bulk selection.
+  async function runWithConcurrency(list, limit, worker) {
+    const results = new Array(list.length);
+    let next = 0;
+    async function lane() {
+      while (next < list.length) {
+        const i = next++;
+        results[i] = await worker(list[i]);
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(limit, list.length) }, lane));
+    return results;
+  }
+
+  const doBulkStatus = async (status) => {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    setBulkStatusRunning(status);
+    const prevStatuses = new Map(ids.map((id) => [id, items.find((i) => i.id === id)?.status]));
+    setItems((curr) => curr.map((i) => (selected.has(i.id) ? { ...i, status } : i)));
+
+    const oks = await runWithConcurrency(ids, 4, async (id) => {
+      try {
+        const res = await fetch(`/api/inquiries/${encodeURIComponent(id)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status }),
+        });
+        return res.ok;
+      } catch { return false; }
+    });
+
+    const failedIds = ids.filter((id, i) => !oks[i]);
+    if (failedIds.length > 0) {
+      setItems((curr) => curr.map((i) => (failedIds.includes(i.id) ? { ...i, status: prevStatuses.get(i.id) } : i)));
+    }
+    setBulkStatusRunning(null);
+    clearSelection();
+    const successCount = ids.length - failedIds.length;
+    if (failedIds.length === 0) toast.success(`${successCount} marked ${status}`);
+    else toast.error(`${successCount} marked ${status}, ${failedIds.length} failed`);
+  };
+
+  // The one workflow explicitly meant to be a two-tap sweep: tapping this
+  // chip both filters to deals-alert noise AND selects all of it, so the very
+  // next tap can be "Mark closed" with no separate select-all step.
+  const clickDealsAlertChip = () => {
+    setFilter('dealsAlert');
+    setSearch('');
+    setSelected(new Set(items.filter(isDealsAlert).map((i) => i.id)));
+  };
+
   const toggleExpand = (id) => setExpanded((e) => ({ ...e, [id]: !e[id] }));
 
   return (
@@ -190,16 +250,24 @@ export default function AdminInquiriesPage() {
         ))}
       </div>
 
-      {/* ── Filters + Search + Sort ── */}
+      {/* ── Filter chips + Search + Sort ── */}
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
-        <div className="flex flex-wrap items-center gap-2 flex-1">
-          {['All', ...STATUSES].map((s) => (
+        <div className="flex flex-nowrap sm:flex-wrap items-center gap-2 flex-1 overflow-x-auto sm:overflow-visible pb-1 sm:pb-0">
+          {[
+            { k: 'All',        label: 'All',                 n: items.length },
+            { k: 'new',        label: 'New',                 n: counts.new },
+            { k: 'human',      label: 'Human',                n: counts.human },
+            { k: 'dealsAlert', label: '🔔 Price interest',    n: counts.dealsAlert },
+            { k: 'contacted',  label: 'Contacted',            n: counts.contacted },
+            { k: 'converted',  label: 'Converted',            n: counts.converted },
+            { k: 'closed',     label: 'Closed',               n: counts.closed },
+          ].map((c) => (
             <button
-              key={s}
-              onClick={() => setFilter(s)}
-              className={`px-4 py-2 rounded-full text-sm font-medium border transition-colors ${filter === s ? 'bg-sethi-gold text-sethi-black border-sethi-gold' : 'bg-white border-sethi-gray200 hover:border-sethi-gold'}`}
+              key={c.k}
+              onClick={() => c.k === 'dealsAlert' ? clickDealsAlertChip() : setFilter(c.k)}
+              className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium border transition-colors ${filter === c.k ? 'bg-sethi-gold text-sethi-black border-sethi-gold' : 'bg-white border-sethi-gray200 hover:border-sethi-gold'}`}
             >
-              {s.charAt(0).toUpperCase() + s.slice(1)}
+              {c.label} ({c.n})
             </button>
           ))}
         </div>
@@ -228,13 +296,28 @@ export default function AdminInquiriesPage() {
 
       {/* ── Bulk action bar ── */}
       {selectedCount > 0 && (
-        <div className="flex items-center justify-between bg-sethi-black text-white rounded-sm px-4 py-3 mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-sethi-black text-white rounded-sm px-4 py-3 mb-4">
           <span className="text-sm font-medium">{selectedCount} enquir{selectedCount > 1 ? 'ies' : 'y'} selected</span>
-          <div className="flex items-center gap-3">
-            <button onClick={clearSelection} className="text-sm text-white/70 hover:text-white">Deselect all</button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={clearSelection} className="text-sm text-white/70 hover:text-white mr-1">Deselect all</button>
+            <button
+              onClick={() => doBulkStatus('contacted')}
+              disabled={!!bulkStatusRunning}
+              className="inline-flex items-center gap-2 border border-white/30 text-white px-3 py-2 rounded-sm text-sm font-semibold hover:bg-white/10 transition-colors disabled:opacity-60"
+            >
+              {bulkStatusRunning === 'contacted' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Mark contacted
+            </button>
+            <button
+              onClick={() => doBulkStatus('closed')}
+              disabled={!!bulkStatusRunning}
+              className="inline-flex items-center gap-2 border border-white/30 text-white px-3 py-2 rounded-sm text-sm font-semibold hover:bg-white/10 transition-colors disabled:opacity-60"
+            >
+              {bulkStatusRunning === 'closed' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Mark closed
+            </button>
             <button
               onClick={() => setBulkConfirm(true)}
-              className="inline-flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-sm text-sm font-semibold hover:bg-red-700 transition-colors"
+              disabled={!!bulkStatusRunning}
+              className="inline-flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-sm text-sm font-semibold hover:bg-red-700 transition-colors disabled:opacity-60"
             >
               <Trash2 className="w-4 h-4" /> Delete {selectedCount} selected
             </button>
