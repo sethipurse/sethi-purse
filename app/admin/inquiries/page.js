@@ -1,10 +1,11 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import AdminShell from '@/components/AdminShell';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { toast } from 'sonner';
 import { Phone, MessageCircle, Trash2, ChevronDown, ChevronUp, Search, Square, CheckSquare, Loader2, Check, X } from 'lucide-react';
-import { formatIST, GOOGLE_REVIEW_LINK, FOLLOWUP_TEMPLATE, REVIEW_REQUEST_TEMPLATE } from '@/lib/constants';
+import { formatIST, GOOGLE_REVIEW_LINK, FOLLOWUP_TEMPLATE, REVIEW_REQUEST_TEMPLATE, PRICE_DROP_DEMAND_NOTE } from '@/lib/constants';
 
 const STATUSES = ['new', 'contacted', 'converted', 'closed'];
 const STATUS_STYLES = {
@@ -35,6 +36,17 @@ function fillTemplate(template, vars) {
   return Object.entries(vars).reduce((s, [k, v]) => s.split(`{${k}}`).join(v), template);
 }
 
+const DEMAND_COLLAPSED_KEY = 'sethi-admin-inq-demand-collapsed';
+
+// Deals-alert flow writes "Price/deal alert interest: {name} (id {id})" —
+// parsed (not read from product_interest) specifically because it's the only
+// field carrying the product id needed to link to its admin edit page.
+function parseDealsAlertMessage(message) {
+  const m = String(message || '').match(/^Price\/deal alert interest:\s*(.+?)\s*\(id\s+([^)]+)\)\s*$/);
+  if (!m) return null;
+  return { name: m[1].trim(), id: m[2].trim() };
+}
+
 export default function AdminInquiriesPage() {
   const [items,       setItems]       = useState([]);
   const [loading,     setLoading]     = useState(true);
@@ -48,6 +60,7 @@ export default function AdminInquiriesPage() {
   const [bulkDeleting,setBulkDeleting]= useState(false);
   const [bulkStatusRunning, setBulkStatusRunning] = useState(null);
   const [reviewHintDismissed, setReviewHintDismissed] = useState(true);
+  const [demandCollapsed, setDemandCollapsed] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -80,6 +93,18 @@ export default function AdminInquiriesPage() {
     window.localStorage.setItem(REVIEW_HINT_DISMISSED_KEY, '1');
   };
 
+  useEffect(() => {
+    if (window.localStorage.getItem(DEMAND_COLLAPSED_KEY) === '1') setDemandCollapsed(true);
+  }, []);
+
+  const toggleDemandCollapsed = () => {
+    setDemandCollapsed((c) => {
+      const next = !c;
+      window.localStorage.setItem(DEMAND_COLLAPSED_KEY, next ? '1' : '0');
+      return next;
+    });
+  };
+
   const handleSortChange = (value) => {
     setSort(value);
     window.localStorage.setItem(SORT_STORAGE_KEY, value);
@@ -92,6 +117,22 @@ export default function AdminInquiriesPage() {
       if (isDealsAlert(i)) c.dealsAlert++; else c.human++;
     });
     return c;
+  }, [items]);
+
+  const topDemand = useMemo(() => {
+    const byProduct = new Map(); // productId -> { name, count }
+    items.forEach((i) => {
+      if (!isDealsAlert(i)) return;
+      const parsed = parseDealsAlertMessage(i.message);
+      if (!parsed) return;
+      const entry = byProduct.get(parsed.id) || { name: parsed.name, count: 0 };
+      entry.count++;
+      byProduct.set(parsed.id, entry);
+    });
+    return [...byProduct.entries()]
+      .map(([id, v]) => ({ id, ...v }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
   }, [items]);
 
   const displayed = useMemo(() => {
@@ -283,6 +324,32 @@ export default function AdminInquiriesPage() {
           </button>
         ))}
       </div>
+
+      {/* ── Top price interest demand card ── */}
+      {counts.dealsAlert > 0 && (
+        <div className="bg-white border border-sethi-gray200 rounded-sm mb-4">
+          <button onClick={toggleDemandCollapsed} className="w-full flex items-center justify-between px-4 py-3">
+            <span className="font-serif text-lg text-sethi-black">🔔 Top Price Interest</span>
+            {demandCollapsed ? <ChevronDown className="w-4 h-4 text-sethi-gray500" /> : <ChevronUp className="w-4 h-4 text-sethi-gray500" />}
+          </button>
+          {!demandCollapsed && (
+            <div className="px-4 pb-4">
+              <p className="text-xs text-sethi-gray500 mb-3">{PRICE_DROP_DEMAND_NOTE}</p>
+              <div className="space-y-2">
+                {topDemand.map((d) => (
+                  <div key={d.id} className="flex items-center justify-between gap-3 text-sm border-b border-sethi-gray100 last:border-0 pb-2 last:pb-0">
+                    <span className="text-sethi-black truncate">{d.name}</span>
+                    <span className="flex items-center gap-3 shrink-0">
+                      <span className="text-sethi-gold font-semibold">{d.count}</span>
+                      <Link href={`/admin/products/edit/${d.id}`} className="text-sethi-gold hover:underline text-xs">Edit →</Link>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Filter chips + Search + Sort ── */}
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
