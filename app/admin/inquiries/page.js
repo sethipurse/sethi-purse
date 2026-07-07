@@ -3,8 +3,8 @@ import { useEffect, useMemo, useState } from 'react';
 import AdminShell from '@/components/AdminShell';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { toast } from 'sonner';
-import { Phone, MessageCircle, Trash2, ChevronDown, ChevronUp, Search, Square, CheckSquare, Loader2, Check } from 'lucide-react';
-import { formatIST } from '@/lib/constants';
+import { Phone, MessageCircle, Trash2, ChevronDown, ChevronUp, Search, Square, CheckSquare, Loader2, Check, X } from 'lucide-react';
+import { formatIST, GOOGLE_REVIEW_LINK, FOLLOWUP_TEMPLATE, REVIEW_REQUEST_TEMPLATE } from '@/lib/constants';
 
 const STATUSES = ['new', 'contacted', 'converted', 'closed'];
 const STATUS_STYLES = {
@@ -17,9 +17,23 @@ const STATUS_ORDER = { new: 0, contacted: 1, converted: 2, closed: 3 };
 const NEXT_STATUS = { new: 'contacted' };
 const SORT_STORAGE_KEY = 'sethi-admin-inq-sort';
 const SORT_VALUES = ['unread', 'newest', 'oldest', 'status'];
+const REVIEW_HINT_DISMISSED_KEY = 'sethi-admin-inq-review-hint-dismissed';
 
 // Deals-alert flow posts inquiries with this fixed name/phone convention
 const isDealsAlert = (i) => i.name === 'Deals Alert' && i.phone === '0000000000';
+const hasRealPhone = (i) => !!i.phone && i.phone !== '0000000000';
+
+// Strips spaces/+/leading zeros and ensures the 91 country code so wa.me
+// links work regardless of exactly how the phone was typed/stored.
+function normalizePhoneForWa(phone) {
+  let digits = String(phone || '').replace(/\D/g, '').replace(/^0+/, '');
+  if (digits.length === 10) digits = `91${digits}`;
+  return digits;
+}
+
+function fillTemplate(template, vars) {
+  return Object.entries(vars).reduce((s, [k, v]) => s.split(`{${k}}`).join(v), template);
+}
 
 export default function AdminInquiriesPage() {
   const [items,       setItems]       = useState([]);
@@ -33,6 +47,7 @@ export default function AdminInquiriesPage() {
   const [bulkConfirm, setBulkConfirm] = useState(false);
   const [bulkDeleting,setBulkDeleting]= useState(false);
   const [bulkStatusRunning, setBulkStatusRunning] = useState(null);
+  const [reviewHintDismissed, setReviewHintDismissed] = useState(true);
 
   const load = async () => {
     setLoading(true);
@@ -55,6 +70,15 @@ export default function AdminInquiriesPage() {
     const saved = window.localStorage.getItem(SORT_STORAGE_KEY);
     if (saved && SORT_VALUES.includes(saved)) setSort(saved);
   }, []);
+
+  useEffect(() => {
+    if (window.localStorage.getItem(REVIEW_HINT_DISMISSED_KEY) !== '1') setReviewHintDismissed(false);
+  }, []);
+
+  const dismissReviewHint = () => {
+    setReviewHintDismissed(true);
+    window.localStorage.setItem(REVIEW_HINT_DISMISSED_KEY, '1');
+  };
 
   const handleSortChange = (value) => {
     setSort(value);
@@ -231,6 +255,16 @@ export default function AdminInquiriesPage() {
   return (
     <AdminShell>
 
+      {/* ── Review link setup hint ── */}
+      {!GOOGLE_REVIEW_LINK && !reviewHintDismissed && (
+        <div className="flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-sm px-4 py-2.5 mb-4">
+          <span>⭐ Google review link constants mein daalo to review button milega</span>
+          <button onClick={dismissReviewHint} className="text-amber-700 hover:text-amber-900 shrink-0">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* ── Stats ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         {[
@@ -378,6 +412,11 @@ export default function AdminInquiriesPage() {
                   const telLink  = `tel:+91${i.phone}`;
                   const interest = i.product_interest ?? i.productInterest ?? '—';
                   const msg      = i.message || '';
+                  const canWa       = hasRealPhone(i);
+                  const waNumber    = canWa ? normalizePhoneForWa(i.phone) : null;
+                  const followUpLink = canWa ? `https://wa.me/${waNumber}?text=${encodeURIComponent(fillTemplate(FOLLOWUP_TEMPLATE, { product: interest !== '—' ? interest : 'aapke bag' }))}` : null;
+                  const canReview   = canWa && !!GOOGLE_REVIEW_LINK && (i.status === 'contacted' || i.status === 'converted');
+                  const reviewLink  = canReview ? `https://wa.me/${waNumber}?text=${encodeURIComponent(fillTemplate(REVIEW_REQUEST_TEMPLATE, { link: GOOGLE_REVIEW_LINK }))}` : null;
                   return (
                     <tr
                       key={i.id}
@@ -412,6 +451,27 @@ export default function AdminInquiriesPage() {
                             <MessageCircle className="w-3 h-3" /> WhatsApp
                           </a>
                         </div>
+                        {canWa && (
+                          <div className="flex flex-wrap gap-1.5 mt-1.5">
+                            <a
+                              href={followUpLink}
+                              target="_blank" rel="noopener"
+                              onClick={() => { if (i.status === 'new') changeStatus(i.id, 'contacted', { optimistic: true }); }}
+                              className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#25D366] border border-[#25D366]/40 px-1.5 py-0.5 rounded-sm hover:bg-[#25D366] hover:text-white transition-colors"
+                            >
+                              💬 Follow-up
+                            </a>
+                            {canReview && (
+                              <a
+                                href={reviewLink}
+                                target="_blank" rel="noopener"
+                                className="inline-flex items-center gap-1 text-[10px] font-semibold text-sethi-gold border border-sethi-gold/40 px-1.5 py-0.5 rounded-sm hover:bg-sethi-gold hover:text-sethi-black transition-colors"
+                              >
+                                ⭐ Review maango
+                              </a>
+                            )}
+                          </div>
+                        )}
                       </td>
 
                       <td className="px-4 py-3">
@@ -486,6 +546,12 @@ export default function AdminInquiriesPage() {
                 const isDeals  = isDealsAlert(i);
                 const waLink  = `https://wa.me/91${i.phone}`;
                 const telLink = `tel:+91${i.phone}`;
+                const mInterest   = i.product_interest ?? i.productInterest ?? '—';
+                const canWa       = hasRealPhone(i);
+                const waNumber    = canWa ? normalizePhoneForWa(i.phone) : null;
+                const followUpLink = canWa ? `https://wa.me/${waNumber}?text=${encodeURIComponent(fillTemplate(FOLLOWUP_TEMPLATE, { product: mInterest !== '—' ? mInterest : 'aapke bag' }))}` : null;
+                const canReview   = canWa && !!GOOGLE_REVIEW_LINK && (i.status === 'contacted' || i.status === 'converted');
+                const reviewLink  = canReview ? `https://wa.me/${waNumber}?text=${encodeURIComponent(fillTemplate(REVIEW_REQUEST_TEMPLATE, { link: GOOGLE_REVIEW_LINK }))}` : null;
                 return (
                   <div key={i.id} className={`bg-white border rounded-sm p-5 transition-colors ${isUnread ? 'border-l-4 border-l-sethi-gold rounded-l-none' : ''} ${isSel ? 'border-sethi-gold bg-sethi-gold/5' : 'border-sethi-gray200'}`}>
                     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -546,6 +612,28 @@ export default function AdminInquiriesPage() {
                         {i.product_interest ?? i.productInterest}
                       </span>
                     </div>
+
+                    {canWa && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <a
+                          href={followUpLink}
+                          target="_blank" rel="noopener"
+                          onClick={() => { if (i.status === 'new') changeStatus(i.id, 'contacted', { optimistic: true }); }}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-[#25D366] border border-[#25D366]/40 px-2.5 py-1 rounded-sm hover:bg-[#25D366] hover:text-white transition-colors"
+                        >
+                          💬 Follow-up
+                        </a>
+                        {canReview && (
+                          <a
+                            href={reviewLink}
+                            target="_blank" rel="noopener"
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-sethi-gold border border-sethi-gold/40 px-2.5 py-1 rounded-sm hover:bg-sethi-gold hover:text-sethi-black transition-colors"
+                          >
+                            ⭐ Review maango
+                          </a>
+                        )}
+                      </div>
+                    )}
 
                     <p className={`mt-3 text-sethi-gray800 text-sm ${isOpen ? '' : 'line-clamp-2'}`}>{i.message}</p>
                     {i.message && i.message.length > 120 && (
