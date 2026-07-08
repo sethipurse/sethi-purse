@@ -94,6 +94,7 @@ export default function CustomerImportModal({ open, onClose, onImported }) {
   const [summary, setSummary] = useState(emptySummary);
   const [enquiryConfirm, setEnquiryConfirm] = useState(false);
   const [enquiryRunning, setEnquiryRunning] = useState(false);
+  const [fixingCountries, setFixingCountries] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -185,6 +186,22 @@ export default function CustomerImportModal({ open, onClose, onImported }) {
     } finally {
       setEnquiryRunning(false);
       setEnquiryConfirm(false);
+    }
+  }
+
+  async function runFixCountries() {
+    setFixingCountries(true);
+    try {
+      const res = await fetch('/api/customers/fix-countries', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error(data.error || 'Fix failed'); return; }
+      const breakdown = Object.entries(data.byCountry || {}).map(([k, v]) => `${k}: ${v}`).join(', ');
+      toast.success(`Checked ${data.scanned}, updated ${data.updated}${breakdown ? ' — ' + breakdown : ''}`);
+      onImported?.();
+    } catch (err) {
+      toast.error('Network error');
+    } finally {
+      setFixingCountries(false);
     }
   }
 
@@ -317,6 +334,12 @@ export default function CustomerImportModal({ open, onClose, onImported }) {
               <div className="bg-sethi-gold h-2 transition-all" style={{ width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%` }} />
             </div>
           </div>
+        )}
+
+        {step === 'pick' && (
+          <button onClick={runFixCountries} disabled={fixingCountries} className="mt-6 block text-[11px] text-sethi-gray500 hover:text-sethi-gold underline decoration-dotted disabled:opacity-60">
+            {fixingCountries ? 'Fixing foreign countries…' : 'Maintenance: fix foreign customer countries'}
+          </button>
         )}
       </div>
 

@@ -87,6 +87,23 @@ function mergeCustomerFields(existing, incoming) {
   return updates;
 }
 
+// Used only by the one-time fix-countries backfill, for customers whose
+// phone isn't a 91 (India) number. Longest-prefix match first so e.g. '971'
+// (UAE) is checked before the catch-all '1' (USA).
+const PHONE_COUNTRY_PREFIXES = [
+  ['971', 'UAE'], ['966', 'Saudi Arabia'], ['974', 'Qatar'], ['973', 'Bahrain'],
+  ['968', 'Oman'], ['965', 'Kuwait'], ['977', 'Nepal'], ['852', 'Hong Kong'], ['353', 'Ireland'],
+  ['44', 'England'], ['61', 'Australia'], ['64', 'New Zealand'], ['65', 'Singapore'],
+  ['60', 'Malaysia'], ['49', 'Germany'], ['39', 'Italy'], ['31', 'Netherlands'],
+  ['41', 'Switzerland'], ['34', 'Spain'], ['33', 'France'], ['92', 'Pakistan'],
+  ['1', 'USA'], // can't reliably split US/Canada by code alone — USA is the safe default
+];
+function deriveCountryFromPhone(phone) {
+  const p = String(phone || '');
+  const hit = PHONE_COUNTRY_PREFIXES.find(([prefix]) => p.startsWith(prefix));
+  return hit ? hit[1] : 'Foreign';
+}
+
 const BUY_INTENT_KEYWORDS = [
   'buy', 'order', 'purchase', 'book', 'reserve',
   'available', 'in stock', 'price', 'cost', 'kitne', 'kitna',
@@ -1281,7 +1298,52 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
       return json({ inserted, merged: 0, skipped, failed });
     }
 
-    if (segments.length === 2 && !['import', 'import-from-inquiries', 'facets'].includes(segments[1])) {
+    if (segments.length === 2 && segments[1] === 'fix-countries' && method === 'POST') {
+      // One-time backfill — idempotent, safe to re-run. Only touches
+      // customers whose phone isn't a 91 (India) number, and only
+      // overwrites country when it's currently empty/'India' — never
+      // clobbers an already-correct value (e.g. country='USA', city
+      // ='California' set earlier from name-based extraction).
+      const foreignRows = [];
+      const PAGE = 1000;
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await supabase
+          .from('customers')
+          .select('id, phone_number, country, tags')
+          .not('phone_number', 'like', '91%')
+          .range(from, from + PAGE - 1);
+        if (error) return json({ error: error.message }, 500);
+        foreignRows.push(...(data || []));
+        if (!data || data.length < PAGE) break;
+      }
+
+      const byCountry = {};
+      let updated = 0;
+      let next = 0;
+      async function lane() {
+        while (next < foreignRows.length) {
+          const row = foreignRows[next++];
+          const currentTags = Array.isArray(row.tags) ? row.tags : [];
+          const needsCountry = !row.country || row.country === 'India';
+          const finalCountry = needsCountry ? deriveCountryFromPhone(row.phone_number) : row.country;
+          byCountry[finalCountry] = (byCountry[finalCountry] || 0) + 1;
+
+          const updates = {};
+          if (needsCountry) updates.country = finalCountry;
+          if (!currentTags.includes('foreign')) updates.tags = [...currentTags, 'foreign'];
+
+          if (Object.keys(updates).length > 0) {
+            const { error } = await supabase.from('customers').update(updates).eq('id', row.id);
+            if (!error) updated++;
+          }
+        }
+      }
+      await Promise.all(Array.from({ length: Math.min(20, foreignRows.length) }, lane));
+
+      return json({ scanned: foreignRows.length, updated, byCountry });
+    }
+
+    if (segments.length === 2 && !['import', 'import-from-inquiries', 'facets', 'fix-countries'].includes(segments[1])) {
       const id = segments[1];
       if (method === 'PUT') {
         const c = body || {};
