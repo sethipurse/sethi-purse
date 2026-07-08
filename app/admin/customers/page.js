@@ -21,14 +21,24 @@ function countryLabel(country) {
   return `${COUNTRY_FLAG[c] || '🌍'} ${c}`;
 }
 
+// A customer counts as foreign if their phone isn't a 91 (India) number —
+// this is independent of the (possibly still-blank or 'India') country
+// field, which the fix-countries backfill fills in from the phone code.
+function isForeignPhone(phone) {
+  return !String(phone || '').startsWith('91');
+}
+function locationLabel(c) {
+  const country = isForeignPhone(c.phone_number) && (!c.country || c.country === 'India') ? 'Foreign' : c.country;
+  return countryLabel(country);
+}
+
 const CHIPS = [
-  { k: 'All',          label: 'All' },
-  { k: 'local',        label: 'Local',        kind: 'tag' },
-  { k: 'foreign',      label: 'Foreign',      kind: 'tag' },
-  { k: 'business',     label: 'Business',     kind: 'tag' },
-  { k: 'nri',          label: 'NRI',          kind: 'tag' },
-  { k: 'subscribed',   label: 'Subscribed',   kind: 'status' },
-  { k: 'unsubscribed', label: 'Unsubscribed', kind: 'status' },
+  { k: 'All',            label: 'All' },
+  { k: 'local',          label: 'Local',         kind: 'tag' },
+  { k: 'foreign_or_nri', label: 'Foreign / NRI', kind: 'tag' },
+  { k: 'business',       label: 'Business',      kind: 'tag' },
+  { k: 'subscribed',     label: 'Subscribed',    kind: 'status' },
+  { k: 'unsubscribed',   label: 'Unsubscribed',  kind: 'status' },
 ];
 
 const SORTS = [
@@ -275,7 +285,7 @@ export default function AdminCustomersPage() {
               {[
                 { label: 'Total',          n: stats.total,        cls: 'text-sethi-black',    onClick: () => jumpTo('All') },
                 { label: 'New this month', n: stats.newThisMonth, cls: 'text-green-600',       onClick: () => jumpTo('All', 'newest') },
-                { label: 'Foreign / NRI',  n: stats.foreign,      cls: 'text-blue-600',        onClick: () => jumpTo('foreign') },
+                { label: 'Foreign / NRI',  n: stats.foreign,      cls: 'text-blue-600',        onClick: () => jumpTo('foreign_or_nri') },
                 { label: 'Subscribed',     n: stats.subscribed,   cls: 'text-sethi-gold-dark', onClick: () => jumpTo('subscribed') },
               ].map((s) => (
                 <button key={s.label} onClick={s.onClick} className="bg-white border border-sethi-gray200 rounded-sm p-4 text-left hover:border-sethi-gold/50 transition-colors">
@@ -303,7 +313,7 @@ export default function AdminCustomersPage() {
                   <div className="text-sm font-semibold text-sethi-black">🆕 Naye customers is mahine</div>
                   <p className="text-xs text-sethi-gray500 mt-1"><span className="text-sethi-gold-dark font-bold">{stats.newThisMonth}</span> naye customers judhe hain — welcome karo.</p>
                 </button>
-                <button onClick={() => jumpTo('foreign', 'newest')} className="text-left bg-white border border-sethi-gray200 rounded-sm p-4 hover:border-sethi-gold/50 transition-colors">
+                <button onClick={() => jumpTo('foreign_or_nri', 'newest')} className="text-left bg-white border border-sethi-gray200 rounded-sm p-4 hover:border-sethi-gold/50 transition-colors">
                   <div className="text-sm font-semibold text-sethi-black">🌍 Foreign customers</div>
                   <p className="text-xs text-sethi-gray500 mt-1"><span className="text-sethi-gold-dark font-bold">{stats.foreign}</span> foreign/NRI customers — personal WhatsApp touch se rishta majboot hota hai.</p>
                 </button>
@@ -444,7 +454,7 @@ export default function AdminCustomersPage() {
                             <div className="text-[11px] text-sethi-gray500 mt-0.5">{timeAgoHint(c.last_contacted_at)}</div>
                           </td>
                           <td className="px-4 py-3 align-top font-mono text-xs">{c.phone_number}</td>
-                          <td className="px-4 py-3 align-top text-xs text-sethi-gray500">{c.city ? `${c.city} · ` : ''}{countryLabel(c.country)}</td>
+                          <td className="px-4 py-3 align-top text-xs text-sethi-gray500">{c.city ? `${c.city} · ` : ''}{locationLabel(c)}</td>
                           <td className="px-4 py-3 align-top">
                             <div className="flex flex-wrap gap-1 max-w-[160px]">
                               {(c.tags || []).map((t) => <span key={t} className="text-[10px] bg-sethi-gold/15 text-sethi-black px-1.5 py-0.5 rounded-sm">{t}</span>)}
@@ -490,7 +500,7 @@ export default function AdminCustomersPage() {
                             <div className="min-w-0">
                               <div className="font-semibold text-sethi-black">{c.full_name || c.serial_no || 'Customer'}</div>
                               <div className="font-mono text-xs text-sethi-gray500 mt-0.5">{c.phone_number}</div>
-                              <div className="text-xs text-sethi-gray500 mt-0.5">{c.city ? `${c.city} · ` : ''}{countryLabel(c.country)}</div>
+                              <div className="text-xs text-sethi-gray500 mt-0.5">{c.city ? `${c.city} · ` : ''}{locationLabel(c)}</div>
                               <div className="text-[11px] text-sethi-gray500 mt-0.5">{timeAgoHint(c.last_contacted_at)}</div>
                             </div>
                           </div>

@@ -1093,7 +1093,10 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
         if (q) qy = qy.or(`full_name.ilike.%${q}%,phone_number.ilike.%${q}%,serial_no.ilike.%${q}%`);
         if (city) qy = qy.eq('city', city);
         if (country) qy = qy.eq('country', country);
-        if (tag) qy = qy.contains('tags', [tag]);
+        // Foreign and NRI are the same audience for this business — one
+        // combined condition, not two separate tag filters.
+        if (tag === 'foreign_or_nri') qy = qy.or('phone_number.not.like.91%,tags.cs.{foreign},tags.cs.{nri}');
+        else if (tag) qy = qy.contains('tags', [tag]);
         if (status) qy = qy.eq('marketing_status', status);
         return qy;
       }
@@ -1110,7 +1113,10 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
           supabase.from('customers').select('id', { count: 'exact', head: true }),
           supabase.from('customers').select('id', { count: 'exact', head: true }).gte('created_at', monthStart),
           supabase.from('customers').select('id', { count: 'exact', head: true }).eq('marketing_status', 'subscribed'),
-          supabase.from('customers').select('id', { count: 'exact', head: true }).neq('country', 'India'),
+          // "Foreign" = non-India phone OR tagged foreign/nri — not just
+          // country<>'India', since most foreign rows import with country
+          // blank/defaulted until the fix-countries backfill runs.
+          supabase.from('customers').select('id', { count: 'exact', head: true }).or('phone_number.not.like.91%,tags.cs.{foreign},tags.cs.{nri}'),
           supabase.from('customers').select('id', { count: 'exact', head: true }).not('last_purchase_date', 'is', null),
           supabase.from('customers').select('id', { count: 'exact', head: true }).lt('last_purchase_date', sixMonthsAgo),
         ]);
