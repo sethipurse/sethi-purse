@@ -55,7 +55,10 @@ const CUSTOMER_SORTS = {
   newest:          { column: 'created_at',        ascending: false },
   name:            { column: 'full_name',         ascending: true },
   serial:          { column: 'serial_no',          ascending: true },
-  last_purchase:   { column: 'last_purchase_date', ascending: false, nullsFirst: false },
+  // Oldest/never-purchased first — this is the "who needs a win-back
+  // message" view, which is the useful direction for a CRM action, not
+  // "who bought most recently" (you already know that).
+  last_purchase:   { column: 'last_purchase_date', ascending: true, nullsFirst: true },
   least_contacted: { column: 'last_contacted_at',  ascending: true,  nullsFirst: true },
 };
 
@@ -1084,23 +1087,40 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
           .range(from, to);
 
         const monthStart = startOfMonthISOIst();
-        const [listRes, totalRes, newThisMonthRes, subscribedRes, foreignRes] = await Promise.all([
+        const sixMonthsAgo = new Date(Date.now() - 183 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+        const [listRes, totalRes, newThisMonthRes, subscribedRes, foreignRes, withPurchaseRes, stalePurchaseRes] = await Promise.all([
           listQuery,
           supabase.from('customers').select('id', { count: 'exact', head: true }),
           supabase.from('customers').select('id', { count: 'exact', head: true }).gte('created_at', monthStart),
           supabase.from('customers').select('id', { count: 'exact', head: true }).eq('marketing_status', 'subscribed'),
           supabase.from('customers').select('id', { count: 'exact', head: true }).neq('country', 'India'),
+          supabase.from('customers').select('id', { count: 'exact', head: true }).not('last_purchase_date', 'is', null),
+          supabase.from('customers').select('id', { count: 'exact', head: true }).lt('last_purchase_date', sixMonthsAgo),
         ]);
         if (listRes.error) return json({ error: listRes.error.message }, 500);
 
         const total = totalRes.count || 0;
         const foreign = foreignRes.count || 0;
-        const stats = { total, newThisMonth: newThisMonthRes.count || 0, subscribed: subscribedRes.count || 0, foreign, local: Math.max(0, total - foreign) };
+        const stats = {
+          total, newThisMonth: newThisMonthRes.count || 0, subscribed: subscribedRes.count || 0, foreign, local: Math.max(0, total - foreign),
+          withPurchaseDate: withPurchaseRes.count || 0, stalePurchase: stalePurchaseRes.count || 0,
+        };
 
         return json({ rows: listRes.data || [], total: listRes.count || 0, page, pageSize, stats });
       } catch (error) {
         return json({ error: error.message || 'Failed to load customers' }, 500);
       }
+    }
+
+    if (segments.length === 2 && segments[1] === 'facets' && method === 'GET') {
+      // Distinct city/country for the filter dropdowns. Selects only the two
+      // narrow columns (not the whole row) across the table — cheap even at
+      // 10k+ rows, unlike loading full customer records into the browser.
+      const { data, error } = await supabase.from('customers').select('city, country').limit(20000);
+      if (error) return json({ error: error.message }, 500);
+      const cities = Array.from(new Set((data || []).map((r) => r.city).filter(Boolean))).sort();
+      const countries = Array.from(new Set((data || []).map((r) => r.country).filter(Boolean))).sort();
+      return json({ cities, countries });
     }
 
     if (segments.length === 1 && method === 'POST') {
@@ -1261,7 +1281,7 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
       return json({ inserted, merged: 0, skipped, failed });
     }
 
-    if (segments.length === 2 && segments[1] !== 'import' && segments[1] !== 'import-from-inquiries') {
+    if (segments.length === 2 && !['import', 'import-from-inquiries', 'facets'].includes(segments[1])) {
       const id = segments[1];
       if (method === 'PUT') {
         const c = body || {};
