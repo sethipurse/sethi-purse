@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Bell, LayoutDashboard, ShoppingBag, Grid, Settings as SettingsIcon, LogOut, Menu, X, ExternalLink, Tag, MessageSquare, Star, Images } from 'lucide-react';
+import { Bell, LayoutDashboard, ShoppingBag, Grid, Settings as SettingsIcon, LogOut, Menu, X, ExternalLink, Tag, MessageSquare, Star, Images, Users } from 'lucide-react';
 import { LOGO_URL } from '@/lib/constants';
 
 const NAV = [
@@ -11,6 +11,7 @@ const NAV = [
   { href: '/admin/categories',    label: 'Categories',    icon: Grid },
   { href: '/admin/slider',        label: 'Hero Slider',   icon: Images },
   { href: '/admin/offers',        label: 'Offers',        icon: Tag },
+  { href: '/admin/customers',     label: 'Customers',     icon: Users },
   { href: '/admin/inquiries',     label: 'Inquiries',     icon: MessageSquare, hasBadge: true },
   { href: '/admin/reviews',       label: 'Reviews',       icon: Star },
   { href: '/admin/notifications', label: 'Notifications', icon: Bell },
@@ -23,6 +24,7 @@ const TITLES = {
   '/admin/categories':    'Categories',
   '/admin/slider':        'Hero Slider',
   '/admin/offers':        'Offers',
+  '/admin/customers':     'Customers',
   '/admin/inquiries':     'Inquiries',
   '/admin/reviews':       'Reviews',
   '/admin/notifications': 'Notifications',
