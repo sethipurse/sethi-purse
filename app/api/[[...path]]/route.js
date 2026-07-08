@@ -7,6 +7,7 @@ import categoriesJson from '@/data/categories.json';
 import { detectCategory } from '@/lib/categoryMatch';
 import { buildCategoryUpdatingReply, OFF_TOPIC_REPLY } from '@/lib/constants';
 import { matchProducts, shouldSkipOffTopicGate, deriveCacheCategory } from '@/lib/searchMatch';
+import { normalizePhone, isValidNormalizedPhone } from '@/lib/phone';
 
 export const maxDuration = 60;
 
@@ -49,6 +50,39 @@ function revalidateSlider() {
 }
 
 const VALID_STATUSES = ['new', 'contacted', 'converted', 'closed'];
+
+const CUSTOMER_SORTS = {
+  newest:          { column: 'created_at',        ascending: false },
+  name:            { column: 'full_name',         ascending: true },
+  serial:          { column: 'serial_no',          ascending: true },
+  last_purchase:   { column: 'last_purchase_date', ascending: false, nullsFirst: false },
+  least_contacted: { column: 'last_contacted_at',  ascending: true,  nullsFirst: true },
+};
+
+// Midnight IST on the 1st of the current IST month, expressed as a UTC ISO
+// timestamp — used for the "new this month" stat card.
+function startOfMonthISOIst() {
+  const istNow = new Date(Date.now() + 5.5 * 3600 * 1000);
+  const startUTCms = Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), 1) - 5.5 * 3600 * 1000;
+  return new Date(startUTCms).toISOString();
+}
+
+// mode:'merge' semantics — fill empty fields only, union array fields, and
+// NEVER overwrite a value the owner (or a prior import) already set.
+function mergeCustomerFields(existing, incoming) {
+  const updates = {};
+  ['full_name', 'serial_no', 'city', 'phone_2', 'whatsapp_number'].forEach((key) => {
+    if (!existing[key] && incoming[key]) updates[key] = incoming[key];
+  });
+  if ((!existing.country || existing.country === 'India') && incoming.country && incoming.country !== 'India') {
+    updates.country = incoming.country;
+  }
+  ['tags', 'category_interest'].forEach((key) => {
+    const merged = Array.from(new Set([...(existing[key] || []), ...(incoming[key] || [])]));
+    if (merged.length !== (existing[key] || []).length) updates[key] = merged;
+  });
+  return updates;
+}
 
 const BUY_INTENT_KEYWORDS = [
   'buy', 'order', 'purchase', 'book', 'reserve',
@@ -1012,6 +1046,269 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
         return json(data);
       }
       if (method === 'DELETE') { const authError = requireAdmin(request); if (authError) return authError; const { data, error } = await supabase.from('inquiries').delete().eq('id', id).select().single(); if (error) return json({ error: 'Not found' }, 404); return json({ success: true, removed: data }); }
+    }
+  }
+
+  if (segments[0] === 'customers') {
+    // PII — admin-gated on every method, including GET (products/categories
+    // are public for the storefront; customer records never are).
+    const authError = requireAdmin(request);
+    if (authError) return authError;
+
+    if (segments.length === 1 && method === 'GET') {
+      const url = new URL(request.url);
+      const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10) || 1);
+      const pageSize = Math.min(100, Math.max(1, parseInt(url.searchParams.get('pageSize') || '25', 10) || 25));
+      const q = (url.searchParams.get('q') || '').trim().replace(/[%,]/g, ' ').trim();
+      const city = url.searchParams.get('city') || '';
+      const country = url.searchParams.get('country') || '';
+      const tag = url.searchParams.get('tag') || '';
+      const status = url.searchParams.get('status') || '';
+      const sortSpec = CUSTOMER_SORTS[url.searchParams.get('sort')] || CUSTOMER_SORTS.newest;
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+
+      function applyFilters(query) {
+        let qy = query;
+        if (q) qy = qy.or(`full_name.ilike.%${q}%,phone_number.ilike.%${q}%,serial_no.ilike.%${q}%`);
+        if (city) qy = qy.eq('city', city);
+        if (country) qy = qy.eq('country', country);
+        if (tag) qy = qy.contains('tags', [tag]);
+        if (status) qy = qy.eq('marketing_status', status);
+        return qy;
+      }
+
+      try {
+        const listQuery = applyFilters(supabase.from('customers').select('*', { count: 'exact' }))
+          .order(sortSpec.column, { ascending: sortSpec.ascending, nullsFirst: sortSpec.nullsFirst })
+          .range(from, to);
+
+        const monthStart = startOfMonthISOIst();
+        const [listRes, totalRes, newThisMonthRes, subscribedRes, foreignRes] = await Promise.all([
+          listQuery,
+          supabase.from('customers').select('id', { count: 'exact', head: true }),
+          supabase.from('customers').select('id', { count: 'exact', head: true }).gte('created_at', monthStart),
+          supabase.from('customers').select('id', { count: 'exact', head: true }).eq('marketing_status', 'subscribed'),
+          supabase.from('customers').select('id', { count: 'exact', head: true }).neq('country', 'India'),
+        ]);
+        if (listRes.error) return json({ error: listRes.error.message }, 500);
+
+        const total = totalRes.count || 0;
+        const foreign = foreignRes.count || 0;
+        const stats = { total, newThisMonth: newThisMonthRes.count || 0, subscribed: subscribedRes.count || 0, foreign, local: Math.max(0, total - foreign) };
+
+        return json({ rows: listRes.data || [], total: listRes.count || 0, page, pageSize, stats });
+      } catch (error) {
+        return json({ error: error.message || 'Failed to load customers' }, 500);
+      }
+    }
+
+    if (segments.length === 1 && method === 'POST') {
+      const c = body || {};
+      const phone = normalizePhone(c.phone_number ?? c.phoneNumber);
+      if (!isValidNormalizedPhone(phone)) return json({ error: 'Valid phone number is required' }, 400);
+      const record = {
+        id: uuidv4(),
+        serial_no: c.serial_no ? String(c.serial_no).trim() : null,
+        full_name: String(c.full_name ?? c.fullName ?? '').trim() || (c.serial_no ? String(c.serial_no).trim() : '') || 'Customer',
+        phone_number: phone,
+        whatsapp_number: (c.whatsapp_number ?? c.whatsappNumber) ? normalizePhone(c.whatsapp_number ?? c.whatsappNumber) : phone,
+        phone_2: c.phone_2 ? normalizePhone(c.phone_2) : null,
+        city: c.city ? String(c.city).trim() : null,
+        country: c.country ? String(c.country).trim() : 'India',
+        category_interest: Array.isArray(c.category_interest) ? c.category_interest : [],
+        tags: Array.isArray(c.tags) ? c.tags : [],
+        marketing_status: c.marketing_status || 'subscribed',
+        source: c.source || 'manual',
+        notes: c.notes ? String(c.notes).trim() : null,
+        created_at: nowIST(),
+      };
+      const { data, error } = await supabase.from('customers').insert([record]).select().single();
+      if (error) {
+        if (error.code === '23505') return json({ error: 'A customer with this phone number already exists' }, 409);
+        return json({ error: error.message }, 500);
+      }
+      return json(data, 201);
+    }
+
+    if (segments.length === 2 && segments[1] === 'import' && method === 'POST') {
+      const { rows, mode } = body || {};
+      if (!Array.isArray(rows) || rows.length === 0) return json({ error: 'rows array is required' }, 400);
+      if (rows.length > 4000) return json({ error: 'Maximum 4000 rows per request' }, 400);
+      const mergeMode = mode === 'merge';
+
+      // De-dupe same-phone rows within this file first — a repeated contact
+      // in the CSV becomes one richer record instead of a unique-constraint
+      // failure when both rows try to insert.
+      const byPhone = new Map();
+      const failed = [];
+      rows.forEach((raw) => {
+        const phone = normalizePhone(raw.phone_number ?? raw.phone ?? '');
+        if (!isValidNormalizedPhone(phone)) { failed.push({ row: raw, reason: 'Invalid or missing phone number' }); return; }
+        const candidate = {
+          serial_no: raw.serial_no ? String(raw.serial_no).trim() : null,
+          full_name: String(raw.full_name || '').trim() || (raw.serial_no ? String(raw.serial_no).trim() : '') || 'Customer',
+          phone_number: phone,
+          whatsapp_number: raw.whatsapp_number ? normalizePhone(raw.whatsapp_number) : phone,
+          phone_2: raw.phone_2 ? normalizePhone(raw.phone_2) : null,
+          city: raw.city ? String(raw.city).trim() : null,
+          country: raw.country ? String(raw.country).trim() : 'India',
+          tags: String(raw.tags || '').split(/[,;]/).map((t) => t.trim()).filter(Boolean),
+          category_interest: [],
+        };
+        const existing = byPhone.get(phone);
+        if (!existing) { byPhone.set(phone, candidate); return; }
+        existing.full_name = existing.full_name === 'Customer' && candidate.full_name !== 'Customer' ? candidate.full_name : existing.full_name;
+        existing.serial_no = existing.serial_no || candidate.serial_no;
+        existing.city = existing.city || candidate.city;
+        existing.phone_2 = existing.phone_2 || candidate.phone_2;
+        if (existing.country === 'India' && candidate.country !== 'India') existing.country = candidate.country;
+        existing.tags = Array.from(new Set([...existing.tags, ...candidate.tags]));
+      });
+
+      const candidates = Array.from(byPhone.values());
+      const phones = candidates.map((c) => c.phone_number);
+      const existingByPhone = new Map();
+      for (let i = 0; i < phones.length; i += 300) {
+        const chunk = phones.slice(i, i + 300);
+        const { data, error } = await supabase.from('customers').select('*').in('phone_number', chunk);
+        if (error) return json({ error: error.message }, 500);
+        (data || []).forEach((row) => existingByPhone.set(row.phone_number, row));
+      }
+
+      const toInsert = [];
+      const toUpdate = [];
+      let skipped = 0;
+      for (const cand of candidates) {
+        const existing = existingByPhone.get(cand.phone_number);
+        if (!existing) {
+          toInsert.push({ id: uuidv4(), ...cand, marketing_status: 'subscribed', source: 'csv', created_at: nowIST() });
+          continue;
+        }
+        if (!mergeMode) { skipped++; continue; }
+        const updates = mergeCustomerFields(existing, cand);
+        if (Object.keys(updates).length === 0) { skipped++; continue; }
+        toUpdate.push({ id: existing.id, updates });
+      }
+
+      let inserted = 0;
+      for (let i = 0; i < toInsert.length; i += 200) {
+        const chunk = toInsert.slice(i, i + 200);
+        const { data, error } = await supabase.from('customers').insert(chunk).select('id');
+        if (error) { chunk.forEach((r) => failed.push({ row: r, reason: error.message })); continue; }
+        inserted += (data || chunk).length;
+      }
+
+      // Bounded concurrency — a few-thousand-row re-import must fit inside
+      // the route's 60s maxDuration without serializing one update at a time.
+      let merged = 0;
+      let next = 0;
+      async function updateLane() {
+        while (next < toUpdate.length) {
+          const item = toUpdate[next++];
+          const { error } = await supabase.from('customers').update(item.updates).eq('id', item.id);
+          if (error) failed.push({ row: item, reason: error.message }); else merged++;
+        }
+      }
+      await Promise.all(Array.from({ length: Math.min(20, toUpdate.length) }, updateLane));
+
+      return json({ inserted, merged, skipped, failed });
+    }
+
+    if (segments.length === 2 && segments[1] === 'import-from-inquiries' && method === 'POST') {
+      const { data: inquiries, error: inqError } = await supabase.from('inquiries').select('name, phone, city, product_interest');
+      if (inqError) return json({ error: inqError.message }, 500);
+
+      const byPhone = new Map();
+      (inquiries || []).forEach((inq) => {
+        const rawPhone = String(inq.phone || '');
+        if (!rawPhone || rawPhone === '0000000000') return;
+        const phone = normalizePhone(rawPhone);
+        if (!isValidNormalizedPhone(phone)) return;
+        const interests = String(inq.product_interest || '').split(',').map((s) => s.trim()).filter(Boolean);
+        const existing = byPhone.get(phone);
+        if (!existing) {
+          byPhone.set(phone, { phone_number: phone, full_name: (inq.name || '').trim() || 'Customer', city: (inq.city || '').trim() || null, category_interest: interests, tags: ['from-enquiry'] });
+        } else {
+          existing.category_interest = Array.from(new Set([...existing.category_interest, ...interests]));
+        }
+      });
+
+      const candidates = Array.from(byPhone.values());
+      const phones = candidates.map((c) => c.phone_number);
+      const existingPhones = new Set();
+      for (let i = 0; i < phones.length; i += 300) {
+        const chunk = phones.slice(i, i + 300);
+        const { data, error } = await supabase.from('customers').select('phone_number').in('phone_number', chunk);
+        if (error) return json({ error: error.message }, 500);
+        (data || []).forEach((r) => existingPhones.add(r.phone_number));
+      }
+
+      const toInsert = candidates
+        .filter((c) => !existingPhones.has(c.phone_number))
+        .map((c) => ({ id: uuidv4(), whatsapp_number: c.phone_number, phone_2: null, serial_no: null, country: 'India', marketing_status: 'subscribed', source: 'inquiry', created_at: nowIST(), ...c }));
+      const skipped = candidates.length - toInsert.length;
+
+      let inserted = 0;
+      const failed = [];
+      for (let i = 0; i < toInsert.length; i += 200) {
+        const chunk = toInsert.slice(i, i + 200);
+        const { data, error } = await supabase.from('customers').insert(chunk).select('id');
+        if (error) { chunk.forEach((r) => failed.push({ row: r, reason: error.message })); continue; }
+        inserted += (data || chunk).length;
+      }
+
+      return json({ inserted, merged: 0, skipped, failed });
+    }
+
+    if (segments.length === 2 && segments[1] !== 'import' && segments[1] !== 'import-from-inquiries') {
+      const id = segments[1];
+      if (method === 'PUT') {
+        const c = body || {};
+        const updates = {};
+        if (c.serial_no !== undefined) updates.serial_no = c.serial_no ? String(c.serial_no).trim() : null;
+        if (c.full_name !== undefined || c.fullName !== undefined) updates.full_name = String(c.full_name ?? c.fullName ?? '').trim() || null;
+        if (c.phone_number !== undefined || c.phoneNumber !== undefined) {
+          const phone = normalizePhone(c.phone_number ?? c.phoneNumber);
+          if (!isValidNormalizedPhone(phone)) return json({ error: 'Valid phone number is required' }, 400);
+          updates.phone_number = phone;
+        }
+        if (c.whatsapp_number !== undefined || c.whatsappNumber !== undefined) updates.whatsapp_number = normalizePhone(c.whatsapp_number ?? c.whatsappNumber) || null;
+        if (c.phone_2 !== undefined) updates.phone_2 = c.phone_2 ? normalizePhone(c.phone_2) : null;
+        if (c.city !== undefined) updates.city = c.city ? String(c.city).trim() : null;
+        if (c.country !== undefined) updates.country = c.country ? String(c.country).trim() : 'India';
+        if (c.category_interest !== undefined) updates.category_interest = Array.isArray(c.category_interest) ? c.category_interest : [];
+        if (c.marketing_status !== undefined) updates.marketing_status = c.marketing_status;
+        if (c.notes !== undefined) updates.notes = c.notes ? String(c.notes).trim() : null;
+        if (c.last_purchase_date !== undefined) updates.last_purchase_date = c.last_purchase_date || null;
+        if (c.total_purchases !== undefined) updates.total_purchases = Number(c.total_purchases) || 0;
+        if (c.purchase_value !== undefined) updates.purchase_value = Number(c.purchase_value) || 0;
+        if (c.last_contacted_at !== undefined) updates.last_contacted_at = c.last_contacted_at || null;
+
+        // add_tag: atomic union so a bulk "add tag to N selected" doesn't
+        // need the client to know each customer's current tags array.
+        if (c.add_tag && typeof c.add_tag === 'string' && c.add_tag.trim()) {
+          const { data: cur } = await supabase.from('customers').select('tags').eq('id', id).single();
+          const currentTags = Array.isArray(cur?.tags) ? cur.tags : [];
+          const tagTrim = c.add_tag.trim();
+          if (!currentTags.includes(tagTrim)) updates.tags = [...currentTags, tagTrim];
+        } else if (c.tags !== undefined) {
+          updates.tags = Array.isArray(c.tags) ? c.tags : [];
+        }
+
+        const { data, error } = await supabase.from('customers').update(updates).eq('id', id).select().single();
+        if (error) {
+          if (error.code === '23505') return json({ error: 'A customer with this phone number already exists' }, 409);
+          return json({ error: error.message }, 500);
+        }
+        if (!data) return json({ error: 'Not found' }, 404);
+        return json(data);
+      }
+      if (method === 'DELETE') {
+        const { data, error } = await supabase.from('customers').delete().eq('id', id).select().single();
+        if (error) return json({ error: 'Not found' }, 404);
+        return json({ success: true, removed: data });
+      }
     }
   }
 
