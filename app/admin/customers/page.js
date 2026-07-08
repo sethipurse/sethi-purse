@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import AdminShell from '@/components/AdminShell';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import CustomerFormModal from '@/components/CustomerFormModal';
+import CustomerImportModal from '@/components/CustomerImportModal';
 import { toast } from 'sonner';
 import {
   Users, ChevronLeft, ChevronRight, Upload, Search, Square, CheckSquare,
@@ -531,6 +532,12 @@ export default function AdminCustomersPage() {
         customer={formModal.customer}
         onClose={() => setFormModal({ open: false, customer: null })}
         onSaved={() => { setFormModal({ open: false, customer: null }); load(); loadFacets(); }}
+      />
+
+      <CustomerImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={() => { load(); loadFacets(); }}
       />
 
       <ConfirmDialog
