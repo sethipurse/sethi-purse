@@ -65,7 +65,7 @@ export default function ProductForm({ initial, productId, onSaved }) {
 
   const [form, setForm] = useState({
     name: '', brand: '', category: '', mrp: '', salePrice: '', stock: '',
-    description: '', imageUrl: '', imageType: 'url', featured: false,
+    description: '', imageUrl: '', imageType: 'url', featured: false, is_active: true,
     scarcity_mode: 'off', display_stock: '', stock_decay_speed: '0',
     viewing_min: '3', viewing_max: '12', price_lock_hours: '0',
     local_scarcity: false, scarcity_label: '', demo_video_url: '',
@@ -111,6 +111,9 @@ export default function ProductForm({ initial, productId, onSaved }) {
         imageUrl: initial.imageUrl || initial.image_url || '',
         imageType: initial.imageType || 'url',
         featured: !!initial.featured,
+        // Missing/undefined (new products, or rows saved before this field
+        // existed) means visible — only an explicit false hides it.
+        is_active: initial.is_active === false ? false : true,
         scarcity_mode: initial.scarcity_mode || 'off',
         display_stock: initial.display_stock ?? '',
         stock_decay_speed: initial.stock_decay_speed ?? '0',
@@ -341,6 +344,7 @@ export default function ProductForm({ initial, productId, onSaved }) {
       colors: finalColorVariants,
       tags,
       stock: form.stock === '' ? null : Number(form.stock),
+      is_active: !!form.is_active,
       display_stock: form.display_stock === '' ? null : Number(form.display_stock),
       stock_decay_speed: Number(form.stock_decay_speed) || 0,
       viewing_min: Number(form.viewing_min) || 3,
@@ -396,6 +400,19 @@ export default function ProductForm({ initial, productId, onSaved }) {
             </button>
             <span className="text-sm text-sethi-gray500">{form.featured ? '⭐ Shown on homepage' : 'Not featured'}</span>
           </div>
+        </div>
+        <div className="md:col-span-2">
+          <label className="block text-sm font-medium mb-1.5">Live site pe dikhna chahiye?</label>
+          <div className="flex items-center h-12 gap-3">
+            <button type="button" onClick={() => update('is_active', !form.is_active)}
+              className={`relative w-14 h-7 rounded-full transition-colors ${form.is_active ? 'bg-sethi-gold' : 'bg-sethi-gray200'}`}>
+              <span className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow transition-transform ${form.is_active ? 'translate-x-7' : ''}`} />
+            </button>
+            <span className="text-sm font-medium text-sethi-gray500">
+              {form.is_active ? '✅ Live site pe dikh raha hai' : '🚫 Chhupa hua — customer ko nahi dikhega'}
+            </span>
+          </div>
+          <p className="text-xs text-sethi-gray500 mt-1.5">Band karo to product live site se hat jayega, par admin mein safe rahega (delete nahi hoga).</p>
         </div>
       </Section>
 
