@@ -4,7 +4,7 @@ import Link from 'next/link';
 import AdminShell from '@/components/AdminShell';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { toast } from 'sonner';
-import { Trash2, Edit, Plus, Search, CheckSquare, Square, Loader2, Package, Star, ChevronDown, ChevronRight, List, LayoutGrid } from 'lucide-react';
+import { Trash2, Edit, Plus, Search, CheckSquare, Square, Loader2, Package, Star, ChevronDown, ChevronRight, List, LayoutGrid, Eye, EyeOff } from 'lucide-react';
 import { resolveImage } from '@/lib/constants';
 
 const VIEW_STORAGE_KEY = 'sethi-admin-products-view';
@@ -17,6 +17,7 @@ export default function AdminProductsPage() {
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('All');
   const [sort, setSort] = useState('newest');
+  const [hiddenOnly, setHiddenOnly] = useState(false);
   const [confirm, setConfirm] = useState(null);
   const [selected, setSelected] = useState(new Set());
   const [bulkConfirm, setBulkConfirm] = useState(false);
@@ -86,6 +87,7 @@ export default function AdminProductsPage() {
   const filtered = useMemo(() => {
     let list = [...products];
     if (cat !== 'All') list = list.filter((p) => p.category === cat);
+    if (hiddenOnly) list = list.filter((p) => p.is_active === false);
     if (q.trim()) {
       const t = q.trim().toLowerCase();
       list = list.filter((p) => p.name.toLowerCase().includes(t) || (p.brand || '').toLowerCase().includes(t));
@@ -97,7 +99,7 @@ export default function AdminProductsPage() {
       default: list.sort((a, b) => new Date(b.created_at ?? b.createdAt) - new Date(a.created_at ?? a.createdAt));
     }
     return list;
-  }, [products, q, cat, sort]);
+  }, [products, q, cat, sort, hiddenOnly]);
 
   // Groups the already-filtered/sorted list by category, ordered by the
   // categories list order (falling back to alphabetical for anything not in
@@ -256,6 +258,30 @@ export default function AdminProductsPage() {
     }
   };
 
+  // ── Toggle Live/Hidden ──
+  const toggleActive = async (p) => {
+    const newActive = !(p.is_active ?? true);
+    // Optimistic update
+    setProducts((prev) => prev.map((pr) => pr.id === p.id ? { ...pr, is_active: newActive } : pr));
+    try {
+      const res = await fetch(`/api/products/${encodeURIComponent(p.id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...p, is_active: newActive }),
+      });
+      if (!res.ok) {
+        // Revert on failure
+        setProducts((prev) => prev.map((pr) => pr.id === p.id ? { ...pr, is_active: !newActive } : pr));
+        toast.error('Failed to update visibility');
+        return;
+      }
+      toast.success(newActive ? '✅ Live site pe dikh raha hai' : '🚫 Live site se chhupa diya');
+    } catch {
+      setProducts((prev) => prev.map((pr) => pr.id === p.id ? { ...pr, is_active: !newActive } : pr));
+      toast.error('Network error');
+    }
+  };
+
   const selectedCount = selected.size;
 
   const StockCell = ({ p }) => {
@@ -301,8 +327,10 @@ export default function AdminProductsPage() {
 
   // Reused verbatim by both the flat list view and each category group in
   // grouped mode, so selection/edit/delete/feature behavior never diverges.
-  const DesktopProductRow = ({ p }) => (
-    <tr className={`border-t border-sethi-gray200 transition-colors ${selected.has(p.id) ? 'bg-sethi-gold/5' : 'hover:bg-sethi-gray100/50'}`}>
+  const DesktopProductRow = ({ p }) => {
+    const isHidden = p.is_active === false;
+    return (
+    <tr className={`border-t border-sethi-gray200 transition-colors ${isHidden ? 'opacity-50' : ''} ${selected.has(p.id) ? 'bg-sethi-gold/5' : 'hover:bg-sethi-gray100/50'}`}>
       <td className="px-4 py-3">
         <button onClick={() => toggleOne(p.id)} className="text-sethi-gray500 hover:text-sethi-gold transition-colors">
           {selected.has(p.id) ? <CheckSquare className="w-5 h-5 text-sethi-gold" /> : <Square className="w-5 h-5" />}
@@ -312,19 +340,33 @@ export default function AdminProductsPage() {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={resolveImage(p)} alt="" className="w-12 h-12 object-cover rounded-sm bg-sethi-gray100" />
       </td>
-      <td className="px-4 py-3 font-medium">{p.name}</td>
+      <td className="px-4 py-3 font-medium">
+        <div className="flex items-center gap-2">
+          {p.name}
+          {isHidden && <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide bg-sethi-gray200 text-sethi-gray500 px-1.5 py-0.5 rounded-sm">Hidden</span>}
+        </div>
+      </td>
       <td className="px-4 py-3 text-sethi-gray500">{p.brand}</td>
       <td className="px-4 py-3">{p.category}</td>
       <td className="px-4 py-3 font-semibold">Rs.{p.salePrice ?? p.sale_price ?? p.price}</td>
       <td className="px-4 py-3"><StockCell p={p} /></td>
       <td className="px-4 py-3">
-        <button
-          onClick={() => toggleFeatured(p)}
-          title={p.featured ? 'Remove from featured' : 'Mark as featured'}
-          className={`flex items-center justify-center w-9 h-9 rounded-full transition-all ${p.featured ? 'bg-sethi-gold text-sethi-black' : 'bg-sethi-gray100 text-sethi-gray400 hover:bg-sethi-gold/20 hover:text-sethi-gold'}`}
-        >
-          <Star className={`w-4 h-4 ${p.featured ? 'fill-sethi-black' : ''}`} />
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => toggleFeatured(p)}
+            title={p.featured ? 'Remove from featured' : 'Mark as featured'}
+            className={`flex items-center justify-center w-9 h-9 rounded-full transition-all ${p.featured ? 'bg-sethi-gold text-sethi-black' : 'bg-sethi-gray100 text-sethi-gray400 hover:bg-sethi-gold/20 hover:text-sethi-gold'}`}
+          >
+            <Star className={`w-4 h-4 ${p.featured ? 'fill-sethi-black' : ''}`} />
+          </button>
+          <button
+            onClick={() => toggleActive(p)}
+            title="Live site pe dikhao / chhupao"
+            className={`flex items-center justify-center w-9 h-9 rounded-full transition-all ${isHidden ? 'bg-sethi-gray100 text-sethi-gray400 hover:bg-sethi-gray200' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
+          >
+            {isHidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
       </td>
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">
@@ -337,17 +379,23 @@ export default function AdminProductsPage() {
         </div>
       </td>
     </tr>
-  );
+    );
+  };
 
-  const MobileProductCard = ({ p }) => (
-    <div className={`p-4 flex gap-3 ${selected.has(p.id) ? 'bg-sethi-gold/5' : ''}`}>
+  const MobileProductCard = ({ p }) => {
+    const isHidden = p.is_active === false;
+    return (
+    <div className={`p-4 flex gap-3 ${isHidden ? 'opacity-50' : ''} ${selected.has(p.id) ? 'bg-sethi-gold/5' : ''}`}>
       <button onClick={() => toggleOne(p.id)} className="mt-1 shrink-0">
         {selected.has(p.id) ? <CheckSquare className="w-5 h-5 text-sethi-gold" /> : <Square className="w-5 h-5 text-sethi-gray400" />}
       </button>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={resolveImage(p)} alt="" className="w-16 h-16 object-cover rounded-sm bg-sethi-gray100 shrink-0" />
       <div className="flex-1 min-w-0">
-        <div className="font-medium truncate">{p.name}</div>
+        <div className="flex items-center gap-2">
+          <div className="font-medium truncate">{p.name}</div>
+          {isHidden && <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide bg-sethi-gray200 text-sethi-gray500 px-1.5 py-0.5 rounded-sm">Hidden</span>}
+        </div>
         <div className="text-xs text-sethi-gray500">{p.brand} • {p.category}</div>
         <div className="flex items-center gap-3 mt-1 text-sm flex-wrap">
           <span className="font-semibold">Rs.{p.salePrice ?? p.sale_price ?? p.price}</span>
@@ -361,12 +409,21 @@ export default function AdminProductsPage() {
             <Star className={`w-3 h-3 ${p.featured ? 'fill-sethi-black' : ''}`} />
             {p.featured ? 'Featured' : 'Feature'}
           </button>
+          <button
+            onClick={() => toggleActive(p)}
+            title="Live site pe dikhao / chhupao"
+            className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${isHidden ? 'bg-sethi-gray100 text-sethi-gray500' : 'bg-green-100 text-green-700'}`}
+          >
+            {isHidden ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+            {isHidden ? 'Hidden' : 'Live'}
+          </button>
           <Link href={`/admin/products/edit/${p.id}`} className="text-sm text-sethi-gold underline">Edit</Link>
           <button onClick={() => setConfirm(p)} className="text-sm text-red-600 underline">Delete</button>
         </div>
       </div>
     </div>
-  );
+    );
+  };
 
   // Native checkbox (not the custom Square/CheckSquare buttons used
   // elsewhere) because "indeterminate" is a DOM property only settable via
@@ -455,6 +512,10 @@ export default function AdminProductsPage() {
             <option value="price_desc">Price: High to Low</option>
           </select>
         </div>
+        <label className="flex items-center gap-2 mt-3 text-sm text-sethi-gray500 cursor-pointer w-fit">
+          <input type="checkbox" checked={hiddenOnly} onChange={(e) => setHiddenOnly(e.target.checked)} className="w-4 h-4 accent-sethi-gold" />
+          Hidden only
+        </label>
       </div>
 
       {/* View toggle */}
