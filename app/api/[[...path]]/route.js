@@ -104,6 +104,56 @@ function deriveCountryFromPhone(phone) {
   return hit ? hit[1] : 'Foreign';
 }
 
+// ─── Serial numbers: Sp<N> for local customers, NRI<N> for foreign ─────────
+// Standalone (not buried in the POST handler) so the create endpoint, CSV
+// import, both serial-migration endpoints below, and a future AiSensy
+// webhook can all call the same generator and never drift out of sync.
+function isValidSerial(s) {
+  return /^(Sp|NRI)\d+$/.test(String(s || ''));
+}
+
+function parseSerialSuffix(serial, prefix) {
+  const m = String(serial || '').match(new RegExp(`^${prefix}(\\d+)$`));
+  return m ? parseInt(m[1], 10) : null;
+}
+
+// Pure — no DB access — so the decision logic is directly unit-testable
+// with mock arrays, independent of nextSerial()'s Supabase round trip.
+function computeNextSerial(existingSerials, prefix) {
+  let max = 0;
+  for (const s of existingSerials) {
+    const n = parseSerialSuffix(s, prefix);
+    if (n !== null && n > max) max = n;
+  }
+  return `${prefix}${max + 1}`;
+}
+
+function nextSerialFromList(existingSerials, prefix) {
+  const set = existingSerials instanceof Set ? existingSerials : new Set(existingSerials);
+  let candidate = computeNextSerial(set, prefix);
+  for (let i = 0; i < 50; i++) {
+    if (!set.has(candidate)) return candidate;
+    const n = parseSerialSuffix(candidate, prefix);
+    candidate = `${prefix}${n + 1}`;
+  }
+  // 50 consecutive collisions is effectively impossible in practice — this
+  // is a last-resort guarantee that insert never hard-fails on a missing
+  // serial rather than a real expected path.
+  return `${prefix}${Date.now()}`;
+}
+
+async function nextSerial(isForeign) {
+  const prefix = isForeign ? 'NRI' : 'Sp';
+  // Server-side prefix filter only — never loads full rows. The LIKE match
+  // is a cheap prefilter; correctness comes from the anchored regex in
+  // parseSerialSuffix, which silently ignores anything malformed (so a
+  // stray value like 'Special1' that also starts with 'Sp' can never be
+  // mistaken for a real serial).
+  const { data, error } = await supabase.from('customers').select('serial_no').like('serial_no', `${prefix}%`);
+  if (error) throw error;
+  return nextSerialFromList((data || []).map((r) => r.serial_no), prefix);
+}
+
 const BUY_INTENT_KEYWORDS = [
   'buy', 'order', 'purchase', 'book', 'reserve',
   'available', 'in stock', 'price', 'cost', 'kitne', 'kitna',
