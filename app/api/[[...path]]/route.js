@@ -142,16 +142,36 @@ function nextSerialFromList(existingSerials, prefix) {
   return `${prefix}${Date.now()}`;
 }
 
+// Supabase silently caps an unpaged select at 1000 rows. With 3000+ Sp####
+// customers, `.select('serial_no').like(...)` alone only ever sees the
+// first 1000 — the true max is invisible and every caller below would
+// compute a stale "next" serial that already exists. ALWAYS page through
+// every matching row via .range() (looping until a page returns fewer than
+// PAGE rows) before deriving a max or a "used serials" set. The LIKE match
+// itself is just a cheap prefilter; correctness comes from the anchored
+// regex in parseSerialSuffix, which silently ignores anything malformed
+// (so a stray value like 'Special1' that also starts with 'Sp' can never
+// be mistaken for a real serial).
+async function fetchAllSerials(prefix) {
+  const out = [];
+  const PAGE = 1000;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from('customers')
+      .select('serial_no')
+      .like('serial_no', `${prefix}%`)
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    out.push(...(data || []).map((r) => r.serial_no));
+    if (!data || data.length < PAGE) break;
+  }
+  return out;
+}
+
 async function nextSerial(isForeign) {
   const prefix = isForeign ? 'NRI' : 'Sp';
-  // Server-side prefix filter only — never loads full rows. The LIKE match
-  // is a cheap prefilter; correctness comes from the anchored regex in
-  // parseSerialSuffix, which silently ignores anything malformed (so a
-  // stray value like 'Special1' that also starts with 'Sp' can never be
-  // mistaken for a real serial).
-  const { data, error } = await supabase.from('customers').select('serial_no').like('serial_no', `${prefix}%`);
-  if (error) throw error;
-  return nextSerialFromList((data || []).map((r) => r.serial_no), prefix);
+  const serials = await fetchAllSerials(prefix);
+  return nextSerialFromList(serials, prefix);
 }
 
 const BUY_INTENT_KEYWORDS = [
@@ -1303,17 +1323,17 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
       }
 
       // ── Serial resolution (Choice B: every row gets one) ──
-      // Fetch current Sp/NRI serials ONCE for the whole batch; increment in
-      // memory as rows are assigned, tracking everything handed out this
-      // run in the same Set so intra-batch collisions are impossible.
-      const [{ data: spRows }, { data: nriRows }] = await Promise.all([
-        supabase.from('customers').select('serial_no').like('serial_no', 'Sp%'),
-        supabase.from('customers').select('serial_no').like('serial_no', 'NRI%'),
-      ]);
-      const usedSerials = {
-        Sp: new Set((spRows || []).map((r) => r.serial_no)),
-        NRI: new Set((nriRows || []).map((r) => r.serial_no)),
-      };
+      // Fetch ALL current Sp/NRI serials ONCE for the whole batch (paged —
+      // see fetchAllSerials); increment in memory as rows are assigned,
+      // tracking everything handed out this run in the same Set so
+      // intra-batch collisions are impossible.
+      let spSerials, nriSerials;
+      try {
+        [spSerials, nriSerials] = await Promise.all([fetchAllSerials('Sp'), fetchAllSerials('NRI')]);
+      } catch (err) {
+        return json({ error: err.message || 'Failed to load existing serials' }, 500);
+      }
+      const usedSerials = { Sp: new Set(spSerials), NRI: new Set(nriSerials) };
       const maxSuffix = { Sp: 0, NRI: 0 };
       for (const prefix of ['Sp', 'NRI']) {
         for (const s of usedSerials[prefix]) {
@@ -1504,9 +1524,13 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
       });
       const toMigrate = candidates.filter((r) => !/^NRI\d+$/.test(r.serial_no || ''));
 
-      const { data: nriRows, error: nriErr } = await supabase.from('customers').select('serial_no').like('serial_no', 'NRI%');
-      if (nriErr) return json({ error: nriErr.message }, 500);
-      const usedNri = new Set((nriRows || []).map((r) => r.serial_no));
+      let nriSerials;
+      try {
+        nriSerials = await fetchAllSerials('NRI');
+      } catch (err) {
+        return json({ error: err.message || 'Failed to load existing serials' }, 500);
+      }
+      const usedNri = new Set(nriSerials);
       let maxSuffix = 0;
       for (const s of usedNri) {
         const n = parseSerialSuffix(s, 'NRI');
@@ -1586,18 +1610,15 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
       });
       const toMigrate = candidates.filter((r) => !isValidSerial(r.serial_no || ''));
 
-      // Seed BOTH counters once — a WA-batch row can resolve to either
-      // prefix depending on its own phone.
-      const [{ data: spRows, error: spErr }, { data: nriRows, error: nriErr }] = await Promise.all([
-        supabase.from('customers').select('serial_no').like('serial_no', 'Sp%'),
-        supabase.from('customers').select('serial_no').like('serial_no', 'NRI%'),
-      ]);
-      if (spErr) return json({ error: spErr.message }, 500);
-      if (nriErr) return json({ error: nriErr.message }, 500);
-      const usedSerials = {
-        Sp: new Set((spRows || []).map((r) => r.serial_no)),
-        NRI: new Set((nriRows || []).map((r) => r.serial_no)),
-      };
+      // Seed BOTH counters once (paged — see fetchAllSerials) — a WA-batch
+      // row can resolve to either prefix depending on its own phone.
+      let spSerials, nriSerials;
+      try {
+        [spSerials, nriSerials] = await Promise.all([fetchAllSerials('Sp'), fetchAllSerials('NRI')]);
+      } catch (err) {
+        return json({ error: err.message || 'Failed to load existing serials' }, 500);
+      }
+      const usedSerials = { Sp: new Set(spSerials), NRI: new Set(nriSerials) };
       const maxSuffix = { Sp: 0, NRI: 0 };
       for (const prefix of ['Sp', 'NRI']) {
         for (const s of usedSerials[prefix]) {
