@@ -1200,15 +1200,42 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
       const c = body || {};
       const phone = normalizePhone(c.phone_number ?? c.phoneNumber);
       if (!isValidNormalizedPhone(phone)) return json({ error: 'Valid phone number is required' }, 400);
+      const isForeign = !phone.startsWith('91');
+      const expectedPrefix = isForeign ? 'NRI' : 'Sp';
+
+      // Choice B: every customer always gets a serial. Choice 2: an
+      // owner-typed serial is kept ONLY if it's exactly the natural next
+      // one — ahead/taken/malformed/wrong-prefix all get corrected to
+      // `expected` so serials stay sequential with no gaps. The phone
+      // (isForeign), not the typed serial, is authoritative for Sp vs NRI.
+      const typedSerial = c.serial_no ? String(c.serial_no).trim() : '';
+      const expected = await nextSerial(isForeign); // called once, reused below
+      let serial = expected;
+      let serialNote = null;
+      if (typedSerial && isValidSerial(typedSerial)) {
+        if (!typedSerial.startsWith(expectedPrefix)) {
+          serialNote = `Phone number se ye serial match nahi karta, isliye ye diya: ${expected}`;
+        } else if (typedSerial === expected) {
+          serial = typedSerial;
+        } else {
+          const { data: taken } = await supabase.from('customers').select('id').eq('serial_no', typedSerial).maybeSingle();
+          serialNote = taken
+            ? `us serial ka number badal diya, ye lo: ${expected}`
+            : `Gap na ho isliye ye serial diya: ${expected} (aapne ${typedSerial} daala tha)`;
+        }
+      } // malformed typedSerial (or none) — silently use `expected`
+
       const record = {
         id: uuidv4(),
-        serial_no: c.serial_no ? String(c.serial_no).trim() : null,
-        full_name: String(c.full_name ?? c.fullName ?? '').trim() || (c.serial_no ? String(c.serial_no).trim() : '') || 'Customer',
+        serial_no: serial,
+        // Never blank, never the literal 'Customer' — falls back to the
+        // serial itself, which is always assigned by this point.
+        full_name: String(c.full_name ?? c.fullName ?? '').trim() || serial,
         phone_number: phone,
         whatsapp_number: (c.whatsapp_number ?? c.whatsappNumber) ? normalizePhone(c.whatsapp_number ?? c.whatsappNumber) : phone,
         phone_2: c.phone_2 ? normalizePhone(c.phone_2) : null,
         city: c.city ? String(c.city).trim() : null,
-        country: c.country ? String(c.country).trim() : 'India',
+        country: c.country ? String(c.country).trim() : (isForeign ? 'Foreign' : 'India'),
         category_interest: Array.isArray(c.category_interest) ? c.category_interest : [],
         tags: Array.isArray(c.tags) ? c.tags : [],
         marketing_status: c.marketing_status || 'subscribed',
@@ -1221,7 +1248,7 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
         if (error.code === '23505') return json({ error: 'A customer with this phone number already exists' }, 409);
         return json({ error: error.message }, 500);
       }
-      return json(data, 201);
+      return json({ ...data, serialNote }, 201);
     }
 
     if (segments.length === 2 && segments[1] === 'import' && method === 'POST') {
