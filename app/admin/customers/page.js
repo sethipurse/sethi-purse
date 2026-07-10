@@ -450,7 +450,10 @@ export default function AdminCustomersPage() {
                             </button>
                           </td>
                           <td className="px-4 py-3 align-top">
-                            <div className="font-semibold text-sethi-black">{c.full_name || c.serial_no || 'Customer'}</div>
+                            <div className="font-semibold text-sethi-black">
+                              {c.full_name || c.serial_no || 'Customer'}
+                              {c.birthday && <span className="ml-1.5 font-normal text-xs text-sethi-gray500">🎂 {c.birthday}</span>}
+                            </div>
                             <div className="text-[11px] text-sethi-gray500 mt-0.5">{timeAgoHint(c.last_contacted_at)}</div>
                           </td>
                           <td className="px-4 py-3 align-top font-mono text-xs">{c.phone_number}</td>
@@ -498,7 +501,10 @@ export default function AdminCustomersPage() {
                               {isSel ? <CheckSquare className="w-5 h-5 text-sethi-gold" /> : <Square className="w-5 h-5" />}
                             </button>
                             <div className="min-w-0">
-                              <div className="font-semibold text-sethi-black">{c.full_name || c.serial_no || 'Customer'}</div>
+                              <div className="font-semibold text-sethi-black">
+                                {c.full_name || c.serial_no || 'Customer'}
+                                {c.birthday && <span className="ml-1.5 font-normal text-xs text-sethi-gray500">🎂 {c.birthday}</span>}
+                              </div>
                               <div className="font-mono text-xs text-sethi-gray500 mt-0.5">{c.phone_number}</div>
                               <div className="text-xs text-sethi-gray500 mt-0.5">{c.city ? `${c.city} · ` : ''}{locationLabel(c)}</div>
                               <div className="text-[11px] text-sethi-gray500 mt-0.5">{timeAgoHint(c.last_contacted_at)}</div>

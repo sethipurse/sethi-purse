@@ -19,8 +19,9 @@ const FIELD_ALIASES = {
   serial_no: ['serial_no', 'serial', 'code', 'sr_no', 'serialno'],
   tags: ['tags', 'tag'],
   phone_2: ['phone_2', 'phone2', 'alternate_phone', 'alt_phone', 'secondary_phone'],
+  birthday: ['birthday', 'dob', 'date_of_birth', 'birth_date'],
 };
-const FIELD_ORDER = ['full_name', 'phone_number', 'whatsapp_number', 'city', 'country', 'serial_no', 'tags', 'phone_2'];
+const FIELD_ORDER = ['full_name', 'phone_number', 'whatsapp_number', 'city', 'country', 'serial_no', 'tags', 'phone_2', 'birthday'];
 
 function normalizeHeader(h) {
   return String(h || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
@@ -57,6 +58,7 @@ function validateRows(rawRows, colMap) {
       serial_no: get('serial_no'),
       tags: get('tags'),
       phone_2: get('phone_2'),
+      birthday: get('birthday'),
     });
   });
   return { valid, invalid };
@@ -74,8 +76,8 @@ function downloadCsv(filename, rows) {
 
 function downloadTemplate() {
   downloadCsv('customers-import-template.csv', [
-    { full_name: 'Ramesh Kumar', phone_number: '9876543210', whatsapp_number: '9876543210', city: 'Jalandhar', country: 'India', serial_no: 'Sp1', tags: 'local', phone_2: '' },
-    { full_name: 'Priya Sharma', phone_number: '14155551234', whatsapp_number: '14155551234', city: 'California', country: 'USA', serial_no: 'Sp2', tags: 'foreign;nri', phone_2: '' },
+    { full_name: 'Ramesh Kumar', phone_number: '9876543210', whatsapp_number: '9876543210', city: 'Jalandhar', country: 'India', serial_no: 'Sp1', tags: 'local', phone_2: '', birthday: '15/08' },
+    { full_name: 'Priya Sharma', phone_number: '14155551234', whatsapp_number: '14155551234', city: 'California', country: 'USA', serial_no: 'Sp2', tags: 'foreign;nri', phone_2: '', birthday: '' },
   ]);
 }
 

@@ -6,7 +6,7 @@ import { Loader2 } from 'lucide-react';
 const STATUSES = ['subscribed', 'unsubscribed', 'blocked'];
 
 function blankForm() {
-  return { full_name: '', phone_number: '', whatsapp_number: '', phone_2: '', serial_no: '', city: '', country: 'India', tags: '', marketing_status: 'subscribed', notes: '' };
+  return { full_name: '', phone_number: '', whatsapp_number: '', phone_2: '', serial_no: '', city: '', country: 'India', tags: '', marketing_status: 'subscribed', notes: '', birthday: '' };
 }
 
 export default function CustomerFormModal({ open, customer, onClose, onSaved }) {
@@ -26,6 +26,7 @@ export default function CustomerFormModal({ open, customer, onClose, onSaved }) 
       tags: (customer.tags || []).join(', '),
       marketing_status: customer.marketing_status || 'subscribed',
       notes: customer.notes || '',
+      birthday: customer.birthday || '',
     } : blankForm());
   }, [open, customer]);
 
@@ -58,6 +59,7 @@ export default function CustomerFormModal({ open, customer, onClose, onSaved }) 
         tags: form.tags.split(',').map((t) => t.trim()).filter(Boolean),
         marketing_status: form.marketing_status,
         notes: form.notes.trim(),
+        birthday: form.birthday.trim(),
       };
       const url = customer ? `/api/customers/${encodeURIComponent(customer.id)}` : '/api/customers';
       const res = await fetch(url, {
@@ -112,6 +114,11 @@ export default function CustomerFormModal({ open, customer, onClose, onSaved }) 
           <label className="text-xs text-sethi-gray500">
             Country
             <input value={form.country} onChange={set('country')} className="mt-1 w-full border border-sethi-gray200 rounded-sm px-3 py-2 text-sm focus:outline-none focus:border-sethi-gold" />
+          </label>
+          <label className="text-xs text-sethi-gray500">
+            Birthday (DD/MM)
+            <input value={form.birthday} onChange={set('birthday')} placeholder="15/08 ya 15 Aug" className="mt-1 w-full border border-sethi-gray200 rounded-sm px-3 py-2 text-sm focus:outline-none focus:border-sethi-gold" />
+            <span className="block text-[11px] text-sethi-gray400 mt-0.5 normal-case">Optional — jaise 15/08 ya 15 Aug</span>
           </label>
           <label className="text-xs text-sethi-gray500 col-span-2">
             Tags (comma separated)

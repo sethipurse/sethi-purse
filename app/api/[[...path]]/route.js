@@ -74,7 +74,7 @@ function startOfMonthISOIst() {
 // NEVER overwrite a value the owner (or a prior import) already set.
 function mergeCustomerFields(existing, incoming) {
   const updates = {};
-  ['full_name', 'serial_no', 'city', 'phone_2', 'whatsapp_number'].forEach((key) => {
+  ['full_name', 'serial_no', 'city', 'phone_2', 'whatsapp_number', 'birthday'].forEach((key) => {
     if (!existing[key] && incoming[key]) updates[key] = incoming[key];
   });
   if ((!existing.country || existing.country === 'India') && incoming.country && incoming.country !== 'India') {
@@ -1241,6 +1241,7 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
         marketing_status: c.marketing_status || 'subscribed',
         source: c.source || 'manual',
         notes: c.notes ? String(c.notes).trim() : null,
+        birthday: c.birthday ? String(c.birthday).trim() : null,
         created_at: nowIST(),
       };
       const { data, error } = await supabase.from('customers').insert([record]).select().single();
@@ -1278,6 +1279,7 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
           country: raw.country ? String(raw.country).trim() : 'India',
           tags: String(raw.tags || '').split(/[,;]/).map((t) => t.trim()).filter(Boolean),
           category_interest: [],
+          birthday: raw.birthday ? String(raw.birthday).trim() : null,
         };
         const existing = byPhone.get(phone);
         if (!existing) { byPhone.set(phone, candidate); return; }
@@ -1285,6 +1287,7 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
         existing.serial_no = existing.serial_no || candidate.serial_no;
         existing.city = existing.city || candidate.city;
         existing.phone_2 = existing.phone_2 || candidate.phone_2;
+        existing.birthday = existing.birthday || candidate.birthday;
         if (existing.country === 'India' && candidate.country !== 'India') existing.country = candidate.country;
         existing.tags = Array.from(new Set([...existing.tags, ...candidate.tags]));
       });
@@ -1669,6 +1672,7 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
         if (c.category_interest !== undefined) updates.category_interest = Array.isArray(c.category_interest) ? c.category_interest : [];
         if (c.marketing_status !== undefined) updates.marketing_status = c.marketing_status;
         if (c.notes !== undefined) updates.notes = c.notes ? String(c.notes).trim() : null;
+        if (c.birthday !== undefined) updates.birthday = c.birthday ? String(c.birthday).trim() : null;
         if (c.last_purchase_date !== undefined) updates.last_purchase_date = c.last_purchase_date || null;
         if (c.total_purchases !== undefined) updates.total_purchases = Number(c.total_purchases) || 0;
         if (c.purchase_value !== undefined) updates.purchase_value = Number(c.purchase_value) || 0;
