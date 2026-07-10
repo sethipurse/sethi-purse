@@ -1473,7 +1473,91 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
       return json({ scanned: foreignRows.length, updated, byCountry });
     }
 
-    if (segments.length === 2 && !['import', 'import-from-inquiries', 'facets', 'fix-countries'].includes(segments[1])) {
+    if (segments.length === 2 && segments[1] === 'migrate-foreign-nri' && method === 'POST') {
+      // One-time migration — idempotent, safe to re-run (rows already
+      // serial_no ~ ^NRI\d+$ are left alone). Writes ONLY serial_no and
+      // (conditionally) full_name — phone, tags, city, country,
+      // whatsapp_number and everything else is left untouched.
+      const rows = [];
+      const PAGE = 1000;
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await supabase
+          .from('customers')
+          .select('id, phone_number, serial_no, full_name, tags, created_at')
+          .order('created_at', { ascending: true }) // oldest-first
+          .range(from, from + PAGE - 1);
+        if (error) return json({ error: error.message }, 500);
+        rows.push(...(data || []));
+        if (!data || data.length < PAGE) break;
+      }
+
+      // Foreign = non-91 phone (authoritative) OR the legacy numeric
+      // 5000-series serial OR already tagged foreign/nri.
+      const candidates = rows.filter((r) => {
+        const phone = String(r.phone_number || '');
+        const tags = Array.isArray(r.tags) ? r.tags : [];
+        const legacyNumeric = /^\d+$/.test(r.serial_no || '') && parseInt(r.serial_no, 10) >= 5000;
+        return !phone.startsWith('91') || legacyNumeric || tags.includes('foreign') || tags.includes('nri');
+      });
+      const toMigrate = candidates.filter((r) => !/^NRI\d+$/.test(r.serial_no || ''));
+
+      const { data: nriRows, error: nriErr } = await supabase.from('customers').select('serial_no').like('serial_no', 'NRI%');
+      if (nriErr) return json({ error: nriErr.message }, 500);
+      const usedNri = new Set((nriRows || []).map((r) => r.serial_no));
+      let maxSuffix = 0;
+      for (const s of usedNri) {
+        const n = parseSerialSuffix(s, 'NRI');
+        if (n !== null && n > maxSuffix) maxSuffix = n;
+      }
+      function assignNextNri() {
+        let candidate;
+        do {
+          maxSuffix += 1;
+          candidate = `NRI${maxSuffix}`;
+        } while (usedNri.has(candidate));
+        usedNri.add(candidate);
+        return candidate;
+      }
+
+      // Assignments computed sequentially in-memory (the counter is shared
+      // mutable state) BEFORE any DB writes — "X rows update honge" for the
+      // owner's toast, logged and returned, ahead of touching the table.
+      const plan = toMigrate.map((row) => {
+        const newSerial = assignNextNri();
+        const oldName = row.full_name || '';
+        const updates = { serial_no: newSerial };
+        // Real names are preserved — only replace a name that was itself
+        // the old numeric serial (e.g. "5001") or the 'Customer' placeholder.
+        if (!oldName || oldName === (row.serial_no || '') || oldName === 'Customer') updates.full_name = newSerial;
+        return { row, updates, newSerial };
+      });
+      console.log(`migrate-foreign-nri: ${candidates.length} scanned, ${plan.length} rows will update`);
+
+      const skipped = candidates
+        .filter((r) => /^NRI\d+$/.test(r.serial_no || ''))
+        .map((r) => ({ id: r.id, reason: 'already migrated' }));
+      const examples = [];
+      let updated = 0;
+      let next = 0;
+      async function lane() {
+        while (next < plan.length) {
+          const item = plan[next++];
+          try {
+            const { error } = await supabase.from('customers').update(item.updates).eq('id', item.row.id);
+            if (error) { skipped.push({ id: item.row.id, reason: error.message }); continue; }
+            updated++;
+            if (examples.length < 20) examples.push({ old: item.row.serial_no || '(none)', new: item.newSerial });
+          } catch (err) {
+            skipped.push({ id: item.row.id, reason: err.message || 'Unknown error' });
+          }
+        }
+      }
+      await Promise.all(Array.from({ length: Math.min(20, plan.length) }, lane));
+
+      return json({ scanned: candidates.length, updated, willUpdate: plan.length, skipped, examples });
+    }
+
+    if (segments.length === 2 && !['import', 'import-from-inquiries', 'facets', 'fix-countries', 'migrate-foreign-nri'].includes(segments[1])) {
       const id = segments[1];
       if (method === 'PUT') {
         const c = body || {};
