@@ -1557,7 +1557,100 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
       return json({ scanned: candidates.length, updated, willUpdate: plan.length, skipped, examples });
     }
 
-    if (segments.length === 2 && !['import', 'import-from-inquiries', 'facets', 'fix-countries', 'migrate-foreign-nri'].includes(segments[1])) {
+    if (segments.length === 2 && segments[1] === 'migrate-wa-serials' && method === 'POST') {
+      // One-time migration for the WA-1..WA-75 WhatsApp batch — idempotent,
+      // safe to re-run (rows already ^Sp\d+$/^NRI\d+$ are left alone).
+      // Writes ONLY serial_no and (conditionally) full_name; the
+      // from-whatsapp tag and everything else is left untouched.
+      const rows = [];
+      const PAGE = 1000;
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await supabase
+          .from('customers')
+          .select('id, phone_number, serial_no, full_name, tags, created_at')
+          .order('created_at', { ascending: true }) // oldest-first
+          .range(from, from + PAGE - 1);
+        if (error) return json({ error: error.message }, 500);
+        rows.push(...(data || []));
+        if (!data || data.length < PAGE) break;
+      }
+
+      const candidates = rows.filter((r) => {
+        const serial = String(r.serial_no || '');
+        const name = String(r.full_name || '');
+        const tags = Array.isArray(r.tags) ? r.tags : [];
+        return !serial.trim() || serial.startsWith('WA-') || name.startsWith('WA-') || tags.includes('from-whatsapp');
+      });
+      const toMigrate = candidates.filter((r) => !isValidSerial(r.serial_no || ''));
+
+      // Seed BOTH counters once — a WA-batch row can resolve to either
+      // prefix depending on its own phone.
+      const [{ data: spRows, error: spErr }, { data: nriRows, error: nriErr }] = await Promise.all([
+        supabase.from('customers').select('serial_no').like('serial_no', 'Sp%'),
+        supabase.from('customers').select('serial_no').like('serial_no', 'NRI%'),
+      ]);
+      if (spErr) return json({ error: spErr.message }, 500);
+      if (nriErr) return json({ error: nriErr.message }, 500);
+      const usedSerials = {
+        Sp: new Set((spRows || []).map((r) => r.serial_no)),
+        NRI: new Set((nriRows || []).map((r) => r.serial_no)),
+      };
+      const maxSuffix = { Sp: 0, NRI: 0 };
+      for (const prefix of ['Sp', 'NRI']) {
+        for (const s of usedSerials[prefix]) {
+          const n = parseSerialSuffix(s, prefix);
+          if (n !== null && n > maxSuffix[prefix]) maxSuffix[prefix] = n;
+        }
+      }
+      function assignNextSerial(prefix) {
+        let candidate;
+        do {
+          maxSuffix[prefix] += 1;
+          candidate = `${prefix}${maxSuffix[prefix]}`;
+        } while (usedSerials[prefix].has(candidate));
+        usedSerials[prefix].add(candidate);
+        return candidate;
+      }
+
+      // Assignments computed sequentially in-memory (shared mutable
+      // counters) BEFORE any DB writes.
+      const plan = toMigrate.map((row) => {
+        const prefix = String(row.phone_number || '').startsWith('91') ? 'Sp' : 'NRI';
+        const newSerial = assignNextSerial(prefix);
+        const oldName = row.full_name || '';
+        const updates = { serial_no: newSerial };
+        // Real names are preserved — only replace a name that was itself
+        // the WA-x placeholder or the generic 'Customer' one.
+        if (!oldName || oldName.startsWith('WA-') || oldName === 'Customer') updates.full_name = newSerial;
+        return { row, updates, newSerial };
+      });
+      console.log(`migrate-wa-serials: ${candidates.length} scanned, ${plan.length} rows will update`);
+
+      const skipped = candidates
+        .filter((r) => isValidSerial(r.serial_no || ''))
+        .map((r) => ({ id: r.id, reason: 'already migrated' }));
+      const examples = [];
+      let updated = 0;
+      let next = 0;
+      async function lane() {
+        while (next < plan.length) {
+          const item = plan[next++];
+          try {
+            const { error } = await supabase.from('customers').update(item.updates).eq('id', item.row.id);
+            if (error) { skipped.push({ id: item.row.id, reason: error.message }); continue; }
+            updated++;
+            if (examples.length < 20) examples.push({ old: item.row.serial_no || '(none)', new: item.newSerial });
+          } catch (err) {
+            skipped.push({ id: item.row.id, reason: err.message || 'Unknown error' });
+          }
+        }
+      }
+      await Promise.all(Array.from({ length: Math.min(20, plan.length) }, lane));
+
+      return json({ scanned: candidates.length, updated, willUpdate: plan.length, skipped, examples });
+    }
+
+    if (segments.length === 2 && !['import', 'import-from-inquiries', 'facets', 'fix-countries', 'migrate-foreign-nri', 'migrate-wa-serials'].includes(segments[1])) {
       const id = segments[1];
       if (method === 'PUT') {
         const c = body || {};
