@@ -1266,8 +1266,11 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
         const phone = normalizePhone(raw.phone_number ?? raw.phone ?? '');
         if (!isValidNormalizedPhone(phone)) { failed.push({ row: raw, reason: 'Invalid or missing phone number' }); return; }
         const candidate = {
+          // Left as typed (possibly blank) — resolved to a real Sp/NRI
+          // serial below, only for rows that actually end up inserted or
+          // need one filled in, so a skipped duplicate never burns a number.
           serial_no: raw.serial_no ? String(raw.serial_no).trim() : null,
-          full_name: String(raw.full_name || '').trim() || (raw.serial_no ? String(raw.serial_no).trim() : '') || 'Customer',
+          full_name: String(raw.full_name || '').trim(),
           phone_number: phone,
           whatsapp_number: raw.whatsapp_number ? normalizePhone(raw.whatsapp_number) : phone,
           phone_2: raw.phone_2 ? normalizePhone(raw.phone_2) : null,
@@ -1278,7 +1281,7 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
         };
         const existing = byPhone.get(phone);
         if (!existing) { byPhone.set(phone, candidate); return; }
-        existing.full_name = existing.full_name === 'Customer' && candidate.full_name !== 'Customer' ? candidate.full_name : existing.full_name;
+        existing.full_name = existing.full_name || candidate.full_name;
         existing.serial_no = existing.serial_no || candidate.serial_no;
         existing.city = existing.city || candidate.city;
         existing.phone_2 = existing.phone_2 || candidate.phone_2;
@@ -1296,16 +1299,60 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
         (data || []).forEach((row) => existingByPhone.set(row.phone_number, row));
       }
 
+      // ── Serial resolution (Choice B: every row gets one) ──
+      // Fetch current Sp/NRI serials ONCE for the whole batch; increment in
+      // memory as rows are assigned, tracking everything handed out this
+      // run in the same Set so intra-batch collisions are impossible.
+      const [{ data: spRows }, { data: nriRows }] = await Promise.all([
+        supabase.from('customers').select('serial_no').like('serial_no', 'Sp%'),
+        supabase.from('customers').select('serial_no').like('serial_no', 'NRI%'),
+      ]);
+      const usedSerials = {
+        Sp: new Set((spRows || []).map((r) => r.serial_no)),
+        NRI: new Set((nriRows || []).map((r) => r.serial_no)),
+      };
+      const maxSuffix = { Sp: 0, NRI: 0 };
+      for (const prefix of ['Sp', 'NRI']) {
+        for (const s of usedSerials[prefix]) {
+          const n = parseSerialSuffix(s, prefix);
+          if (n !== null && n > maxSuffix[prefix]) maxSuffix[prefix] = n;
+        }
+      }
+      function assignNextSerial(prefix) {
+        let candidate;
+        do {
+          maxSuffix[prefix] += 1;
+          candidate = `${prefix}${maxSuffix[prefix]}`;
+        } while (usedSerials[prefix].has(candidate));
+        usedSerials[prefix].add(candidate);
+        return candidate;
+      }
+      // Keeps a row's own valid, correctly-prefixed, unused serial; assigns
+      // the next sequential one otherwise. Only called for rows that will
+      // actually be written (never for a row that ends up skipped).
+      function resolveRowSerial(cand) {
+        const prefix = cand.phone_number.startsWith('91') ? 'Sp' : 'NRI';
+        if (cand.serial_no && isValidSerial(cand.serial_no) && cand.serial_no.startsWith(prefix) && !usedSerials[prefix].has(cand.serial_no)) {
+          usedSerials[prefix].add(cand.serial_no);
+          return cand.serial_no;
+        }
+        return assignNextSerial(prefix);
+      }
+
       const toInsert = [];
       const toUpdate = [];
       let skipped = 0;
       for (const cand of candidates) {
         const existing = existingByPhone.get(cand.phone_number);
         if (!existing) {
+          cand.serial_no = resolveRowSerial(cand);
+          cand.full_name = cand.full_name || cand.serial_no; // never blank, never 'Customer'
           toInsert.push({ id: uuidv4(), ...cand, marketing_status: 'subscribed', source: 'csv', created_at: nowIST() });
           continue;
         }
         if (!mergeMode) { skipped++; continue; }
+        // Never overwrite an existing good serial — only fill if missing.
+        if (!existing.serial_no) cand.serial_no = resolveRowSerial(cand);
         const updates = mergeCustomerFields(existing, cand);
         if (Object.keys(updates).length === 0) { skipped++; continue; }
         toUpdate.push({ id: existing.id, updates });
