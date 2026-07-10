@@ -1653,7 +1653,62 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
       return json({ scanned: candidates.length, updated, willUpdate: plan.length, skipped, examples });
     }
 
-    if (segments.length === 2 && !['import', 'import-from-inquiries', 'facets', 'fix-countries', 'migrate-foreign-nri', 'migrate-wa-serials'].includes(segments[1])) {
+    if (segments.length === 2 && segments[1] === 'fix-placeholder-names' && method === 'POST') {
+      // One-time sync — idempotent, safe to re-run. Some rows ended up with
+      // a correct Sp/NRI serial (from the migrations above) but a leftover
+      // placeholder name — e.g. the foreign→NRI pass assigned an NRI serial
+      // to a "WA-32" row without renaming it (its name wasn't a bare
+      // numeric or 'Customer', so that migration's rename rule skipped it),
+      // and the WA→Sp pass then skipped it too because its serial was
+      // already valid. Writes ONLY full_name — never serial_no, phone,
+      // tags, city, country, whatsapp_number, or anything else.
+      const rows = [];
+      const PAGE = 1000;
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await supabase
+          .from('customers')
+          .select('id, serial_no, full_name')
+          .or('serial_no.like.Sp%,serial_no.like.NRI%')
+          .range(from, from + PAGE - 1);
+        if (error) return json({ error: error.message }, 500);
+        rows.push(...(data || []));
+        if (!data || data.length < PAGE) break;
+      }
+      const validSerialRows = rows.filter((r) => isValidSerial(r.serial_no || ''));
+
+      // Placeholder = empty, the generic 'Customer', a leftover 'WA-x' tag,
+      // or a bare old numeric serial (e.g. "5001"). Anything else is a real
+      // name and is never touched.
+      function isPlaceholderName(name) {
+        const n = String(name || '').trim();
+        return !n || n === 'Customer' || n.startsWith('WA-') || /^\d+$/.test(n);
+      }
+      const toUpdate = validSerialRows.filter((r) => isPlaceholderName(r.full_name));
+      console.log(`fix-placeholder-names: ${validSerialRows.length} scanned, ${toUpdate.length} names will change`);
+
+      const skipped = [];
+      const examples = [];
+      let updated = 0;
+      let next = 0;
+      async function lane() {
+        while (next < toUpdate.length) {
+          const row = toUpdate[next++];
+          try {
+            const { error } = await supabase.from('customers').update({ full_name: row.serial_no }).eq('id', row.id);
+            if (error) { skipped.push({ id: row.id, reason: error.message }); continue; }
+            updated++;
+            if (examples.length < 20) examples.push({ old: row.full_name || '(none)', new: row.serial_no });
+          } catch (err) {
+            skipped.push({ id: row.id, reason: err.message || 'Unknown error' });
+          }
+        }
+      }
+      await Promise.all(Array.from({ length: Math.min(20, toUpdate.length) }, lane));
+
+      return json({ scanned: validSerialRows.length, updated, willUpdate: toUpdate.length, skipped, examples });
+    }
+
+    if (segments.length === 2 && !['import', 'import-from-inquiries', 'facets', 'fix-countries', 'migrate-foreign-nri', 'migrate-wa-serials', 'fix-placeholder-names'].includes(segments[1])) {
       const id = segments[1];
       if (method === 'PUT') {
         const c = body || {};

@@ -99,6 +99,7 @@ export default function CustomerImportModal({ open, onClose, onImported }) {
   const [fixingCountries, setFixingCountries] = useState(false);
   const [migratingForeign, setMigratingForeign] = useState(false);
   const [migratingWa, setMigratingWa] = useState(false);
+  const [fixingNames, setFixingNames] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -366,6 +367,9 @@ export default function CustomerImportModal({ open, onClose, onImported }) {
             </button>
             <button onClick={() => runMigration('migrate-wa-serials', setMigratingWa)} disabled={migratingWa} className="block text-left text-[11px] text-sethi-gray500 hover:text-sethi-gold underline decoration-dotted disabled:opacity-60">
               {migratingWa ? 'Migrating WhatsApp batch…' : 'Maintenance: migrate WhatsApp batch → Sp'}
+            </button>
+            <button onClick={() => runMigration('fix-placeholder-names', setFixingNames)} disabled={fixingNames} className="block text-left text-[11px] text-sethi-gray500 hover:text-sethi-gold underline decoration-dotted disabled:opacity-60">
+              {fixingNames ? 'Fixing placeholder names…' : 'Maintenance: fix placeholder names'}
             </button>
           </div>
         )}
