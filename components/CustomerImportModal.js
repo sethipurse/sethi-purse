@@ -95,6 +95,8 @@ export default function CustomerImportModal({ open, onClose, onImported }) {
   const [enquiryConfirm, setEnquiryConfirm] = useState(false);
   const [enquiryRunning, setEnquiryRunning] = useState(false);
   const [fixingCountries, setFixingCountries] = useState(false);
+  const [migratingForeign, setMigratingForeign] = useState(false);
+  const [migratingWa, setMigratingWa] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -202,6 +204,22 @@ export default function CustomerImportModal({ open, onClose, onImported }) {
       toast.error('Network error');
     } finally {
       setFixingCountries(false);
+    }
+  }
+
+  async function runMigration(endpoint, setRunning) {
+    setRunning(true);
+    try {
+      const res = await fetch(`/api/customers/${endpoint}`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error(data.error || 'Migration failed'); return; }
+      const failedCount = Array.isArray(data.skipped) ? data.skipped.filter((s) => s.reason !== 'already migrated').length : 0;
+      toast.success(`Scanned ${data.scanned}, migrated ${data.updated}${failedCount ? `, ${failedCount} failed` : ''}`);
+      onImported?.();
+    } catch (err) {
+      toast.error('Network error');
+    } finally {
+      setRunning(false);
     }
   }
 
@@ -337,9 +355,17 @@ export default function CustomerImportModal({ open, onClose, onImported }) {
         )}
 
         {step === 'pick' && (
-          <button onClick={runFixCountries} disabled={fixingCountries} className="mt-6 block text-[11px] text-sethi-gray500 hover:text-sethi-gold underline decoration-dotted disabled:opacity-60">
-            {fixingCountries ? 'Fixing foreign countries…' : 'Maintenance: fix foreign customer countries'}
-          </button>
+          <div className="mt-6 flex flex-col gap-1.5">
+            <button onClick={runFixCountries} disabled={fixingCountries} className="block text-left text-[11px] text-sethi-gray500 hover:text-sethi-gold underline decoration-dotted disabled:opacity-60">
+              {fixingCountries ? 'Fixing foreign countries…' : 'Maintenance: fix foreign customer countries'}
+            </button>
+            <button onClick={() => runMigration('migrate-foreign-nri', setMigratingForeign)} disabled={migratingForeign} className="block text-left text-[11px] text-sethi-gray500 hover:text-sethi-gold underline decoration-dotted disabled:opacity-60">
+              {migratingForeign ? 'Migrating foreign customers…' : 'Maintenance: migrate foreign → NRI'}
+            </button>
+            <button onClick={() => runMigration('migrate-wa-serials', setMigratingWa)} disabled={migratingWa} className="block text-left text-[11px] text-sethi-gray500 hover:text-sethi-gold underline decoration-dotted disabled:opacity-60">
+              {migratingWa ? 'Migrating WhatsApp batch…' : 'Maintenance: migrate WhatsApp batch → Sp'}
+            </button>
+          </div>
         )}
       </div>
 

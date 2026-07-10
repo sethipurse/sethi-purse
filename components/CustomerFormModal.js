@@ -67,7 +67,10 @@ export default function CustomerFormModal({ open, customer, onClose, onSaved }) 
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { toast.error(data.error || 'Save failed'); setSaving(false); return; }
-      toast.success(customer ? 'Customer updated' : 'Customer added');
+      toast.success(customer ? 'Customer updated' : `Customer added — serial ${data.serial_no}`);
+      // Owner typed a serial that wasn't the natural next one (taken,
+      // ahead, or wrong-prefix) — the API corrected it; tell them why.
+      if (data.serialNote) toast(data.serialNote, { duration: 6000 });
       setSaving(false);
       onSaved?.(data);
     } catch (err) {
