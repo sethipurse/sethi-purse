@@ -54,5 +54,82 @@
     "imageUrl": "https://placehold.co/600x400/0A0A0A/C9A84C?text=Accessories",
     "createdAt": "2025-06-01T10:07:00+05:30",
     "is_active": true
+  },
+  {
+    "id": "c9",
+    "name": "Tote Bags",
+    "imageUrl": "https://placehold.co/600x400/0A0A0A/C9A84C?text=Tote+Bags",
+    "createdAt": "2025-06-01T10:08:00+05:30",
+    "is_active": false
+  },
+  {
+    "id": "c10",
+    "name": "Duffle Bags",
+    "imageUrl": "https://placehold.co/600x400/0A0A0A/C9A84C?text=Duffle+Bags",
+    "createdAt": "2025-06-01T10:09:00+05:30",
+    "is_active": false
+  },
+  {
+    "id": "c11",
+    "name": "Girls Backpacks",
+    "imageUrl": "https://placehold.co/600x400/0A0A0A/C9A84C?text=Girls+Backpacks",
+    "createdAt": "2025-06-01T10:10:00+05:30",
+    "is_active": false
+  },
+  {
+    "id": "c12",
+    "name": "College Bags",
+    "imageUrl": "https://placehold.co/600x400/0A0A0A/C9A84C?text=College+Bags",
+    "createdAt": "2025-06-01T10:11:00+05:30",
+    "is_active": false
+  },
+  {
+    "id": "c13",
+    "name": "Gents Wallet",
+    "imageUrl": "https://placehold.co/600x400/0A0A0A/C9A84C?text=Gents+Wallet",
+    "createdAt": "2025-06-01T10:12:00+05:30",
+    "is_active": false
+  },
+  {
+    "id": "c14",
+    "name": "Belts",
+    "imageUrl": "https://placehold.co/600x400/0A0A0A/C9A84C?text=Belts",
+    "createdAt": "2025-06-01T10:13:00+05:30",
+    "is_active": false
+  },
+  {
+    "id": "c15",
+    "name": "Card Wallet",
+    "imageUrl": "https://placehold.co/600x400/0A0A0A/C9A84C?text=Card+Wallet",
+    "createdAt": "2025-06-01T10:14:00+05:30",
+    "is_active": false
+  },
+  {
+    "id": "c16",
+    "name": "School Trolley Bags",
+    "imageUrl": "https://placehold.co/600x400/0A0A0A/C9A84C?text=School+Trolley+Bags",
+    "createdAt": "2025-06-01T10:15:00+05:30",
+    "is_active": false
+  },
+  {
+    "id": "c17",
+    "name": "Hand Wallet",
+    "imageUrl": "https://placehold.co/600x400/0A0A0A/C9A84C?text=Hand+Wallet",
+    "createdAt": "2025-06-01T10:16:00+05:30",
+    "is_active": false
+  },
+  {
+    "id": "c18",
+    "name": "Clutch",
+    "imageUrl": "https://placehold.co/600x400/0A0A0A/C9A84C?text=Clutch",
+    "createdAt": "2025-06-01T10:17:00+05:30",
+    "is_active": false
+  },
+  {
+    "id": "c19",
+    "name": "Gym Bags",
+    "imageUrl": "https://placehold.co/600x400/0A0A0A/C9A84C?text=Gym+Bags",
+    "createdAt": "2025-06-01T10:18:00+05:30",
+    "is_active": false
   }
 ]
