@@ -1163,9 +1163,16 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
         if (q) qy = qy.or(`full_name.ilike.%${q}%,phone_number.ilike.%${q}%,serial_no.ilike.%${q}%`);
         if (city) qy = qy.eq('city', city);
         if (country) qy = qy.eq('country', country);
+        // Local/Foreign are phone-derived, not tag-derived — a customer's
+        // serial (Sp/NRI) and phone code already encode this, so the filter
+        // must agree with that even for rows that never got a location tag
+        // (e.g. everything created after tags stopped being auto-added).
+        if (tag === 'local') qy = qy.or('phone_number.like.91%,serial_no.like.Sp%');
         // Foreign and NRI are the same audience for this business — one
-        // combined condition, not two separate tag filters.
-        if (tag === 'foreign_or_nri') qy = qy.or('phone_number.not.like.91%,tags.cs.{foreign},tags.cs.{nri}');
+        // combined condition, not two separate tag filters. Tag OR-clauses
+        // kept only as a harmless fallback for any legacy row phone-based
+        // matching might miss.
+        else if (tag === 'foreign_or_nri') qy = qy.or('phone_number.not.like.91%,tags.cs.{foreign},tags.cs.{nri}');
         else if (tag) qy = qy.contains('tags', [tag]);
         if (status) qy = qy.eq('marketing_status', status);
         return qy;
