@@ -6,7 +6,7 @@ import CustomerFormModal from '@/components/CustomerFormModal';
 import CustomerImportModal from '@/components/CustomerImportModal';
 import { toast } from 'sonner';
 import {
-  Users, ChevronLeft, ChevronRight, Upload, Search, Square, CheckSquare,
+  ChevronLeft, ChevronRight, Upload, Search, Square, CheckSquare,
   Phone, MessageCircle, Pencil, Trash2, Loader2, Plus, Check,
 } from 'lucide-react';
 
@@ -267,13 +267,10 @@ export default function AdminCustomersPage() {
       {firstRun ? (
         <div className="bg-white border border-sethi-gray200 rounded-sm p-10 text-center">
           <p className="font-serif text-2xl mb-2">Abhi koi customer nahi 👋</p>
-          <p className="text-sm text-sethi-gray500 mb-6">Apni list upload karo ya enquiries se le aao — dono se shuru ho sakta hai.</p>
+          <p className="text-sm text-sethi-gray500 mb-6">Apni customer list CSV se upload karke shuru karo.</p>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <button onClick={() => setImportOpen(true)} className="inline-flex items-center gap-2 bg-sethi-gold text-sethi-black px-5 py-3 rounded-sm font-semibold hover:opacity-90">
               <Upload className="w-4 h-4" /> CSV Import karo
-            </button>
-            <button onClick={() => setImportOpen(true)} className="inline-flex items-center gap-2 border border-sethi-gold text-sethi-gold px-5 py-3 rounded-sm font-semibold hover:bg-sethi-gold hover:text-sethi-black transition-colors">
-              <Users className="w-4 h-4" /> Enquiries se le aao
             </button>
           </div>
         </div>
