@@ -1216,6 +1216,21 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
       return json({ cities, countries });
     }
 
+    if (segments.length === 2 && segments[1] === 'next-serial' && method === 'GET') {
+      // Preview only — computes via the same nextSerial() the create
+      // endpoint uses, but never inserts anything. The actual assignment
+      // (and its taken/gap/collision handling) still happens server-side
+      // on save, so this is purely informational for the form's placeholder.
+      const url = new URL(request.url);
+      const isForeign = url.searchParams.get('foreign') === '1';
+      try {
+        const serial = await nextSerial(isForeign);
+        return json({ serial });
+      } catch (error) {
+        return json({ error: error.message || 'Failed to compute next serial' }, 500);
+      }
+    }
+
     if (segments.length === 1 && method === 'POST') {
       const c = body || {};
       const phone = normalizePhone(c.phone_number ?? c.phoneNumber);
@@ -1729,7 +1744,7 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
       return json({ scanned: validSerialRows.length, updated, willUpdate: toUpdate.length, skipped, examples });
     }
 
-    if (segments.length === 2 && !['import', 'import-from-inquiries', 'facets', 'fix-countries', 'migrate-foreign-nri', 'migrate-wa-serials', 'fix-placeholder-names'].includes(segments[1])) {
+    if (segments.length === 2 && !['import', 'import-from-inquiries', 'facets', 'fix-countries', 'migrate-foreign-nri', 'migrate-wa-serials', 'fix-placeholder-names', 'next-serial'].includes(segments[1])) {
       const id = segments[1];
       if (method === 'PUT') {
         const c = body || {};

@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
+import { normalizePhone } from '@/lib/phone';
 
 const STATUSES = ['subscribed', 'unsubscribed', 'blocked'];
 
@@ -12,6 +13,11 @@ function blankForm() {
 export default function CustomerFormModal({ open, customer, onClose, onSaved }) {
   const [form, setForm] = useState(blankForm());
   const [saving, setSaving] = useState(false);
+  // Add-mode only — a live preview of the real next Sp/NRI serial. Never
+  // auto-filled into the input; the actual assignment (and its taken/gap
+  // handling) still happens server-side on save, so two tabs adding a
+  // customer at once can never grab the same serial from a stale preview.
+  const [serialPreview, setSerialPreview] = useState('Sp… / NRI…');
 
   useEffect(() => {
     if (!open) return;
@@ -29,6 +35,34 @@ export default function CustomerFormModal({ open, customer, onClose, onSaved }) 
       birthday: customer.birthday || '',
     } : blankForm());
   }, [open, customer]);
+
+  async function fetchSerialPreview(isForeign) {
+    try {
+      const res = await fetch(`/api/customers/next-serial?foreign=${isForeign ? '1' : '0'}`);
+      if (!res.ok) throw new Error('failed');
+      const data = await res.json();
+      if (data.serial) setSerialPreview(data.serial);
+    } catch {
+      setSerialPreview(isForeign ? 'NRI…' : 'Sp…');
+    }
+  }
+
+  // Default preview on opening the ADD form — most customers are local.
+  useEffect(() => {
+    if (!open || customer) return;
+    setSerialPreview('Sp… / NRI…');
+    fetchSerialPreview(false);
+  }, [open, customer]);
+
+  // Phone-aware: once they've typed a number, re-check after they pause
+  // (400ms) whether it's local (91) or foreign, and preview the matching prefix.
+  useEffect(() => {
+    if (!open || customer || !form.phone_number.trim()) return;
+    const t = setTimeout(() => {
+      fetchSerialPreview(!normalizePhone(form.phone_number).startsWith('91'));
+    }, 400);
+    return () => clearTimeout(t);
+  }, [form.phone_number, open, customer]);
 
   useEffect(() => {
     if (!open) return;
@@ -105,7 +139,7 @@ export default function CustomerFormModal({ open, customer, onClose, onSaved }) 
           </label>
           <label className="text-xs text-sethi-gray500">
             Serial no.
-            <input value={form.serial_no} onChange={set('serial_no')} placeholder="Sp1042" className="mt-1 w-full border border-sethi-gray200 rounded-sm px-3 py-2 text-sm focus:outline-none focus:border-sethi-gold" />
+            <input value={form.serial_no} onChange={set('serial_no')} placeholder={serialPreview} className="mt-1 w-full border border-sethi-gray200 rounded-sm px-3 py-2 text-sm focus:outline-none focus:border-sethi-gold" />
           </label>
           <label className="text-xs text-sethi-gray500">
             City
