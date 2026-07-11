@@ -156,7 +156,8 @@ export default function CustomerFormModal({ open, customer, onClose, onSaved }) 
           </label>
           <label className="text-xs text-sethi-gray500 col-span-2">
             Tags (comma separated)
-            <input value={form.tags} onChange={set('tags')} placeholder="local, business" className="mt-1 w-full border border-sethi-gray200 rounded-sm px-3 py-2 text-sm focus:outline-none focus:border-sethi-gold" />
+            <input value={form.tags} onChange={set('tags')} placeholder="business, sling, premium" className="mt-1 w-full border border-sethi-gray200 rounded-sm px-3 py-2 text-sm focus:outline-none focus:border-sethi-gold" />
+            <span className="block text-[11px] text-sethi-gray400 mt-0.5 normal-case">Local/foreign already come from phone + serial — no need to tag those</span>
           </label>
           <label className="text-xs text-sethi-gray500">
             Marketing status
