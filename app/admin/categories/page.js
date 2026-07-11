@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import AdminShell from '@/components/AdminShell';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { toast } from 'sonner';
-import { Plus, Trash2, Edit, ImageOff, Loader2, Upload, X } from 'lucide-react';
+import { Plus, Trash2, Edit, ImageOff, Loader2, Upload, X, Eye, EyeOff } from 'lucide-react';
 
 // Same compress logic as ProductForm — JPEG, max 1200px, WhatsApp ready
 const compressImage = (file) =>
@@ -156,6 +156,29 @@ export default function AdminCategoriesPage() {
     }
   };
 
+  // ── Toggle show/hide (Live/Hidden) — mirrors the product active toggle ──
+  const toggleActive = async (c) => {
+    const newActive = !(c.is_active ?? true);
+    // Optimistic update
+    setCategories((prev) => prev.map((cat) => cat.id === c.id ? { ...cat, is_active: newActive } : cat));
+    try {
+      const res = await fetch(`/api/categories/${encodeURIComponent(c.id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: newActive }),
+      });
+      if (!res.ok) {
+        setCategories((prev) => prev.map((cat) => cat.id === c.id ? { ...cat, is_active: !newActive } : cat));
+        toast.error('Failed to update visibility');
+        return;
+      }
+      toast.success(newActive ? '✅ Live site pe dikh raha hai' : '🚫 Live site se chhupa diya');
+    } catch {
+      setCategories((prev) => prev.map((cat) => cat.id === c.id ? { ...cat, is_active: !newActive } : cat));
+      toast.error('Network error');
+    }
+  };
+
   const saveEdit = async () => {
     if (!editName.trim()) { toast.error('Name required'); return; }
     try {
@@ -198,8 +221,10 @@ export default function AdminCategoriesPage() {
               <li className="p-6 text-sethi-gray500 text-center">Loading...</li>
             ) : categories.length === 0 ? (
               <li className="p-6 text-sethi-gray500 text-center">No categories yet.</li>
-            ) : categories.map((c) => (
-              <li key={c.id} className="p-4 flex items-center gap-3">
+            ) : categories.map((c) => {
+              const isHidden = c.is_active === false;
+              return (
+              <li key={c.id} className={`p-4 flex items-center gap-3 ${isHidden ? 'opacity-50' : ''}`}>
                 {(c.image_url || c.imageUrl) ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={c.image_url || c.imageUrl} alt="" className="w-14 h-14 object-cover rounded-sm bg-sethi-gray100 shrink-0" />
@@ -208,15 +233,26 @@ export default function AdminCategoriesPage() {
                     <ImageOff className="w-5 h-5 text-sethi-gray500" />
                   </div>
                 )}
-                <div className="flex-1 font-medium">{c.name}</div>
-                <button onClick={() => { setEditing(c); setEditName(c.name); setEditImg(c.image_url || c.imageUrl || ''); }} className="inline-flex items-center gap-1 border border-sethi-gold text-sethi-gold px-3 py-1.5 rounded-sm hover:bg-sethi-gold hover:text-sethi-black text-sm">
+                <div className="flex-1 flex items-center gap-2 min-w-0">
+                  <span className="font-medium truncate">{c.name}</span>
+                  {isHidden && <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide bg-sethi-gray200 text-sethi-gray500 px-1.5 py-0.5 rounded-sm">Hidden</span>}
+                </div>
+                <button
+                  onClick={() => toggleActive(c)}
+                  title="Live site pe dikhao / chhupao"
+                  className={`flex items-center justify-center w-9 h-9 rounded-full transition-all shrink-0 ${isHidden ? 'bg-sethi-gray100 text-sethi-gray400 hover:bg-sethi-gray200' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
+                >
+                  {isHidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+                <button onClick={() => { setEditing(c); setEditName(c.name); setEditImg(c.image_url || c.imageUrl || ''); }} className="inline-flex items-center gap-1 border border-sethi-gold text-sethi-gold px-3 py-1.5 rounded-sm hover:bg-sethi-gold hover:text-sethi-black text-sm shrink-0">
                   <Edit className="w-3.5 h-3.5" /> Edit
                 </button>
-                <button onClick={() => setConfirm(c)} className="inline-flex items-center gap-1 border border-red-500 text-red-600 px-3 py-1.5 rounded-sm hover:bg-red-500 hover:text-white text-sm">
+                <button onClick={() => setConfirm(c)} className="inline-flex items-center gap-1 border border-red-500 text-red-600 px-3 py-1.5 rounded-sm hover:bg-red-500 hover:text-white text-sm shrink-0">
                   <Trash2 className="w-3.5 h-3.5" /> Delete
                 </button>
               </li>
-            ))}
+              );
+            })}
           </ul>
         </div>
       </div>
