@@ -39,6 +39,27 @@ export default function HomePageClient({ categories, allProducts, featuredProduc
   const [menuOpen, setMenuOpen] = useState(false);
   const [cart, setCart] = useState([]);
 
+  // One random product image per category tile, picked once per page load
+  // (memoized, not recomputed on every re-render) from that category's own
+  // active products — reuses allProducts already loaded for the page, no
+  // extra query. Falls back to the category's own fixed image when it has
+  // no product photos yet, so a tile never renders blank.
+  const categoryTileImages = useMemo(() => {
+    const imagesByCategory = new Map();
+    allProducts.forEach((p) => {
+      const img = imageOf(p);
+      if (!img || !p.category) return;
+      if (!imagesByCategory.has(p.category)) imagesByCategory.set(p.category, []);
+      imagesByCategory.get(p.category).push(img);
+    });
+    const picks = {};
+    categories.forEach((category) => {
+      const pool = imagesByCategory.get(category.name) || [];
+      picks[category.id || category.name] = pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)] : imageOf(category);
+    });
+    return picks;
+  }, [categories, allProducts]);
+
   useEffect(() => {
     const readCart = () => {
       try {
@@ -220,13 +241,16 @@ export default function HomePageClient({ categories, allProducts, featuredProduc
           <section className="mx-auto w-full max-w-6xl px-4 pb-12">
             <h2 className="text-4xl font-bold text-[#c9a84c]">Shop by Category</h2>
             <div className="mt-5 grid grid-cols-2 gap-4 md:grid-cols-4">
-              {categories.map((category) => (
+              {categories.map((category) => {
+                const tileImage = categoryTileImages[category.id || category.name];
+                return (
                 <Link key={category.id || category.name} href={categoryPath(category.name)} className="group relative aspect-[4/5] overflow-hidden rounded bg-white text-left shadow-sm ring-1 ring-[#ede8df]">
-                  {imageOf(category) ? <img src={imageOf(category)} alt={category.name} className="h-full w-full object-cover transition group-hover:scale-105" /> : <div className="h-full w-full bg-[#f5f0e8]" />}
+                  {tileImage ? <img src={tileImage} alt={category.name} className="h-full w-full object-cover transition group-hover:scale-105" /> : <div className="h-full w-full bg-[#f5f0e8]" />}
                   <div className="absolute inset-0 bg-gradient-to-t from-[#2c1f14]/80 to-transparent" />
                   <span className="absolute bottom-4 left-4 right-4 text-2xl font-bold text-white">{toTitleCase(category.name)}</span>
                 </Link>
-              ))}
+                );
+              })}
             </div>
           </section>
 
