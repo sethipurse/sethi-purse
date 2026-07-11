@@ -31,7 +31,36 @@ const SIZE_PRESETS = ['20" Cabin', '24" Medium', '28" Large', '32" XL', 'Standar
 // Use-case tags — mainly so categories that hold several different needs
 // (e.g. "Backpacks" covers school, office and college bags) can be told
 // apart by Smart Finder instead of showing the same products for each.
-const TAG_PRESETS = ['School', 'Office', 'College', 'Travel', 'Daily', 'Gift', 'Party'];
+// Category-aware use-case tag suggestions ("Tareeka B") — when the product's
+// category has a mapping, those tags are surfaced first (most relevant),
+// with the full tag vocabulary still available underneath so nothing is
+// ever unreachable for an unusual product.
+const CATEGORY_TAGS = {
+  'Slings': ['Daily', 'Casual', 'Party', 'College', 'Ladies', 'Trendy'],
+  'Party Wear Purse': ['Party', 'Wedding', 'Ladies', 'Gift', 'Trendy'],
+  'Handbags': ['Daily', 'Party', 'Ladies', 'Casual', 'Office'],
+  'Luggage': ['Travel', 'Cabin', 'Trolley', 'Family'],
+  'Trolley Bags': ['Travel', 'Cabin', 'Trolley', 'Family'],
+  'Travel Bags': ['Travel', 'Weekend', 'Family', 'Cabin'],
+  'Backpacks': ['School', 'College', 'Office', 'Daily', 'Casual', 'Laptop'],
+  'School Bags': ['School', 'Kids', 'Daily', 'College'],
+  'Laptop Bags': ['Laptop', 'Office', 'Daily', 'Formal'],
+  'Wallets': ['Daily', 'Gift', 'Formal', 'Slim', 'Mens'],
+  'Accessories': ['Daily', 'Gift', 'Casual', 'Formal'],
+  'Tote Bags': ['Daily', 'Office', 'College', 'Shopping', 'Ladies', 'Casual'],
+  'Duffle Bags': ['Travel', 'Gym', 'Sports', 'Weekend', 'Family'],
+  'Girls Backpacks': ['School', 'College', 'Daily', 'Casual', 'Kids', 'Ladies'],
+  'College Bags': ['College', 'Daily', 'Casual', 'Laptop', 'Office'],
+  'Gents Wallet': ['Daily', 'Gift', 'Formal', 'Mens'],
+  'Belts': ['Formal', 'Casual', 'Daily', 'Gift', 'Mens'],
+  'Card Wallet': ['Daily', 'Slim', 'Gift', 'Formal'],
+  'School Trolley Bags': ['School', 'Kids', 'Trolley', 'Travel'],
+  'Hand Wallet': ['Daily', 'Party', 'Ladies', 'Gift'],
+  'Clutch': ['Party', 'Wedding', 'Ladies', 'Gift', 'Trendy'],
+  'Gym Bags': ['Gym', 'Sports', 'Travel', 'Weekend', 'Daily'],
+};
+
+const ALL_TAGS = ['School', 'College', 'Office', 'Daily', 'Casual', 'Formal', 'Travel', 'Cabin', 'Trolley', 'Weekend', 'Gym', 'Sports', 'Shopping', 'Party', 'Wedding', 'Gift', 'Ladies', 'Mens', 'Kids', 'Family', 'Laptop', 'Slim', 'Trendy'];
 
 function Section({ title, icon, subtitle, children, collapsible = false, defaultOpen = true }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -367,6 +396,8 @@ export default function ProductForm({ initial, productId, onSaved }) {
   };
 
   const scarcityActive = form.scarcity_mode !== 'off';
+  const categoryTags = CATEGORY_TAGS[form.category] || [];
+  const remainingTags = categoryTags.length > 0 ? ALL_TAGS.filter((t) => !categoryTags.includes(t)) : ALL_TAGS;
 
   return (
     <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
@@ -544,14 +575,37 @@ export default function ProductForm({ initial, productId, onSaved }) {
         <div className="md:col-span-2">
           <label className="block text-sm font-medium mb-1.5">Use-case Tags</label>
           <p className="text-xs text-sethi-gray500 mb-2">Helps Smart Finder tell apart bags in the same category — e.g. mark a backpack as School, Office or College.</p>
-          <div className="flex flex-wrap gap-2">
-            {TAG_PRESETS.map((t) => (
-              <button key={t} type="button" onClick={() => toggleTag(t)}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${tags.includes(t) ? 'bg-sethi-gold border-sethi-gold text-white' : 'bg-white border-sethi-gray200 text-sethi-gray500 hover:border-sethi-gold hover:text-sethi-gold'}`}>
-                {tags.includes(t) ? '✓ ' : ''}{t}
-              </button>
-            ))}
-          </div>
+          {categoryTags.length > 0 ? (
+            <>
+              <p className="text-xs font-semibold text-sethi-gold-dark mb-1.5">Is category ke liye</p>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {categoryTags.map((t) => (
+                  <button key={t} type="button" onClick={() => toggleTag(t)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${tags.includes(t) ? 'bg-sethi-gold border-sethi-gold text-white' : 'bg-white border-sethi-gray200 text-sethi-gray500 hover:border-sethi-gold hover:text-sethi-gold'}`}>
+                    {tags.includes(t) ? '✓ ' : ''}{t}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-sethi-gray400 mb-1.5">Aur tags</p>
+              <div className="flex flex-wrap gap-2">
+                {remainingTags.map((t) => (
+                  <button key={t} type="button" onClick={() => toggleTag(t)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${tags.includes(t) ? 'bg-sethi-gold border-sethi-gold text-white' : 'bg-white border-sethi-gray200 text-sethi-gray400 hover:border-sethi-gold hover:text-sethi-gold'}`}>
+                    {tags.includes(t) ? '✓ ' : ''}{t}
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {ALL_TAGS.map((t) => (
+                <button key={t} type="button" onClick={() => toggleTag(t)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${tags.includes(t) ? 'bg-sethi-gold border-sethi-gold text-white' : 'bg-white border-sethi-gray200 text-sethi-gray500 hover:border-sethi-gold hover:text-sethi-gold'}`}>
+                  {tags.includes(t) ? '✓ ' : ''}{t}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="md:col-span-2">
