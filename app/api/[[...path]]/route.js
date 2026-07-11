@@ -1048,7 +1048,13 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
       if (method === 'GET') { const { data, error } = await supabase.from('categories').select('*').order('created_at', { ascending: true }); if (error) return json(LOCAL_CATEGORIES); return json(data && data.length > 0 ? data : LOCAL_CATEGORIES); }
       if (method === 'POST') {
         const c = body || {}; if (!c.name) return json({ error: 'Name required' }, 400);
-        const cat = { id: uuidv4(), name: String(c.name).trim(), image_url: String(c.imageUrl || '').trim(), created_at: nowIST() };
+        const cat = {
+          id: uuidv4(),
+          name: String(c.name).trim(),
+          image_url: String(c.imageUrl || '').trim(),
+          is_active: c.isActive === undefined && c.is_active === undefined ? true : !!(c.isActive ?? c.is_active),
+          created_at: nowIST(),
+        };
         const { data, error } = await supabase.from('categories').insert([cat]).select().single();
         if (error) { if (error.code === '23505') return json({ error: 'Category already exists' }, 400); return json({ error: error.message }, 500); }
         categoriesCache = { data: null, expiresAt: 0 };
@@ -1062,6 +1068,7 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
         const c = body || {}; const updates = {};
         if (c.name !== undefined) updates.name = String(c.name).trim();
         if (c.imageUrl !== undefined) updates.image_url = String(c.imageUrl).trim();
+        if (c.isActive !== undefined || c.is_active !== undefined) updates.is_active = !!(c.isActive ?? c.is_active);
         const { data, error } = await supabase.from('categories').update(updates).eq('id', id).select().single();
         if (error) return json({ error: error.message }, 500);
         categoriesCache = { data: null, expiresAt: 0 };
