@@ -13,7 +13,9 @@ export default function CategoriesPage() {
   useEffect(() => {
     fetch('/api/categories')
       .then((r) => r.json())
-      .then((data) => setCategories(Array.isArray(data) ? data : []))
+      // /api/categories is shared with the admin panel (which needs to see
+      // hidden categories too), so this customer-facing page filters here.
+      .then((data) => setCategories(Array.isArray(data) ? data.filter((c) => c.is_active !== false) : []))
       .catch(() => setCategories([]))
       .finally(() => setLoading(false));
   }, []);

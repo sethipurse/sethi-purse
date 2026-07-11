@@ -1,10 +1,11 @@
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import { MessageCircle, Sparkles } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
 import { buildWhatsAppLink } from '@/lib/constants';
-import { getCategories, getProducts } from '@/lib/data';
+import { getCategories, getAllCategoriesIncludingHidden, getProducts } from '@/lib/data';
 import { categoryPath, findCategoryBySlug, productMatchesCategorySlug, titleFromSlug, toTitleCase } from '@/lib/categoryUtils';
 
 export const revalidate = 60;
@@ -31,6 +32,17 @@ export async function generateMetadata({ params }) {
 export default async function CategoryPage({ params }) {
   const [categories, allProducts] = await Promise.all([getCategories(), getProducts()]);
   const category = findCategoryBySlug(categories, params.slug);
+
+  // A category that exists but is hidden must 404 like a category that
+  // doesn't exist at all — never fall through to the generic empty-state
+  // page below, which would otherwise still surface its products via the
+  // slug-only product-matching fallback.
+  if (!category) {
+    const allIncludingHidden = await getAllCategoriesIncludingHidden();
+    const hiddenMatch = findCategoryBySlug(allIncludingHidden, params.slug);
+    if (hiddenMatch && hiddenMatch.is_active === false) notFound();
+  }
+
   const title = toTitleCase(category?.name) || titleFromSlug(params.slug);
   const products = allProducts.filter((product) => matchesCategory(product, category, params.slug));
 
