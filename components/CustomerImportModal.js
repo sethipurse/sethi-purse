@@ -2,9 +2,8 @@
 import { useEffect, useRef, useState } from 'react';
 import Papa from 'papaparse';
 import { toast } from 'sonner';
-import { Upload, Download, Loader2, CheckCircle2, AlertTriangle, Users, X } from 'lucide-react';
+import { Upload, Download, Loader2, CheckCircle2, AlertTriangle, X } from 'lucide-react';
 import { normalizePhone, isValidNormalizedPhone } from '@/lib/phone';
-import ConfirmDialog from './ConfirmDialog';
 
 const CHUNK_SIZE = 500;
 
@@ -84,7 +83,6 @@ function downloadTemplate() {
 const emptySummary = { inserted: 0, merged: 0, skipped: 0, failed: [] };
 
 export default function CustomerImportModal({ open, onClose, onImported }) {
-  const [tab, setTab] = useState('csv'); // 'csv' | 'enquiries'
   const [step, setStep] = useState('pick'); // pick | preview | uploading | done
   const [fileName, setFileName] = useState('');
   const [colMap, setColMap] = useState({});
@@ -94,17 +92,11 @@ export default function CustomerImportModal({ open, onClose, onImported }) {
   const [mode, setMode] = useState('skip');
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [summary, setSummary] = useState(emptySummary);
-  const [enquiryConfirm, setEnquiryConfirm] = useState(false);
-  const [enquiryRunning, setEnquiryRunning] = useState(false);
-  const [fixingCountries, setFixingCountries] = useState(false);
-  const [migratingForeign, setMigratingForeign] = useState(false);
-  const [migratingWa, setMigratingWa] = useState(false);
-  const [fixingNames, setFixingNames] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
-    setTab('csv'); setStep('pick'); setFileName(''); setColMap({}); setUnmapped([]);
+    setStep('pick'); setFileName(''); setColMap({}); setUnmapped([]);
     setValidRows([]); setInvalidRows([]); setMode('skip'); setProgress({ done: 0, total: 0 }); setSummary(emptySummary);
   }, [open]);
 
@@ -177,55 +169,6 @@ export default function CustomerImportModal({ open, onClose, onImported }) {
     onImported?.();
   }
 
-  async function runEnquiryImport() {
-    setEnquiryRunning(true);
-    try {
-      const res = await fetch('/api/customers/import-from-inquiries', { method: 'POST' });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) { toast.error(data.error || 'Import failed'); setEnquiryRunning(false); setEnquiryConfirm(false); return; }
-      setSummary({ inserted: data.inserted || 0, merged: data.merged || 0, skipped: data.skipped || 0, failed: data.failed || [] });
-      setStep('done');
-      onImported?.();
-    } catch (err) {
-      toast.error('Network error');
-    } finally {
-      setEnquiryRunning(false);
-      setEnquiryConfirm(false);
-    }
-  }
-
-  async function runFixCountries() {
-    setFixingCountries(true);
-    try {
-      const res = await fetch('/api/customers/fix-countries', { method: 'POST' });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) { toast.error(data.error || 'Fix failed'); return; }
-      const breakdown = Object.entries(data.byCountry || {}).map(([k, v]) => `${k}: ${v}`).join(', ');
-      toast.success(`Checked ${data.scanned}, updated ${data.updated}${breakdown ? ' — ' + breakdown : ''}`);
-      onImported?.();
-    } catch (err) {
-      toast.error('Network error');
-    } finally {
-      setFixingCountries(false);
-    }
-  }
-
-  async function runMigration(endpoint, setRunning) {
-    setRunning(true);
-    try {
-      const res = await fetch(`/api/customers/${endpoint}`, { method: 'POST' });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) { toast.error(data.error || 'Migration failed'); return; }
-      const failedCount = Array.isArray(data.skipped) ? data.skipped.filter((s) => s.reason !== 'already migrated').length : 0;
-      toast.success(`Scanned ${data.scanned}, migrated ${data.updated}${failedCount ? `, ${failedCount} failed` : ''}`);
-      onImported?.();
-    } catch (err) {
-      toast.error('Network error');
-    } finally {
-      setRunning(false);
-    }
-  }
-
   const closeable = step !== 'uploading';
 
   return (
@@ -235,13 +178,6 @@ export default function CustomerImportModal({ open, onClose, onImported }) {
           <h3 className="font-serif text-xl">Import customers</h3>
           {closeable && <button onClick={onClose} className="text-sethi-gray500 hover:text-sethi-black"><X className="w-5 h-5" /></button>}
         </div>
-
-        {step !== 'uploading' && step !== 'done' && (
-          <div className="flex gap-2 mb-5">
-            <button onClick={() => setTab('csv')} className={`px-4 py-2 rounded-full text-sm font-medium border ${tab === 'csv' ? 'bg-sethi-gold text-sethi-black border-sethi-gold' : 'bg-white border-sethi-gray200'}`}>CSV Import</button>
-            <button onClick={() => setTab('enquiries')} className={`px-4 py-2 rounded-full text-sm font-medium border ${tab === 'enquiries' ? 'bg-sethi-gold text-sethi-black border-sethi-gold' : 'bg-white border-sethi-gray200'}`}>Enquiries se le aao</button>
-          </div>
-        )}
 
         {step === 'done' ? (
           <div>
@@ -277,15 +213,6 @@ export default function CustomerImportModal({ open, onClose, onImported }) {
             )}
             <div className="flex justify-end">
               <button onClick={onClose} className="btn-primary min-h-[48px] px-6 font-semibold rounded-sm">Done</button>
-            </div>
-          </div>
-        ) : tab === 'enquiries' ? (
-          <div>
-            <p className="text-sm text-sethi-gray500 mb-5">Jin enquiries mein real phone number hai, unse naye customers ban jayenge. Jo pehle se customer hain unhe dobara nahi banaya jayega — jitni baar chalao, safe hai.</p>
-            <div className="flex justify-end">
-              <button onClick={() => setEnquiryConfirm(true)} className="inline-flex items-center gap-2 btn-primary min-h-[48px] px-6 font-semibold rounded-sm">
-                <Users className="w-4 h-4" /> Enquiries se le aao
-              </button>
             </div>
           </div>
         ) : step === 'pick' ? (
@@ -356,35 +283,7 @@ export default function CustomerImportModal({ open, onClose, onImported }) {
             </div>
           </div>
         )}
-
-        {step === 'pick' && (
-          <div className="mt-6 flex flex-col gap-1.5">
-            <button onClick={runFixCountries} disabled={fixingCountries} className="block text-left text-[11px] text-sethi-gray500 hover:text-sethi-gold underline decoration-dotted disabled:opacity-60">
-              {fixingCountries ? 'Fixing foreign countries…' : 'Maintenance: fix foreign customer countries'}
-            </button>
-            <button onClick={() => runMigration('migrate-foreign-nri', setMigratingForeign)} disabled={migratingForeign} className="block text-left text-[11px] text-sethi-gray500 hover:text-sethi-gold underline decoration-dotted disabled:opacity-60">
-              {migratingForeign ? 'Migrating foreign customers…' : 'Maintenance: migrate foreign → NRI'}
-            </button>
-            <button onClick={() => runMigration('migrate-wa-serials', setMigratingWa)} disabled={migratingWa} className="block text-left text-[11px] text-sethi-gray500 hover:text-sethi-gold underline decoration-dotted disabled:opacity-60">
-              {migratingWa ? 'Migrating WhatsApp batch…' : 'Maintenance: migrate WhatsApp batch → Sp'}
-            </button>
-            <button onClick={() => runMigration('fix-placeholder-names', setFixingNames)} disabled={fixingNames} className="block text-left text-[11px] text-sethi-gray500 hover:text-sethi-gold underline decoration-dotted disabled:opacity-60">
-              {fixingNames ? 'Fixing placeholder names…' : 'Maintenance: fix placeholder names'}
-            </button>
-          </div>
-        )}
       </div>
-
-      <ConfirmDialog
-        open={enquiryConfirm}
-        title="Enquiries se customers banayein?"
-        message="Real phone number wali sabhi enquiries se naye customers ban jayenge — jo pehle se maujood hain unhe skip kar diya jayega."
-        confirmLabel={enquiryRunning ? <><Loader2 className="w-4 h-4 animate-spin" /> Le aa rahe hain…</> : 'Haan, le aao'}
-        danger={false}
-        loading={enquiryRunning}
-        onConfirm={runEnquiryImport}
-        onCancel={() => setEnquiryConfirm(false)}
-      />
     </div>
   );
 }
