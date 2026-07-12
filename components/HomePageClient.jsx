@@ -39,12 +39,29 @@ export default function HomePageClient({ categories, allProducts, featuredProduc
   const [menuOpen, setMenuOpen] = useState(false);
   const [cart, setCart] = useState([]);
 
-  // One random product image per category tile, picked once per page load
-  // (memoized, not recomputed on every re-render) from that category's own
-  // active products — reuses allProducts already loaded for the page, no
-  // extra query. Falls back to the category's own fixed image when it has
-  // no product photos yet, so a tile never renders blank.
-  const categoryTileImages = useMemo(() => {
+  // One random product image per category tile, re-rolled every time this
+  // component mounts (hard refresh AND client-side nav away-and-back both
+  // remount it) so the tile never feels stuck on the same picture.
+  //
+  // This used to be a useMemo that called Math.random() directly during
+  // render — which runs on the server (baked into the ISR-cached HTML) AND
+  // again during client hydration, so the two Math.random() calls almost
+  // never agreed. That's a hydration mismatch, and React's recovery from
+  // one is exactly the kind of "shows the old value until something else
+  // forces a re-render" behavior that read as lag.
+  //
+  // Fix: the initial state is the category's own fixed image — a pure
+  // function of props, identical on server and client, so there's nothing
+  // to mismatch on first paint. The random pick then applies client-only,
+  // after mount, via this effect (which reuses allProducts already loaded
+  // for the page — no extra query).
+  const [categoryTileImages, setCategoryTileImages] = useState(() => {
+    const picks = {};
+    categories.forEach((category) => { picks[category.id || category.name] = imageOf(category); });
+    return picks;
+  });
+
+  useEffect(() => {
     const imagesByCategory = new Map();
     allProducts.forEach((p) => {
       const img = imageOf(p);
@@ -57,7 +74,7 @@ export default function HomePageClient({ categories, allProducts, featuredProduc
       const pool = imagesByCategory.get(category.name) || [];
       picks[category.id || category.name] = pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)] : imageOf(category);
     });
-    return picks;
+    setCategoryTileImages(picks);
   }, [categories, allProducts]);
 
   useEffect(() => {
