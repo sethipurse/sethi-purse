@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { Plus, Trash2, Edit, ImageOff, Loader2, Star as StarIcon, X, Square, CheckSquare } from 'lucide-react';
 import { getInitials } from '@/lib/constants';
 
-const EMPTY = { customerName: '', customerPhoto: '', rating: 5, reviewText: '', isFeatured: false, category: '' };
+const EMPTY = { customerName: '', customerPhoto: '', rating: 5, reviewText: '', isFeatured: false, category: '', googleReviewLink: '' };
 
 export default function AdminReviewsPage() {
   const [reviews, setReviews] = useState([]);
@@ -48,6 +48,7 @@ export default function AdminReviewsPage() {
   const getText = (r) => r.review_text ?? r.reviewText ?? '';
   const getFeatured = (r) => !!(r.is_featured ?? r.isFeatured);
   const getCategory = (r) => r.category ?? '';
+  const getGoogleLink = (r) => r.google_review_link ?? r.googleReviewLink ?? '';
 
   const openNew = () => { setEditing('new'); setForm(EMPTY); };
   const openEdit = (r) => {
@@ -59,6 +60,7 @@ export default function AdminReviewsPage() {
       reviewText: getText(r),
       isFeatured: getFeatured(r),
       category: getCategory(r),
+      googleReviewLink: getGoogleLink(r),
     });
   };
   const close = () => { setEditing(null); setForm(EMPTY); };
@@ -273,6 +275,11 @@ export default function AdminReviewsPage() {
                   {categories.map((c) => <option key={c.id || c.name} value={c.name}>{c.name}</option>)}
                 </select>
                 <p className="text-xs text-sethi-gray500 mt-1">Tag this review to a category so it only shows on that category&rsquo;s product pages.</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Google Review Link (optional)</label>
+                <input type="url" value={form.googleReviewLink} onChange={(e) => setForm({ ...form, googleReviewLink: e.target.value })} className="input-sethi" placeholder="https://g.page/r/..." />
+                <p className="text-xs text-sethi-gray500 mt-1">Google Business listing ka link — customer isse asli reviews verify kar sakta hai.</p>
               </div>
               <div className="flex items-center gap-3">
                 <label className="text-sm font-medium">Featured</label>
