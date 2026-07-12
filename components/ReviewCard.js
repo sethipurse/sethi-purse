@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import StarRating from '@/components/StarRating';
-import { formatDateLong, getInitials } from '@/lib/constants';
+import { getInitials } from '@/lib/constants';
 
 export default function ReviewCard({ review }) {
   const [imgErr, setImgErr] = useState(false);
@@ -9,7 +9,6 @@ export default function ReviewCard({ review }) {
   const customerPhoto = review.customer_photo || review.customerPhoto;
   const reviewText = review.review_text || review.reviewText || review.comment;
   const isFeatured = review.is_featured ?? review.isFeatured;
-  const createdAt = review.created_at || review.createdAt;
 
   return (
     <article className="card-sethi p-6 md:p-7 flex flex-col h-full">
@@ -31,7 +30,6 @@ export default function ReviewCard({ review }) {
         </div>
       </div>
       <p className="mt-4 text-sethi-gray800/90 italic leading-relaxed">&ldquo;{reviewText}&rdquo;</p>
-      <p className="mt-auto pt-4 text-xs text-sethi-gray500">{formatDateLong(createdAt)}</p>
     </article>
   );
 }
