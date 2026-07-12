@@ -608,7 +608,7 @@ ${referralInstruction}
 3. OUT OF STOCK — Suggest 2-3 IN-STOCK alternatives + offer waitlist.
 4. DELIVERY — "In-store pickup. For delivery WhatsApp: +91 7986161633!"
 5. PAYMENT — "Cash, UPI, Online Transfer. COD via WhatsApp orders!"
-6. NEVER show raw IDs in visible text — only in PRODUCTS/WAITLIST/WHATSAPP lines.
+6. NEVER show raw IDs, UUIDs, or any long alphanumeric codes in visible customer-facing text — refer to products ONLY by their name. IDs are for internal PRODUCTS/WAITLIST/WHATSAPP lines only, never spoken/written to the customer, even when listing multiple similar products — use product names, not IDs, to differentiate them.
 7. PRODUCT CARDS — When mentioning products, end with: PRODUCTS: [id1, id2, id3]
 8. WHATSAPP PREFILL — When customer clearly wants to buy a specific product, end with: WHATSAPP: Hi SETHI PURSE! I'm interested in [product name] (Rs.[price]). Please confirm availability.
 9. SIZES/COLORS — Use catalog fields. If not listed say "Team se confirm karta hoon!"
@@ -637,7 +637,27 @@ Be their trusted friend who knows bags — warm, helpful, local! 😊`;
     const wlMatch = reply.match(/WAITLIST:\s*\[?\s*([0-9a-f-]+)\s*\]?/i);
     if (wlMatch) { waitlistProductId = wlMatch[1].trim(); reply = reply.replace(/WAITLIST:\s*\[?\s*([0-9a-f-]+)\s*\]?/gi, '').trim(); }
 
-    reply = reply.replace(/\(?\s*ID:?\s*[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\s*\)?/gi, '').replace(/\s{2,}/g, ' ').trim();
+    // Backstop for when the model ignores the "never show raw IDs" rule and
+    // recites product UUIDs directly in the sentence (e.g. a bare, comma-
+    // separated list with no "ID:" label at all — the previous version of
+    // this regex required that label and missed exactly this case). Matches
+    // ANY bare UUID anywhere in the reply, with or without a label/parens,
+    // by this point in the function the PRODUCTS:/WAITLIST:/WHATSAPP: tags
+    // have already been extracted into their own variables above and
+    // stripped from `reply`, so broadening this regex can't affect them.
+    reply = reply
+      .replace(/\(?\s*(?:ID:?\s*)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\s*\)?/gi, ' ')
+      // Debris a removed UUID leaves behind in a list: doubled commas, a
+      // connector ("और"/"and") stranded next to a now-empty slot, and
+      // leading/trailing stray commas or empty parens.
+      .replace(/\s*,\s*,\s*/g, ', ')
+      .replace(/,\s*(और|and)\s*,/gi, ',')
+      .replace(/,\s*(और|and)\s+/gi, ' ')
+      .replace(/^\s*,\s*/, '')
+      .replace(/\s*,\s*$/, '')
+      .replace(/\(\s*\)/g, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
 
     const verifiedIds = productIds.filter((id) => topProductIds.has(String(id)));
     let matchedProducts = Array.isArray(products) ? products.filter((p) => verifiedIds.includes(String(p.id))) : [];
