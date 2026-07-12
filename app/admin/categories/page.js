@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import AdminShell from '@/components/AdminShell';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { toast } from 'sonner';
@@ -102,6 +102,13 @@ export default function AdminCategoriesPage() {
   const [editing, setEditing] = useState(null);
   const [editName, setEditName] = useState('');
   const [editImg, setEditImg] = useState('');
+
+  // Display-only ordering — visible categories first, hidden ones below,
+  // each group keeping its existing relative order (Array.prototype.sort
+  // is stable). Never mutates `categories` itself or persists any reorder.
+  const sortedCategories = useMemo(() => {
+    return [...categories].sort((a, b) => (a.is_active === false ? 1 : 0) - (b.is_active === false ? 1 : 0));
+  }, [categories]);
 
   const load = async () => {
     setLoading(true);
@@ -221,10 +228,11 @@ export default function AdminCategoriesPage() {
               <li className="p-6 text-sethi-gray500 text-center">Loading...</li>
             ) : categories.length === 0 ? (
               <li className="p-6 text-sethi-gray500 text-center">No categories yet.</li>
-            ) : categories.map((c) => {
+            ) : sortedCategories.map((c, i) => {
               const isHidden = c.is_active === false;
+              const isFirstHidden = isHidden && sortedCategories[i - 1] && sortedCategories[i - 1].is_active !== false;
               return (
-              <li key={c.id} className={`p-4 flex items-center gap-3 ${isHidden ? 'opacity-50' : ''}`}>
+              <li key={c.id} className={`p-4 flex items-center gap-3 ${isHidden ? 'opacity-50' : ''} ${isFirstHidden ? 'border-t-2 border-t-sethi-gray200' : ''}`}>
                 {(c.image_url || c.imageUrl) ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={c.image_url || c.imageUrl} alt="" className="w-14 h-14 object-cover rounded-sm bg-sethi-gray100 shrink-0" />
