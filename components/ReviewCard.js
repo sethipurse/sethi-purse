@@ -9,6 +9,7 @@ export default function ReviewCard({ review }) {
   const customerPhoto = review.customer_photo || review.customerPhoto;
   const reviewText = review.review_text || review.reviewText || review.comment;
   const isFeatured = review.is_featured ?? review.isFeatured;
+  const googleReviewLink = review.google_review_link || review.googleReviewLink;
 
   return (
     <article className="card-sethi p-6 md:p-7 flex flex-col h-full">
@@ -30,6 +31,11 @@ export default function ReviewCard({ review }) {
         </div>
       </div>
       <p className="mt-4 text-sethi-gray800/90 italic leading-relaxed">&ldquo;{reviewText}&rdquo;</p>
+      {googleReviewLink && (
+        <a href={googleReviewLink} target="_blank" rel="noopener noreferrer" className="mt-3 inline-block text-xs font-medium text-sethi-gold hover:underline">
+          Google pe dekho →
+        </a>
+      )}
     </article>
   );
 }
