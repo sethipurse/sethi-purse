@@ -3,13 +3,19 @@ import { useState } from 'react';
 import StarRating from '@/components/StarRating';
 import { getInitials } from '@/lib/constants';
 
+// Fixed, shared across every review card — not per-review data, so no DB
+// column/admin field needed. Distinct from the GOOGLE_REVIEW_LINK in
+// lib/constants.js (a different URL, used for the admin's "ask for a
+// review" WhatsApp template) — kept separate rather than reused so this
+// change can't silently affect that other feature.
+const GOOGLE_REVIEW_LINK = 'https://g.page/r/CecQQraLXlfqEAE/review';
+
 export default function ReviewCard({ review }) {
   const [imgErr, setImgErr] = useState(false);
   const customerName = review.customer_name || review.customerName;
   const customerPhoto = review.customer_photo || review.customerPhoto;
   const reviewText = review.review_text || review.reviewText || review.comment;
   const isFeatured = review.is_featured ?? review.isFeatured;
-  const googleReviewLink = review.google_review_link || review.googleReviewLink;
 
   return (
     <article className="card-sethi p-6 md:p-7 flex flex-col h-full">
@@ -31,11 +37,9 @@ export default function ReviewCard({ review }) {
         </div>
       </div>
       <p className="mt-4 text-sethi-gray800/90 italic leading-relaxed">&ldquo;{reviewText}&rdquo;</p>
-      {googleReviewLink && (
-        <a href={googleReviewLink} target="_blank" rel="noopener noreferrer" className="mt-3 inline-block text-xs font-medium text-sethi-gold hover:underline">
-          Google pe dekho →
-        </a>
-      )}
+      <a href={GOOGLE_REVIEW_LINK} target="_blank" rel="noopener noreferrer" className="mt-3 inline-block text-xs font-medium text-sethi-gold hover:underline">
+        Google pe dekho →
+      </a>
     </article>
   );
 }
