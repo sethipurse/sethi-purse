@@ -280,6 +280,31 @@ async function getCachedCategoryNames() {
   return categoriesCache.data;
 }
 
+// Same names as getCachedCategoryNames() (still includes hidden ones — the
+// chat still needs to RECOGNIZE a hidden category was asked about, just not
+// search its products) but also carries is_active, so the chat handler can
+// tell a hidden category apart from a genuinely-empty visible one and give
+// the graceful "abhi update ho rahi hai" reply without ever filtering that
+// category's products. Busted alongside categoriesCache on every category
+// create/update/delete (see below) so a fresh show/hide reflects almost
+// immediately instead of waiting out the TTL.
+let categoriesFullCache = { data: null, expiresAt: 0 };
+async function getCachedCategories() {
+  if (categoriesFullCache.data && Date.now() < categoriesFullCache.expiresAt) return categoriesFullCache.data;
+  try {
+    const { data, error } = await supabase.from('categories').select('name, is_active');
+    const rows = !error && Array.isArray(data) ? data.filter((c) => c.name) : [];
+    categoriesFullCache = {
+      data: rows.length > 0 ? rows : LOCAL_CATEGORIES.map((c) => ({ name: c.name, is_active: c.is_active !== false })),
+      expiresAt: Date.now() + 5 * 60 * 1000,
+    };
+  } catch (e) {
+    console.error('getCachedCategories failed:', e);
+    categoriesFullCache = { data: LOCAL_CATEGORIES.map((c) => ({ name: c.name, is_active: c.is_active !== false })), expiresAt: Date.now() + 60 * 1000 };
+  }
+  return categoriesFullCache.data;
+}
+
 const catalogCache = new Map();
 const CATALOG_TTL = 60 * 1000;
 function pruneCatalogCache() {
@@ -425,6 +450,12 @@ async function handleChat(body, cookieSessionId) {
   const shouldAskContact = !contactCaptured && !phoneFound && ((buyIntentNow && userMsgCount >= 2) || userMsgCount >= 4);
 
   const dbCategories = await getCachedCategoryNames();
+  // Names only, still includes hidden ones — the matcher needs to RECOGNIZE
+  // a hidden category was asked about (that's what makes the graceful
+  // message possible) even though it must never search that category's
+  // products. hiddenCategoryNames is the separate is_active-aware list.
+  const categoriesFull = await getCachedCategories();
+  const hiddenCategoryNames = categoriesFull.filter((c) => c.is_active === false).map((c) => c.name);
 
   pruneCatalogCache();
   const msgCategory = detectCategory(lastUserMsg?.content || '', dbCategories);
@@ -445,7 +476,7 @@ async function handleChat(body, cookieSessionId) {
     // deterministic check that must reflect THIS message, not a stale
     // cached catalog from an earlier, differently-scoped question — so it's
     // always computed fresh, before ever consulting the session cache.
-    const gate = matchProducts(lastUserMsg?.content || '', products, priceRange, 8, dbCategories, contextCategory);
+    const gate = matchProducts(lastUserMsg?.content || '', products, priceRange, 8, dbCategories, contextCategory, hiddenCategoryNames);
     gateCategoryHit = gate.categoryHit;
 
     // The gate is meant to catch a first, substantive message with zero
@@ -1058,6 +1089,7 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
         const { data, error } = await supabase.from('categories').insert([cat]).select().single();
         if (error) { if (error.code === '23505') return json({ error: 'Category already exists' }, 400); return json({ error: error.message }, 500); }
         categoriesCache = { data: null, expiresAt: 0 };
+        categoriesFullCache = { data: null, expiresAt: 0 };
         revalidateCategories();
         return json(data, 201);
       }
@@ -1072,6 +1104,7 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
         const { data, error } = await supabase.from('categories').update(updates).eq('id', id).select().single();
         if (error) return json({ error: error.message }, 500);
         categoriesCache = { data: null, expiresAt: 0 };
+        categoriesFullCache = { data: null, expiresAt: 0 };
         revalidateCategories();
         return json(data);
       }
@@ -1079,6 +1112,7 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
         const { data, error } = await supabase.from('categories').delete().eq('id', id).select().single();
         if (error) return json({ error: 'Not found' }, 404);
         categoriesCache = { data: null, expiresAt: 0 };
+        categoriesFullCache = { data: null, expiresAt: 0 };
         revalidateCategories();
         return json({ success: true, removed: data });
       }
