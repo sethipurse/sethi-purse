@@ -1,14 +1,7 @@
 'use client';
 import { useState } from 'react';
 import StarRating from '@/components/StarRating';
-import { getInitials } from '@/lib/constants';
-
-// Fixed, shared across every review card — not per-review data, so no DB
-// column/admin field needed. Distinct from the GOOGLE_REVIEW_LINK in
-// lib/constants.js (a different URL, used for the admin's "ask for a
-// review" WhatsApp template) — kept separate rather than reused so this
-// change can't silently affect that other feature.
-const GOOGLE_REVIEW_LINK = 'https://g.page/r/CecQQraLXlfqEAE/review';
+import { getInitials, GOOGLE_REVIEW_LINK } from '@/lib/constants';
 
 export default function ReviewCard({ review }) {
   const [imgErr, setImgErr] = useState(false);
