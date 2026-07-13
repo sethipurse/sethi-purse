@@ -690,6 +690,62 @@ Be their trusted friend who knows bags — warm, helpful, local! 😊`;
         } else {
           await supabase.from('inquiries').insert([{ id: uuidv4(), session_id: sessionId, name: nameFound || 'AI Chat Visitor', phone: phoneFound || '0000000000', city: 'Jalandhar', product_interest: interest, message: `[AI CHAT] ${transcript}`, status: 'new', category: detCat, demand_type: demandType, ai_model: result.usedAPI, created_at: nowIST() }]);
         }
+
+        // CRM bridge: only fires when extractPhone() found a confident 10-digit
+        // number THIS turn (the same gate the inquiries block above already
+        // trusts) — never runs on phone-less messages. Own try/catch so a
+        // transient DB error here can never break the chat reply or the
+        // inquiry logging above, which has already succeeded by this point.
+        // Idempotent by design instead of "only once per session": lookup is
+        // by normalized phone, tags merge as a union, and the name is only
+        // ever filled (never overwritten) — so if a later message repeats the
+        // phone, re-running this is a cheap no-op, not a hammering risk.
+        if (phoneFound) {
+          try {
+            const crmPhone = normalizePhone(phoneFound);
+            if (isValidNormalizedPhone(crmPhone)) {
+              const isPlaceholderName = (n) => !n || n === 'Customer' || n.startsWith('WA-') || /^\d+$/.test(n);
+              const { data: existingCustomer } = await supabase.from('customers').select('id, full_name, tags').eq('phone_number', crmPhone).maybeSingle();
+              if (existingCustomer) {
+                const mergedTags = new Set(Array.isArray(existingCustomer.tags) ? existingCustomer.tags : []);
+                mergedTags.add('from-ai-chat');
+                if (detCat && detCat !== 'Other') mergedTags.add(detCat);
+                const custUpd = { tags: Array.from(mergedTags) };
+                if (nameFound && isPlaceholderName(existingCustomer.full_name)) custUpd.full_name = nameFound;
+                await supabase.from('customers').update(custUpd).eq('id', existingCustomer.id);
+              } else {
+                const isForeign = !crmPhone.startsWith('91');
+                const serial = await nextSerial(isForeign);
+                const newTags = ['from-ai-chat'];
+                if (detCat && detCat !== 'Other') newTags.push(detCat);
+                const { error: crmInsertError } = await supabase.from('customers').insert([{
+                  id: uuidv4(),
+                  serial_no: serial,
+                  full_name: nameFound || serial,
+                  phone_number: crmPhone,
+                  whatsapp_number: crmPhone,
+                  city: null,
+                  country: isForeign ? 'Foreign' : 'India',
+                  category_interest: [],
+                  tags: newTags,
+                  marketing_status: 'subscribed',
+                  // 'ai-chat' is not in the customers_source_check CHECK
+                  // constraint (only import/csv/inquiry/whatsapp/manual are
+                  // allowed) — 'inquiry' is the closest existing value, same
+                  // convention the import-from-inquiries flow already uses
+                  // for customers born from a captured lead rather than a
+                  // manual admin add.
+                  source: 'inquiry',
+                  created_at: nowIST(),
+                }]);
+                // 23505 = unique-phone race with a concurrent insert for the
+                // same number (e.g. two rapid messages); the other insert
+                // already created the row, so this is safe to ignore.
+                if (crmInsertError && crmInsertError.code !== '23505') throw crmInsertError;
+              }
+            }
+          } catch (crmErr) { console.error('CRM bridge failed:', crmErr); }
+        }
       }
     } catch (e) { console.error('Inquiry logging failed:', e); }
 
