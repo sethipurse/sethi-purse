@@ -34,6 +34,11 @@ function imageOf(item) {
   return item?.image_url || item?.imageUrl || '';
 }
 
+// Bounds the set of distinct images each category tile can ever request, so
+// Vercel Image Optimization only ever generates transformations for this many
+// images per category no matter how large the catalog grows.
+const MAX_TILE_IMAGE_POOL = 4;
+
 export default function HomePageClient({ categories, allProducts, featuredProducts, offers, reviews }) {
   const [query, setQuery] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
@@ -67,7 +72,8 @@ export default function HomePageClient({ categories, allProducts, featuredProduc
       const img = imageOf(p);
       if (!img || !p.category) return;
       if (!imagesByCategory.has(p.category)) imagesByCategory.set(p.category, []);
-      imagesByCategory.get(p.category).push(img);
+      const pool = imagesByCategory.get(p.category);
+      if (pool.length < MAX_TILE_IMAGE_POOL) pool.push(img);
     });
     const picks = {};
     categories.forEach((category) => {
