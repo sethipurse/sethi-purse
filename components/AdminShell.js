@@ -2,12 +2,13 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Bell, LayoutDashboard, ShoppingBag, Grid, Settings as SettingsIcon, LogOut, Menu, X, ExternalLink, Tag, MessageSquare, Star, Images, Users } from 'lucide-react';
+import { Bell, LayoutDashboard, ShoppingBag, Grid, Settings as SettingsIcon, LogOut, Menu, X, ExternalLink, Tag, MessageSquare, Star, Images, Users, ImageOff } from 'lucide-react';
 import { LOGO_URL } from '@/lib/constants';
 
 const NAV = [
   { href: '/admin/dashboard',     label: 'Dashboard',     icon: LayoutDashboard },
   { href: '/admin/products',      label: 'Products',      icon: ShoppingBag },
+  { href: '/admin/photo-cleanup', label: 'Photo Cleanup', icon: ImageOff },
   { href: '/admin/categories',    label: 'Categories',    icon: Grid },
   { href: '/admin/slider',        label: 'Hero Slider',   icon: Images },
   { href: '/admin/offers',        label: 'Offers',        icon: Tag },
@@ -21,6 +22,7 @@ const TITLES = {
   '/admin/dashboard':     'Dashboard',
   '/admin/products':      'Products',
   '/admin/products/add':  'Add Product',
+  '/admin/photo-cleanup': 'Photo Cleanup',
   '/admin/categories':    'Categories',
   '/admin/slider':        'Hero Slider',
   '/admin/offers':        'Offers',
