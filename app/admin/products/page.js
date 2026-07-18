@@ -18,6 +18,7 @@ export default function AdminProductsPage() {
   const [cat, setCat] = useState('All');
   const [sort, setSort] = useState('newest');
   const [hiddenOnly, setHiddenOnly] = useState(false);
+  const [lowStockOnly, setLowStockOnly] = useState(false);
   const [confirm, setConfirm] = useState(null);
   const [selected, setSelected] = useState(new Set());
   const [bulkConfirm, setBulkConfirm] = useState(false);
@@ -72,6 +73,26 @@ export default function AdminProductsPage() {
     try { window.localStorage.setItem(COLLAPSED_STORAGE_KEY, JSON.stringify([...collapsedGroups])); } catch {}
   }, [collapsedGroups]);
 
+  // Restore the low-stock filter from ?lowStock=1 once on mount (client-only,
+  // same rationale as the view-mode restore above) — lets the Dashboard's
+  // Low Stock card link straight to a pre-filtered view with zero extra clicks.
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('lowStock') === '1') setLowStockOnly(true);
+    } catch {}
+  }, []);
+
+  // Keep the URL in sync so this filtered view stays linkable/bookmarkable.
+  useEffect(() => {
+    try {
+      const url = new URL(window.location.href);
+      if (lowStockOnly) url.searchParams.set('lowStock', '1');
+      else url.searchParams.delete('lowStock');
+      window.history.replaceState({}, '', url.toString());
+    } catch {}
+  }, [lowStockOnly]);
+
   // Counts always reflect the FULL product list (not the search-filtered
   // one), so the owner can spot empty categories via a "(0)" count.
   const categoryCounts = useMemo(() => {
@@ -88,6 +109,7 @@ export default function AdminProductsPage() {
     let list = [...products];
     if (cat !== 'All') list = list.filter((p) => p.category === cat);
     if (hiddenOnly) list = list.filter((p) => p.is_active === false);
+    if (lowStockOnly) list = list.filter((p) => typeof p.stock === 'number' && p.stock <= 5);
     if (q.trim()) {
       const t = q.trim().toLowerCase();
       list = list.filter((p) => p.name.toLowerCase().includes(t) || (p.brand || '').toLowerCase().includes(t));
@@ -99,7 +121,7 @@ export default function AdminProductsPage() {
       default: list.sort((a, b) => new Date(b.created_at ?? b.createdAt) - new Date(a.created_at ?? a.createdAt));
     }
     return list;
-  }, [products, q, cat, sort, hiddenOnly]);
+  }, [products, q, cat, sort, hiddenOnly, lowStockOnly]);
 
   // Groups the already-filtered/sorted list by category, ordered by the
   // categories list order (falling back to alphabetical for anything not in
@@ -283,6 +305,7 @@ export default function AdminProductsPage() {
   };
 
   const selectedCount = selected.size;
+  const emptyMessage = lowStockOnly ? 'Koi low stock product nahi — sab theek hai! 🎉' : 'No products found.';
 
   const StockCell = ({ p }) => {
     const edit = stockEdits[p.id];
@@ -512,10 +535,16 @@ export default function AdminProductsPage() {
             <option value="price_desc">Price: High to Low</option>
           </select>
         </div>
-        <label className="flex items-center gap-2 mt-3 text-sm text-sethi-gray500 cursor-pointer w-fit">
-          <input type="checkbox" checked={hiddenOnly} onChange={(e) => setHiddenOnly(e.target.checked)} className="w-4 h-4 accent-sethi-gold" />
-          Hidden only
-        </label>
+        <div className="flex flex-wrap items-center gap-4 mt-3">
+          <label className="flex items-center gap-2 text-sm text-sethi-gray500 cursor-pointer w-fit">
+            <input type="checkbox" checked={hiddenOnly} onChange={(e) => setHiddenOnly(e.target.checked)} className="w-4 h-4 accent-sethi-gold" />
+            Hidden only
+          </label>
+          <label className="flex items-center gap-2 text-sm text-sethi-gray500 cursor-pointer w-fit">
+            <input type="checkbox" checked={lowStockOnly} onChange={(e) => setLowStockOnly(e.target.checked)} className="w-4 h-4 accent-sethi-gold" />
+            Low Stock only
+          </label>
+        </div>
       </div>
 
       {/* View toggle */}
@@ -583,7 +612,7 @@ export default function AdminProductsPage() {
               {loading ? (
                 <tr><td colSpan="9" className="text-center p-8 text-sethi-gray500">Loading...</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan="9" className="text-center p-8 text-sethi-gray500">No products found.</td></tr>
+                <tr><td colSpan="9" className="text-center p-8 text-sethi-gray500">{emptyMessage}</td></tr>
               ) : view === 'list' ? (
                 filtered.map((p) => <DesktopProductRow key={p.id} p={p} />)
               ) : (
@@ -612,7 +641,7 @@ export default function AdminProductsPage() {
           {loading ? (
             <div className="p-6 text-sethi-gray500 text-center">Loading...</div>
           ) : filtered.length === 0 ? (
-            <div className="p-6 text-sethi-gray500 text-center">No products found.</div>
+            <div className="p-6 text-sethi-gray500 text-center">{emptyMessage}</div>
           ) : view === 'list' ? (
             filtered.map((p) => <MobileProductCard key={p.id} p={p} />)
           ) : (

@@ -278,7 +278,7 @@ export default function DashboardPage() {
       key: 'lowstock',
       urgent: lowStock.length > 0,
       el: (
-        <ActionCard href="/admin/products" tone={lowStock.length > 0 ? 'warn' : 'calm'} title="📦 Low Stock">
+        <ActionCard href="/admin/products?lowStock=1" tone={lowStock.length > 0 ? 'warn' : 'calm'} title="📦 Low Stock">
           {lowStock.length > 0
             ? <><span className={`font-bold ${TONE.warn.num}`}>{lowStock.length}</span> product{lowStock.length > 1 ? 's' : ''} mein stock kam hai — restock ka time aa gaya.</>
             : 'Sab products well-stocked hain ✓'}
