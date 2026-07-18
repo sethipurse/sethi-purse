@@ -1101,6 +1101,94 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
       return json({ ok: true });
     }
 
+    // Preview list for the manual image-cleanup tool (admin/products page).
+    // Read-only — never deletes anything. `products` has no `updated_at`
+    // column (checked: no migration adds one, and the PUT handler above
+    // never writes one), so `created_at` is the only reliable "since when"
+    // signal available; hidden_days is therefore time-since-created, not
+    // necessarily time-since-hidden, for a product hidden well after creation.
+    if (segments.length === 2 && segments[1] === 'stale-hidden' && method === 'GET') {
+      const authError = requireAdmin(request);
+      if (authError) return authError;
+      const url = new URL(request.url);
+      const days = Math.max(1, parseInt(url.searchParams.get('days'), 10) || 180);
+      const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000;
+      const { data, error } = await supabase
+        .from('products')
+        .select('id, name, category, image_url, gallery_images, created_at')
+        .eq('is_active', false);
+      if (error) return json({ error: error.message }, 500);
+      const stale = (data || [])
+        .filter((p) => p.created_at && new Date(p.created_at).getTime() <= cutoffMs)
+        .map((p) => ({
+          id: p.id,
+          name: p.name,
+          category: p.category,
+          image_url: p.image_url || '',
+          gallery_images: Array.isArray(p.gallery_images) ? p.gallery_images : [],
+          hidden_days: Math.floor((Date.now() - new Date(p.created_at).getTime()) / (24 * 60 * 60 * 1000)),
+        }))
+        .sort((a, b) => b.hidden_days - a.hidden_days);
+      return json({
+        days,
+        count: stale.length,
+        products: stale,
+        note: "hidden_days is time since the product was created — products has no updated_at column to track the actual hide date.",
+      });
+    }
+
+    // Manual, explicit-selection-only image cleanup. Never bulk/automatic —
+    // only acts on the exact product IDs the admin checked and confirmed in
+    // the UI. Keeps the product row (name/price/category/history) intact;
+    // only clears the image fields after removing the files from Storage.
+    // Admin auth already enforced by the generic isMutation gate above.
+    if (segments.length === 2 && segments[1] === 'clean-images' && method === 'POST') {
+      const ids = Array.isArray(body?.ids) ? body.ids.filter((v) => typeof v === 'string' && v.trim()) : [];
+      if (ids.length === 0) return json({ error: 'ids array is required' }, 400);
+
+      const bucket = 'products';
+      const marker = `/object/public/${bucket}/`;
+      const extractPath = (imgUrl) => {
+        if (!imgUrl || typeof imgUrl !== 'string') return null;
+        const idx = imgUrl.indexOf(marker);
+        if (idx === -1) return null;
+        try { return decodeURIComponent(imgUrl.slice(idx + marker.length)); } catch { return imgUrl.slice(idx + marker.length); }
+      };
+
+      let cleaned = 0;
+      const failed = [];
+      for (const id of ids) {
+        try {
+          const { data: product, error: fetchError } = await supabase
+            .from('products')
+            .select('id, image_url, gallery_images')
+            .eq('id', id)
+            .single();
+          if (fetchError || !product) { failed.push({ id, reason: 'Product not found' }); continue; }
+
+          const urls = [product.image_url, ...(Array.isArray(product.gallery_images) ? product.gallery_images : [])].filter(Boolean);
+          const paths = [...new Set(urls.map(extractPath).filter(Boolean))];
+
+          if (paths.length > 0) {
+            const { error: removeError } = await supabase.storage.from(bucket).remove(paths);
+            if (removeError) { failed.push({ id, reason: removeError.message }); continue; }
+          }
+
+          const { error: updateError } = await supabase
+            .from('products')
+            .update({ image_url: '', gallery_images: [] })
+            .eq('id', id);
+          if (updateError) { failed.push({ id, reason: updateError.message }); continue; }
+
+          cleaned += 1;
+        } catch (err) {
+          failed.push({ id, reason: err.message || 'Unknown error' });
+        }
+      }
+
+      return json({ cleaned, failed });
+    }
+
     if (segments.length === 2) {
       const id = segments[1];
       if (method === 'GET') { const { data, error } = await supabase.from('products').select('*').eq('id', id).single(); if (error) return json({ error: 'Not found' }, 404); return json(data); }

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import AdminShell from '@/components/AdminShell';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { toast } from 'sonner';
-import { Trash2, Edit, Plus, Search, CheckSquare, Square, Loader2, Package, Star, ChevronDown, ChevronRight, List, LayoutGrid, Eye, EyeOff } from 'lucide-react';
+import { Trash2, Edit, Plus, Search, CheckSquare, Square, Loader2, Package, Star, ChevronDown, ChevronRight, List, LayoutGrid, Eye, EyeOff, ImageOff } from 'lucide-react';
 import { resolveImage } from '@/lib/constants';
 
 const VIEW_STORAGE_KEY = 'sethi-admin-products-view';
@@ -29,6 +29,17 @@ export default function AdminProductsPage() {
 
   // Inline stock edit state: { [productId]: { value, saving } }
   const [stockEdits, setStockEdits] = useState({});
+
+  // ── Manual hidden-image cleanup tool state ──
+  // staleProducts stays null until the owner explicitly runs a check —
+  // nothing is fetched or acted on automatically.
+  const [staleOpen, setStaleOpen] = useState(false);
+  const [staleDays, setStaleDays] = useState('180');
+  const [staleLoading, setStaleLoading] = useState(false);
+  const [staleProducts, setStaleProducts] = useState(null);
+  const [staleSelected, setStaleSelected] = useState(new Set());
+  const [staleConfirm, setStaleConfirm] = useState(false);
+  const [staleCleaning, setStaleCleaning] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -196,6 +207,64 @@ export default function AdminProductsPage() {
     if (successCount > 0) toast.success(`${successCount} product${successCount > 1 ? 's' : ''} deleted`);
     if (failCount > 0) toast.error(`${failCount} product${failCount > 1 ? 's' : ''} failed to delete`);
     load();
+  };
+
+  // ── Manual hidden-image cleanup: preview (read-only, never deletes) ──
+  const checkStaleHidden = async () => {
+    setStaleLoading(true);
+    try {
+      const res = await fetch(`/api/products/stale-hidden?days=${encodeURIComponent(staleDays)}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setStaleProducts(Array.isArray(data.products) ? data.products : []);
+      setStaleSelected(new Set());
+    } catch (err) {
+      console.error('Check stale hidden products failed:', err);
+      toast.error('Could not check for old hidden products.');
+      setStaleProducts([]);
+    } finally {
+      setStaleLoading(false);
+    }
+  };
+
+  const toggleStaleOne = (id) => setStaleSelected((prev) => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+
+  const toggleStaleAll = () => {
+    const ids = (staleProducts || []).map((p) => p.id);
+    const allIn = ids.length > 0 && ids.every((id) => staleSelected.has(id));
+    setStaleSelected(allIn ? new Set() : new Set(ids));
+  };
+
+  // Only ever sends the exact IDs the owner checked — no "clean all stale"
+  // shortcut exists anywhere in this flow.
+  const doCleanImages = async () => {
+    setStaleCleaning(true);
+    try {
+      const res = await fetch('/api/products/clean-images', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: [...staleSelected] }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      const failCount = Array.isArray(data.failed) ? data.failed.length : 0;
+      if (data.cleaned > 0) toast.success(`${data.cleaned} image${data.cleaned > 1 ? 's' : ''} cleaned`);
+      if (failCount > 0) toast.error(`${failCount} failed: ${data.failed.map((f) => f.reason).join(', ')}`);
+      setStaleConfirm(false);
+      setStaleSelected(new Set());
+      checkStaleHidden();
+      load();
+    } catch (err) {
+      console.error('Clean images failed:', err);
+      toast.error('Network error while cleaning images. Please try again.');
+      setStaleConfirm(false);
+    } finally {
+      setStaleCleaning(false);
+    }
   };
 
   // ── Inline stock edit ──
@@ -488,6 +557,89 @@ export default function AdminProductsPage() {
         <Link href="/admin/products/add" className="btn-primary"><Plus className="w-4 h-4" /> Add New Product</Link>
       </div>
 
+      {/* Manual hidden-image cleanup tool — on-demand only, nothing runs automatically */}
+      <div className="bg-white border border-sethi-gray200 rounded-sm mb-4">
+        <button
+          onClick={() => setStaleOpen((v) => !v)}
+          className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
+        >
+          <span className="flex items-center gap-2 font-semibold text-sethi-black">
+            <ImageOff className="w-4 h-4 text-sethi-gray500" /> Clean Old Hidden Product Images
+          </span>
+          {staleOpen ? <ChevronDown className="w-4 h-4 text-sethi-gray500" /> : <ChevronRight className="w-4 h-4 text-sethi-gray500" />}
+        </button>
+        {staleOpen && (
+          <div className="px-4 pb-4 border-t border-sethi-gray200 pt-4">
+            <p className="text-sm text-sethi-gray500 mb-3">
+              Reclaims storage space from long-hidden, one-off designs. Nothing is deleted automatically —
+              check the list, tick what you want gone, and confirm. The product record (name, price, category,
+              sold-history) always stays; only the image files and the row's image fields are cleared.
+            </p>
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <label className="text-sm text-sethi-gray500">Hidden for at least</label>
+              <input
+                type="number"
+                min="1"
+                value={staleDays}
+                onChange={(e) => setStaleDays(e.target.value)}
+                className="input-sethi w-24 !py-1.5"
+              />
+              <span className="text-sm text-sethi-gray500">days</span>
+              <button
+                onClick={checkStaleHidden}
+                disabled={staleLoading}
+                className="inline-flex items-center gap-2 border border-sethi-gold text-sethi-gold-dark px-3 py-1.5 rounded-sm text-sm font-semibold hover:bg-sethi-gold hover:text-sethi-black transition-colors disabled:opacity-60"
+              >
+                {staleLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                Check for old hidden products
+              </button>
+            </div>
+
+            {staleProducts !== null && (
+              staleProducts.length === 0 ? (
+                <p className="text-sm text-sethi-gray500">No hidden products older than {staleDays} days found.</p>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-2">
+                    <button onClick={toggleStaleAll} className="flex items-center gap-2 text-sm font-medium text-sethi-black">
+                      {staleProducts.length > 0 && staleProducts.every((p) => staleSelected.has(p.id))
+                        ? <CheckSquare className="w-4 h-4 text-sethi-gold" /> : <Square className="w-4 h-4 text-sethi-gray500" />}
+                      Select all ({staleProducts.length})
+                    </button>
+                    {staleSelected.size > 0 && (
+                      <button
+                        onClick={() => setStaleConfirm(true)}
+                        className="inline-flex items-center gap-2 bg-red-600 text-white px-3 py-1.5 rounded-sm text-sm font-semibold hover:bg-red-700 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" /> Clean selected images ({staleSelected.size})
+                      </button>
+                    )}
+                  </div>
+                  <div className="divide-y divide-sethi-gray200 border border-sethi-gray200 rounded-sm max-h-80 overflow-y-auto">
+                    {staleProducts.map((p) => (
+                      <label key={p.id} className="flex items-center gap-3 px-3 py-2 hover:bg-sethi-gray100/50 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={staleSelected.has(p.id)}
+                          onChange={() => toggleStaleOne(p.id)}
+                          className="w-4 h-4 accent-sethi-gold shrink-0"
+                        />
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={p.image_url || ''} alt="" className="w-10 h-10 object-cover rounded-sm bg-sethi-gray100 shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium truncate">{p.name}</div>
+                          <div className="text-xs text-sethi-gray500">{p.category} • hidden ~{p.hidden_days} days</div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              )
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Filters — category is the primary control, shown first and full-width */}
       <div className="bg-white border border-sethi-gray200 rounded-sm p-4 mb-4">
         <select
@@ -645,6 +797,17 @@ export default function AdminProductsPage() {
         loading={bulkDeleting}
         onConfirm={doBulkDelete}
         onCancel={() => setBulkConfirm(false)}
+      />
+
+      {/* Clean hidden-product images confirm */}
+      <ConfirmDialog
+        open={staleConfirm}
+        title={<span className="text-red-700">Delete {staleSelected.size} product image{staleSelected.size > 1 ? 's' : ''}?</span>}
+        message={<>You are about to permanently delete the image file{staleSelected.size > 1 ? 's' : ''} for <strong>{staleSelected.size}</strong> hidden product{staleSelected.size > 1 ? 's' : ''} from storage. This cannot be undone. The product record itself (name, price, category, history) will stay.</>}
+        confirmLabel={staleCleaning ? <><Loader2 className="w-4 h-4 animate-spin" /> Cleaning...</> : <><Trash2 className="w-4 h-4" /> Delete {staleSelected.size} image{staleSelected.size > 1 ? 's' : ''}</>}
+        loading={staleCleaning}
+        onConfirm={doCleanImages}
+        onCancel={() => setStaleConfirm(false)}
       />
     </AdminShell>
   );
