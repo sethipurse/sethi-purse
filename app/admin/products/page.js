@@ -4,11 +4,20 @@ import Link from 'next/link';
 import AdminShell from '@/components/AdminShell';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { toast } from 'sonner';
-import { Trash2, Edit, Plus, Search, CheckSquare, Square, Loader2, Package, Star, ChevronDown, ChevronRight, List, LayoutGrid, Eye, EyeOff, ImageOff } from 'lucide-react';
+import { Trash2, Edit, Plus, Search, CheckSquare, Square, Loader2, Package, Star, ChevronDown, ChevronRight, List, LayoutGrid, Eye, EyeOff } from 'lucide-react';
 import { resolveImage } from '@/lib/constants';
 
 const VIEW_STORAGE_KEY = 'sethi-admin-products-view';
 const COLLAPSED_STORAGE_KEY = 'sethi-admin-products-collapsed';
+
+// Quick-pick durations for the hidden-image cleanup panel — plain-language
+// Hinglish labels mapped to the day counts the stale-hidden API expects.
+const STALE_DAY_PRESETS = [
+  { label: '1 Mahina', days: '30' },
+  { label: '3 Mahine', days: '90' },
+  { label: '6 Mahine', days: '180' },
+  { label: '1 Saal', days: '365' },
+];
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState([]);
@@ -37,6 +46,7 @@ export default function AdminProductsPage() {
   // (hidden before hidden_at tracking started — no trustworthy duration).
   const [staleOpen, setStaleOpen] = useState(false);
   const [staleDays, setStaleDays] = useState('180');
+  const [staleCustomOpen, setStaleCustomOpen] = useState(false);
   const [staleLoading, setStaleLoading] = useState(false);
   const [staleData, setStaleData] = useState(null);
   const [staleSelected, setStaleSelected] = useState(new Set());
@@ -225,7 +235,7 @@ export default function AdminProductsPage() {
       setStaleSelected(new Set());
     } catch (err) {
       console.error('Check stale hidden products failed:', err);
-      toast.error('Could not check for old hidden products.');
+      toast.error('Purani photos dhoond nahi paye, dobara try karo.');
       setStaleData({ confident: [], unknownDuration: [] });
     } finally {
       setStaleLoading(false);
@@ -263,15 +273,15 @@ export default function AdminProductsPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
       const failCount = Array.isArray(data.failed) ? data.failed.length : 0;
-      if (data.cleaned > 0) toast.success(`${data.cleaned} image${data.cleaned > 1 ? 's' : ''} cleaned`);
-      if (failCount > 0) toast.error(`${failCount} failed: ${data.failed.map((f) => f.reason).join(', ')}`);
+      if (data.cleaned > 0) toast.success(`${data.cleaned} photo${data.cleaned > 1 ? 's' : ''} hata di gayi, jagah bach gayi! 🎉`);
+      if (failCount > 0) toast.error(`${failCount} photo${failCount > 1 ? 's' : ''} clean nahi ho payi. Dobara try karo.`);
       setStaleConfirm(false);
       setStaleSelected(new Set());
       checkStaleHidden();
       load();
     } catch (err) {
       console.error('Clean images failed:', err);
-      toast.error('Network error while cleaning images. Please try again.');
+      toast.error('Kuch gadbad ho gayi, dobara try karo.');
       setStaleConfirm(false);
     } finally {
       setStaleCleaning(false);
@@ -564,33 +574,41 @@ export default function AdminProductsPage() {
   // Renders one group (confident or unknownDuration) of the stale-hidden
   // preview list, each with its own "select all" toggle. `subtitle` renders
   // per-item — either a real day count or the honest "unknown" label.
-  const StaleGroupList = ({ items, subtitle }) => (
-    <div className="mb-3">
-      <button onClick={() => toggleStaleGroup(items)} className="flex items-center gap-2 text-sm font-medium text-sethi-black mb-2">
-        {items.length > 0 && items.every((p) => staleSelected.has(p.id))
-          ? <CheckSquare className="w-4 h-4 text-sethi-gold" /> : <Square className="w-4 h-4 text-sethi-gray500" />}
-        Select all ({items.length})
-      </button>
-      <div className="divide-y divide-sethi-gray200 border border-sethi-gray200 rounded-sm max-h-80 overflow-y-auto">
-        {items.map((p) => (
-          <label key={p.id} className="flex items-center gap-3 px-3 py-2 hover:bg-sethi-gray100/50 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={staleSelected.has(p.id)}
-              onChange={() => toggleStaleOne(p.id)}
-              className="w-4 h-4 accent-sethi-gold shrink-0"
-            />
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={p.image_url || ''} alt="" className="w-10 h-10 object-cover rounded-sm bg-sethi-gray100 shrink-0" />
-            <div className="min-w-0 flex-1">
-              <div className="font-medium truncate">{p.name}</div>
-              <div className="text-xs text-sethi-gray500">{p.category} • {subtitle(p)}</div>
-            </div>
-          </label>
-        ))}
+  const StaleGroupList = ({ items, subtitle }) => {
+    const allIn = items.length > 0 && items.every((p) => staleSelected.has(p.id));
+    return (
+      <div className="mb-3">
+        <button onClick={() => toggleStaleGroup(items)} className="flex items-center gap-2 text-sm font-medium text-sethi-black mb-2">
+          {allIn ? <CheckSquare className="w-4 h-4 text-sethi-gold" /> : <Square className="w-4 h-4 text-sethi-gray500" />}
+          {allIn ? 'Sab hatao' : 'Sab select karo'} ({items.length})
+        </button>
+        <div className="divide-y divide-sethi-gray200 border border-sethi-gray200 rounded-sm max-h-96 overflow-y-auto">
+          {items.map((p) => {
+            const price = p.salePrice ?? p.sale_price ?? p.price;
+            return (
+              <label key={p.id} className="flex items-center gap-3 px-3 py-3 hover:bg-sethi-gray100/50 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={staleSelected.has(p.id)}
+                  onChange={() => toggleStaleOne(p.id)}
+                  className="w-5 h-5 accent-sethi-gold shrink-0"
+                />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={p.image_url || ''} alt="" className="w-14 h-14 sm:w-16 sm:h-16 object-cover rounded-sm bg-sethi-gray100 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold text-sethi-black truncate">{p.name}</div>
+                  <div className="text-xs text-sethi-gray500 truncate">
+                    {p.category}{price !== undefined && price !== null && price !== '' ? ` • Rs.${price}` : ''}
+                  </div>
+                  <div className="text-xs text-sethi-gray500 mt-0.5">{subtitle(p)}</div>
+                </div>
+              </label>
+            );
+          })}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <AdminShell>
@@ -605,41 +623,62 @@ export default function AdminProductsPage() {
           onClick={() => setStaleOpen((v) => !v)}
           className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
         >
-          <span className="flex items-center gap-2 font-semibold text-sethi-black">
-            <ImageOff className="w-4 h-4 text-sethi-gray500" /> Clean Old Hidden Product Images
-          </span>
+          <span className="font-semibold text-sethi-black">🧹 Purani Photos Saaf Karo</span>
           {staleOpen ? <ChevronDown className="w-4 h-4 text-sethi-gray500" /> : <ChevronRight className="w-4 h-4 text-sethi-gray500" />}
         </button>
         {staleOpen && (
           <div className="px-4 pb-4 border-t border-sethi-gray200 pt-4">
             <p className="text-sm text-sethi-gray500 mb-3">
-              Reclaims storage space from long-hidden, one-off designs. Nothing is deleted automatically —
-              check the list, tick what you want gone, and confirm. The product record (name, price, category,
-              sold-history) always stays; only the image files and the row's image fields are cleared.
+              Jo products bik chuke hain aur ab kabhi nahi aayenge, unki photos hata ke jagah bacha lo. Kuch bhi
+              apne aap delete nahi hota — aap khud dekh ke, tick karke, confirm karoge. Naam/price/category
+              hamesha safe rehta hai, sirf photo jaati hai.
             </p>
-            <div className="flex flex-wrap items-center gap-2 mb-3">
-              <label className="text-sm text-sethi-gray500">Hidden for at least</label>
-              <input
-                type="number"
-                min="1"
-                value={staleDays}
-                onChange={(e) => setStaleDays(e.target.value)}
-                className="input-sethi w-24 !py-1.5"
-              />
-              <span className="text-sm text-sethi-gray500">days</span>
+
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              {STALE_DAY_PRESETS.map((preset) => (
+                <button
+                  key={preset.days}
+                  onClick={() => setStaleDays(preset.days)}
+                  className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-colors ${staleDays === preset.days ? 'bg-sethi-gold text-sethi-black' : 'bg-sethi-gray100 text-sethi-gray500 hover:bg-sethi-gray200'}`}
+                >
+                  {preset.label}
+                </button>
+              ))}
+              <button
+                onClick={() => setStaleCustomOpen((v) => !v)}
+                className="text-sm text-sethi-gold hover:underline"
+              >
+                ya khud number daalo
+              </button>
+            </div>
+
+            {staleCustomOpen && (
+              <div className="flex flex-wrap items-center gap-2 mb-3 mt-2">
+                <input
+                  type="number"
+                  min="1"
+                  value={staleDays}
+                  onChange={(e) => setStaleDays(e.target.value)}
+                  className="input-sethi w-24 !py-1.5"
+                />
+                <span className="text-sm text-sethi-gray500">din se hidden</span>
+              </div>
+            )}
+
+            <div className="mt-3 mb-3">
               <button
                 onClick={checkStaleHidden}
                 disabled={staleLoading}
                 className="inline-flex items-center gap-2 border border-sethi-gold text-sethi-gold-dark px-3 py-1.5 rounded-sm text-sm font-semibold hover:bg-sethi-gold hover:text-sethi-black transition-colors disabled:opacity-60"
               >
                 {staleLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                Check for old hidden products
+                Purani photos dhoondo
               </button>
             </div>
 
             {staleData !== null && (
               staleData.confident.length === 0 && staleData.unknownDuration.length === 0 ? (
-                <p className="text-sm text-sethi-gray500">No hidden products found.</p>
+                <p className="text-sm text-sethi-gray500">Koi purani hidden photo nahi mili — sab saaf hai! 🎉</p>
               ) : (
                 <>
                   {staleSelected.size > 0 && (
@@ -648,7 +687,7 @@ export default function AdminProductsPage() {
                         onClick={() => setStaleConfirm(true)}
                         className="inline-flex items-center gap-2 bg-red-600 text-white px-3 py-1.5 rounded-sm text-sm font-semibold hover:bg-red-700 transition-colors"
                       >
-                        <Trash2 className="w-4 h-4" /> Clean selected images ({staleSelected.size})
+                        <Trash2 className="w-4 h-4" /> Photos saaf karo ({staleSelected.size})
                       </button>
                     </div>
                   )}
@@ -656,26 +695,27 @@ export default function AdminProductsPage() {
                   {staleData.confident.length > 0 && (
                     <div>
                       <h4 className="text-sm font-semibold text-sethi-black mb-2">
-                        Hidden for {staleDays}+ days ({staleData.confident.length})
+                        {staleDays}+ din se hidden — pakka hai ({staleData.confident.length})
                       </h4>
-                      <StaleGroupList items={staleData.confident} subtitle={(p) => `hidden ${p.hidden_days} days`} />
+                      <StaleGroupList items={staleData.confident} subtitle={(p) => `${p.hidden_days} din se hidden`} />
                     </div>
                   )}
 
                   {staleData.unknownDuration.length > 0 && (
                     <div>
                       <h4 className="text-sm font-semibold text-amber-700 mb-1">
-                        Hidden before we started tracking dates — review these manually before cleaning ({staleData.unknownDuration.length})
+                        ⚠️ Purana data — kab hide hua pata nahi, dekh ke faisla karo ({staleData.unknownDuration.length})
                       </h4>
                       <p className="text-xs text-sethi-gray500 mb-2">
-                        These were hidden before the hidden-since tracking was added, so we don&apos;t know how long they&apos;ve actually been hidden.
+                        Ye tab hide hue the jab hide-hone-ki-date track nahi hoti thi, isliye exact din pata nahi.
+                        Dhyan se dekh ke faisla karo.
                       </p>
-                      <StaleGroupList items={staleData.unknownDuration} subtitle={() => 'hidden since unknown'} />
+                      <StaleGroupList items={staleData.unknownDuration} subtitle={() => 'kab hide hua pata nahi'} />
                     </div>
                   )}
 
                   {staleData.confident.length === 0 && staleData.unknownDuration.length > 0 && (
-                    <p className="text-sm text-sethi-gray500 mt-2">No hidden products confidently older than {staleDays} days — only unreviewed legacy ones above.</p>
+                    <p className="text-sm text-sethi-gray500 mt-2">{staleDays}+ din se pakka hidden koi nahi mila — bas neeche wale purane records dekho.</p>
                   )}
                 </>
               )
@@ -846,9 +886,9 @@ export default function AdminProductsPage() {
       {/* Clean hidden-product images confirm */}
       <ConfirmDialog
         open={staleConfirm}
-        title={<span className="text-red-700">Delete {staleSelected.size} product image{staleSelected.size > 1 ? 's' : ''}?</span>}
-        message={<>You are about to permanently delete the image file{staleSelected.size > 1 ? 's' : ''} for <strong>{staleSelected.size}</strong> hidden product{staleSelected.size > 1 ? 's' : ''} from storage. This cannot be undone. The product record itself (name, price, category, history) will stay.</>}
-        confirmLabel={staleCleaning ? <><Loader2 className="w-4 h-4 animate-spin" /> Cleaning...</> : <><Trash2 className="w-4 h-4" /> Delete {staleSelected.size} image{staleSelected.size > 1 ? 's' : ''}</>}
+        title={<span className="text-red-700">{staleSelected.size} photo{staleSelected.size > 1 ? 's' : ''} delete karein?</span>}
+        message={<><strong>{staleSelected.size}</strong> photo{staleSelected.size > 1 ? 's' : ''} hamesha ke liye delete ho jaayengi. Product ka naam/price/category safe rahega. Pakka?</>}
+        confirmLabel={staleCleaning ? <><Loader2 className="w-4 h-4 animate-spin" /> Saaf ho raha hai...</> : <><Trash2 className="w-4 h-4" /> Haan, delete karo</>}
         loading={staleCleaning}
         onConfirm={doCleanImages}
         onCancel={() => setStaleConfirm(false)}
