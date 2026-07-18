@@ -12,7 +12,7 @@ import CabinCheck from '@/components/CabinCheck';
 import DealsAlertButton from '@/components/DealsAlertButton';
 import Portal from '@/components/Portal';
 import { buildBuyNowMessage, buildProductUrl, buildWhatsAppLink, productPrice, REPLY_PROMISE, resolveImage, SET_DISCOUNT_NOTE } from '@/lib/constants';
-import { isLuggageCategory } from '@/lib/categoryUtils';
+import { categoryPath, isLuggageCategory } from '@/lib/categoryUtils';
 
 function rupee(value) {
   return `Rs.${Number(value || 0).toLocaleString('en-IN')}`;
@@ -241,6 +241,7 @@ const TRUST_ITEMS = [
 const STORE_VISIT_TEXT = 'Visit our store: Inside Mai Hiran Gate, Near Books Market, Jalandhar';
 
 export default function ProductDetailClient({ product, related = [], reviews = [] }) {
+  const isUnavailable = product.is_active === false;
   const colorVariants = useMemo(() => normalizeColors(product), [product]);
   const defaultImages = useMemo(() => getDefaultImages(product), [product]);
   const lowStockCount = (() => {
@@ -297,7 +298,7 @@ export default function ProductDetailClient({ product, related = [], reviews = [
   const selectedColorData = colorVariants.find((c) => c.name === selectedColor);
   const colorOutOfStock = selectedColorData ? !selectedColorData.inStock : false;
   const noInStockColorSelected = colorVariants.length > 0 && !selectedColor;
-  const cannotPurchase = outOfStock || colorOutOfStock || noInStockColorSelected;
+  const cannotPurchase = isUnavailable || outOfStock || colorOutOfStock || noInStockColorSelected;
 
   const viewCartAction = { label: 'View Cart →', onClick: () => window.dispatchEvent(new Event('open-cart')) };
 
@@ -328,7 +329,7 @@ export default function ProductDetailClient({ product, related = [], reviews = [
   // Luggage sells in sets — suggest a same-brand pairing from the already
   // same-category `related` list, cheaper-or-equal price preferred.
   const pairCandidate = useMemo(() => {
-    if (!isLuggageCategory(category)) return null;
+    if (isUnavailable || !isLuggageCategory(category)) return null;
     const candidates = related.filter((p) =>
       p.id !== product.id &&
       product.brand && p.brand === product.brand &&
@@ -336,7 +337,7 @@ export default function ProductDetailClient({ product, related = [], reviews = [
     );
     if (candidates.length === 0) return null;
     return [...candidates].sort((a, b) => productPrice(a) - productPrice(b))[0];
-  }, [related, product, category]);
+  }, [related, product, category, isUnavailable]);
 
   const addBothToCart = () => {
     if (!pairCandidate) return;
@@ -397,6 +398,18 @@ export default function ProductDetailClient({ product, related = [], reviews = [
             <h1 className="mt-2 text-5xl font-bold leading-none text-[#2c1f14] md:text-6xl">{product.name}</h1>
             {product.brand && <p className="mt-3 text-xl text-[#6b5544]">by <span className="font-bold text-[#2c1f14]">{product.brand}</span></p>}
 
+            {isUnavailable && (
+              <div className="mt-5 rounded-lg border border-[#e5d9c3] bg-[#f5f0e8] px-4 py-3">
+                <p className="text-base font-semibold text-[#6b5544]">
+                  Ye design ab available nahi hai — dekhne ke liye dhanyavaad! Naye arrivals dekhna chahenge?
+                </p>
+                <Link href={categoryPath(category)}
+                  className="mt-2 inline-flex items-center gap-1.5 text-sm font-bold text-[#a07a28] hover:text-[#c9a84c]">
+                  Naye Arrivals Dekhein <ArrowLeft className="h-3.5 w-3.5 rotate-180" />
+                </Link>
+              </div>
+            )}
+
             <div className="mt-6 flex flex-wrap items-end gap-4">
               <span className="text-4xl font-bold text-[#2c1f14]">{rupee(salePrice)}</span>
               {mrp > salePrice && <span className="pb-1 text-xl text-[#8a7060] line-through">{rupee(mrp)}</span>}
@@ -431,7 +444,7 @@ export default function ProductDetailClient({ product, related = [], reviews = [
             {isLuggageCategory(category) && <CabinCheck product={product} selectedSize={selectedSize} />}
 
             {/* Scarcity signals block */}
-            {isScarcityOn && !outOfStock && (
+            {isScarcityOn && !outOfStock && !isUnavailable && (
               <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 flex flex-col gap-2">
                 {product.scarcity_label && (
                   <div className="flex items-center gap-2 text-sm font-bold text-red-700">
@@ -493,8 +506,8 @@ export default function ProductDetailClient({ product, related = [], reviews = [
                       );
                     })}
                   </div>
-                  {colorOutOfStock && <p className="mt-2 text-sm text-red-600 font-semibold">This color is currently out of stock. Message us on WhatsApp to know when it&apos;s restocked.</p>}
-                  {outOfStock && colorVariants.length > 0 && <p className="mt-2 text-sm text-red-600 font-semibold">All colors are currently out of stock. Message us on WhatsApp to know when they&apos;re restocked.</p>}
+                  {!isUnavailable && colorOutOfStock && <p className="mt-2 text-sm text-red-600 font-semibold">This color is currently out of stock. Message us on WhatsApp to know when it&apos;s restocked.</p>}
+                  {!isUnavailable && outOfStock && colorVariants.length > 0 && <p className="mt-2 text-sm text-red-600 font-semibold">All colors are currently out of stock. Message us on WhatsApp to know when they&apos;re restocked.</p>}
                 </div>
               )}
 
@@ -511,7 +524,7 @@ export default function ProductDetailClient({ product, related = [], reviews = [
             <div className="mt-7 grid gap-3 sm:grid-cols-2">
               <button type="button" onClick={added ? viewCartAction.onClick : addToCart} disabled={cannotPurchase}
                 className={`flex h-14 items-center justify-center gap-2 rounded text-xl font-bold transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed ${added ? 'bg-green-500 text-white scale-95' : 'bg-[#c9a84c] text-white hover:bg-[#a07a28]'}`}>
-                {added ? <><Check className="h-5 w-5" /> Added!</> : <><ShoppingBag className="h-5 w-5" /> {cannotPurchase && !added ? 'Out of Stock' : 'Add to Cart'}</>}
+                {added ? <><Check className="h-5 w-5" /> Added!</> : <><ShoppingBag className="h-5 w-5" /> {isUnavailable ? 'No Longer Available' : cannotPurchase && !added ? 'Out of Stock' : 'Add to Cart'}</>}
               </button>
               <a href={cannotPurchase ? undefined : buildWhatsAppLink(buyNowMessage)} target="_blank" rel="noopener noreferrer"
                 aria-disabled={cannotPurchase} onClick={(e) => cannotPurchase && e.preventDefault()}
