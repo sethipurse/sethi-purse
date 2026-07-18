@@ -31,12 +31,14 @@ export default function AdminProductsPage() {
   const [stockEdits, setStockEdits] = useState({});
 
   // ── Manual hidden-image cleanup tool state ──
-  // staleProducts stays null until the owner explicitly runs a check —
-  // nothing is fetched or acted on automatically.
+  // staleData stays null until the owner explicitly runs a check — nothing
+  // is fetched or acted on automatically. It holds two separate groups:
+  // `confident` (real hidden_at-based day counts) and `unknownDuration`
+  // (hidden before hidden_at tracking started — no trustworthy duration).
   const [staleOpen, setStaleOpen] = useState(false);
   const [staleDays, setStaleDays] = useState('180');
   const [staleLoading, setStaleLoading] = useState(false);
-  const [staleProducts, setStaleProducts] = useState(null);
+  const [staleData, setStaleData] = useState(null);
   const [staleSelected, setStaleSelected] = useState(new Set());
   const [staleConfirm, setStaleConfirm] = useState(false);
   const [staleCleaning, setStaleCleaning] = useState(false);
@@ -216,12 +218,15 @@ export default function AdminProductsPage() {
       const res = await fetch(`/api/products/stale-hidden?days=${encodeURIComponent(staleDays)}`);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      setStaleProducts(Array.isArray(data.products) ? data.products : []);
+      setStaleData({
+        confident: Array.isArray(data.confident) ? data.confident : [],
+        unknownDuration: Array.isArray(data.unknownDuration) ? data.unknownDuration : [],
+      });
       setStaleSelected(new Set());
     } catch (err) {
       console.error('Check stale hidden products failed:', err);
       toast.error('Could not check for old hidden products.');
-      setStaleProducts([]);
+      setStaleData({ confident: [], unknownDuration: [] });
     } finally {
       setStaleLoading(false);
     }
@@ -233,10 +238,16 @@ export default function AdminProductsPage() {
     return next;
   });
 
-  const toggleStaleAll = () => {
-    const ids = (staleProducts || []).map((p) => p.id);
+  // Selects/deselects all items within a single group (confident or
+  // unknownDuration) without touching the other group's selection.
+  const toggleStaleGroup = (list) => {
+    const ids = list.map((p) => p.id);
     const allIn = ids.length > 0 && ids.every((id) => staleSelected.has(id));
-    setStaleSelected(allIn ? new Set() : new Set(ids));
+    setStaleSelected((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => allIn ? next.delete(id) : next.add(id));
+      return next;
+    });
   };
 
   // Only ever sends the exact IDs the owner checked — no "clean all stale"
@@ -550,6 +561,37 @@ export default function AdminProductsPage() {
     );
   };
 
+  // Renders one group (confident or unknownDuration) of the stale-hidden
+  // preview list, each with its own "select all" toggle. `subtitle` renders
+  // per-item — either a real day count or the honest "unknown" label.
+  const StaleGroupList = ({ items, subtitle }) => (
+    <div className="mb-3">
+      <button onClick={() => toggleStaleGroup(items)} className="flex items-center gap-2 text-sm font-medium text-sethi-black mb-2">
+        {items.length > 0 && items.every((p) => staleSelected.has(p.id))
+          ? <CheckSquare className="w-4 h-4 text-sethi-gold" /> : <Square className="w-4 h-4 text-sethi-gray500" />}
+        Select all ({items.length})
+      </button>
+      <div className="divide-y divide-sethi-gray200 border border-sethi-gray200 rounded-sm max-h-80 overflow-y-auto">
+        {items.map((p) => (
+          <label key={p.id} className="flex items-center gap-3 px-3 py-2 hover:bg-sethi-gray100/50 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={staleSelected.has(p.id)}
+              onChange={() => toggleStaleOne(p.id)}
+              className="w-4 h-4 accent-sethi-gold shrink-0"
+            />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={p.image_url || ''} alt="" className="w-10 h-10 object-cover rounded-sm bg-sethi-gray100 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <div className="font-medium truncate">{p.name}</div>
+              <div className="text-xs text-sethi-gray500">{p.category} • {subtitle(p)}</div>
+            </div>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <AdminShell>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
@@ -595,44 +637,46 @@ export default function AdminProductsPage() {
               </button>
             </div>
 
-            {staleProducts !== null && (
-              staleProducts.length === 0 ? (
-                <p className="text-sm text-sethi-gray500">No hidden products older than {staleDays} days found.</p>
+            {staleData !== null && (
+              staleData.confident.length === 0 && staleData.unknownDuration.length === 0 ? (
+                <p className="text-sm text-sethi-gray500">No hidden products found.</p>
               ) : (
                 <>
-                  <div className="flex items-center justify-between mb-2">
-                    <button onClick={toggleStaleAll} className="flex items-center gap-2 text-sm font-medium text-sethi-black">
-                      {staleProducts.length > 0 && staleProducts.every((p) => staleSelected.has(p.id))
-                        ? <CheckSquare className="w-4 h-4 text-sethi-gold" /> : <Square className="w-4 h-4 text-sethi-gray500" />}
-                      Select all ({staleProducts.length})
-                    </button>
-                    {staleSelected.size > 0 && (
+                  {staleSelected.size > 0 && (
+                    <div className="flex justify-end mb-3">
                       <button
                         onClick={() => setStaleConfirm(true)}
                         className="inline-flex items-center gap-2 bg-red-600 text-white px-3 py-1.5 rounded-sm text-sm font-semibold hover:bg-red-700 transition-colors"
                       >
                         <Trash2 className="w-4 h-4" /> Clean selected images ({staleSelected.size})
                       </button>
-                    )}
-                  </div>
-                  <div className="divide-y divide-sethi-gray200 border border-sethi-gray200 rounded-sm max-h-80 overflow-y-auto">
-                    {staleProducts.map((p) => (
-                      <label key={p.id} className="flex items-center gap-3 px-3 py-2 hover:bg-sethi-gray100/50 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={staleSelected.has(p.id)}
-                          onChange={() => toggleStaleOne(p.id)}
-                          className="w-4 h-4 accent-sethi-gold shrink-0"
-                        />
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={p.image_url || ''} alt="" className="w-10 h-10 object-cover rounded-sm bg-sethi-gray100 shrink-0" />
-                        <div className="min-w-0 flex-1">
-                          <div className="font-medium truncate">{p.name}</div>
-                          <div className="text-xs text-sethi-gray500">{p.category} • hidden ~{p.hidden_days} days</div>
-                        </div>
-                      </label>
-                    ))}
-                  </div>
+                    </div>
+                  )}
+
+                  {staleData.confident.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-semibold text-sethi-black mb-2">
+                        Hidden for {staleDays}+ days ({staleData.confident.length})
+                      </h4>
+                      <StaleGroupList items={staleData.confident} subtitle={(p) => `hidden ${p.hidden_days} days`} />
+                    </div>
+                  )}
+
+                  {staleData.unknownDuration.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-semibold text-amber-700 mb-1">
+                        Hidden before we started tracking dates — review these manually before cleaning ({staleData.unknownDuration.length})
+                      </h4>
+                      <p className="text-xs text-sethi-gray500 mb-2">
+                        These were hidden before the hidden-since tracking was added, so we don&apos;t know how long they&apos;ve actually been hidden.
+                      </p>
+                      <StaleGroupList items={staleData.unknownDuration} subtitle={() => 'hidden since unknown'} />
+                    </div>
+                  )}
+
+                  {staleData.confident.length === 0 && staleData.unknownDuration.length > 0 && (
+                    <p className="text-sm text-sethi-gray500 mt-2">No hidden products confidently older than {staleDays} days — only unreviewed legacy ones above.</p>
+                  )}
                 </>
               )
             )}

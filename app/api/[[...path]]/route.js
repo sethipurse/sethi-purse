@@ -1104,11 +1104,12 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
     }
 
     // Preview list for the manual image-cleanup tool (admin/products page).
-    // Read-only — never deletes anything. `products` has no `updated_at`
-    // column (checked: no migration adds one, and the PUT handler above
-    // never writes one), so `created_at` is the only reliable "since when"
-    // signal available; hidden_days is therefore time-since-created, not
-    // necessarily time-since-hidden, for a product hidden well after creation.
+    // Read-only — never deletes anything. Staleness is measured from
+    // hidden_at (set exactly when is_active flips to false — see the PUT
+    // handler above), never guessed from created_at. Products hidden before
+    // this column existed have hidden_at = NULL — those are never silently
+    // assigned a fabricated duration; they're returned in a separate
+    // `unknownDuration` group so the owner knows which numbers to trust.
     if (segments.length === 2 && segments[1] === 'stale-hidden' && method === 'GET') {
       const authError = requireAdmin(request);
       if (authError) return authError;
@@ -1117,25 +1118,40 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
       const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000;
       const { data, error } = await supabase
         .from('products')
-        .select('id, name, category, image_url, gallery_images, created_at')
+        .select('id, name, category, image_url, gallery_images, hidden_at')
         .eq('is_active', false);
       if (error) return json({ error: error.message }, 500);
-      const stale = (data || [])
-        .filter((p) => p.created_at && new Date(p.created_at).getTime() <= cutoffMs)
+
+      const withHiddenAt = (data || []).filter((p) => p.hidden_at);
+      const withoutHiddenAt = (data || []).filter((p) => !p.hidden_at);
+
+      const confident = withHiddenAt
+        .filter((p) => new Date(p.hidden_at).getTime() <= cutoffMs)
         .map((p) => ({
           id: p.id,
           name: p.name,
           category: p.category,
           image_url: p.image_url || '',
           gallery_images: Array.isArray(p.gallery_images) ? p.gallery_images : [],
-          hidden_days: Math.floor((Date.now() - new Date(p.created_at).getTime()) / (24 * 60 * 60 * 1000)),
+          hidden_days: Math.floor((Date.now() - new Date(p.hidden_at).getTime()) / (24 * 60 * 60 * 1000)),
         }))
         .sort((a, b) => b.hidden_days - a.hidden_days);
+
+      const unknownDuration = withoutHiddenAt.map((p) => ({
+        id: p.id,
+        name: p.name,
+        category: p.category,
+        image_url: p.image_url || '',
+        gallery_images: Array.isArray(p.gallery_images) ? p.gallery_images : [],
+        hiddenSince: 'unknown (hidden before tracking started)',
+      }));
+
       return json({
         days,
-        count: stale.length,
-        products: stale,
-        note: "hidden_days is time since the product was created — products has no updated_at column to track the actual hide date.",
+        count: confident.length + unknownDuration.length,
+        confident,
+        unknownDuration,
+        note: 'unknownDuration products were hidden before hidden_at tracking started (migration 009) — review these manually before cleaning, since their real hidden duration is not known.',
       });
     }
 
