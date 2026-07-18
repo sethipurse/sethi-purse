@@ -1053,27 +1053,29 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
         // Falsy check here would wrongly reject a legitimate Rs.0 sale price
         // (same bug class as the historical rating-0 bug) — check presence.
         if (!p.name || !(p.category || p.category_id) || saleValue === undefined || saleValue === null || saleValue === '') return json({ error: 'Missing required fields' }, 400);
-        
-        const newProduct = { 
-          id: uuidv4(), 
-          name: String(p.name).trim(), 
-          brand: String(p.brand || '').trim(), 
-          category: String(p.category || p.category_id).trim(), 
-          category_id: p.category_id || null, 
-          mrp: Number(p.mrp ?? p.original_price) || 0, 
-          original_price: Number(p.original_price ?? p.mrp) || 0, 
-          sale_price: Number(saleValue), 
-          discount_percent: Number(p.discount_percent) || 0, 
-          description: String(p.description || '').trim(), 
-          image_url: String(p.imageUrl || p.image_url || '').trim(), 
-          image_type: p.imageType || 'url', 
-          gallery_images: Array.isArray(p.gallery_images || p.galleryImages) ? (p.gallery_images || p.galleryImages) : [], 
+
+        const isActiveValue = p.isActive === undefined && p.is_active === undefined ? true : !!(p.isActive ?? p.is_active);
+        const newProduct = {
+          id: uuidv4(),
+          name: String(p.name).trim(),
+          brand: String(p.brand || '').trim(),
+          category: String(p.category || p.category_id).trim(),
+          category_id: p.category_id || null,
+          mrp: Number(p.mrp ?? p.original_price) || 0,
+          original_price: Number(p.original_price ?? p.mrp) || 0,
+          sale_price: Number(saleValue),
+          discount_percent: Number(p.discount_percent) || 0,
+          description: String(p.description || '').trim(),
+          image_url: String(p.imageUrl || p.image_url || '').trim(),
+          image_type: p.imageType || 'url',
+          gallery_images: Array.isArray(p.gallery_images || p.galleryImages) ? (p.gallery_images || p.galleryImages) : [],
           sizes: Array.isArray(p.sizes) ? p.sizes : [],
           colors: Array.isArray(p.colors) ? p.colors : [],
           tags: Array.isArray(p.tags) ? p.tags : [],
-          stock: p.stock === '' || p.stock === null || p.stock === undefined ? null : Number(p.stock), 
-          featured: !!p.featured, 
-          is_active: p.isActive === undefined && p.is_active === undefined ? true : !!(p.isActive ?? p.is_active),
+          stock: p.stock === '' || p.stock === null || p.stock === undefined ? null : Number(p.stock),
+          featured: !!p.featured,
+          is_active: isActiveValue,
+          hidden_at: isActiveValue ? null : nowIST(),
           // ✅ SCARCITY FIELDS
           scarcity_mode: String(p.scarcity_mode || 'off').trim(),
           display_stock: p.display_stock === '' || p.display_stock === null ? null : Number(p.display_stock),
@@ -1212,7 +1214,18 @@ Rules: benefit-first, confident tone, no markdown, no emojis, max 70 words, no i
         if (p.tags !== undefined) updates.tags = Array.isArray(p.tags) ? p.tags : [];
         if (p.stock !== undefined) updates.stock = p.stock === '' || p.stock === null ? null : Number(p.stock);
         if (p.featured !== undefined) updates.featured = !!p.featured;
-        if (p.isActive !== undefined || p.is_active !== undefined) updates.is_active = !!(p.isActive ?? p.is_active);
+        if (p.isActive !== undefined || p.is_active !== undefined) {
+          const newActive = !!(p.isActive ?? p.is_active);
+          updates.is_active = newActive;
+          // hidden_at must reflect the ACTUAL transition, not just the
+          // incoming value — look up what the product's is_active currently
+          // is before deciding whether this PUT is a hide, an unhide, or a
+          // no-op (e.g. re-saving the edit form with is_active unchanged).
+          const { data: cur } = await supabase.from('products').select('is_active').eq('id', id).single();
+          const wasActive = cur ? cur.is_active !== false : true;
+          if (wasActive && !newActive) updates.hidden_at = nowIST();
+          else if (!wasActive && newActive) updates.hidden_at = null;
+        }
         // ✅ SCARCITY FIELDS IN PUT
         if (p.scarcity_mode !== undefined) updates.scarcity_mode = String(p.scarcity_mode || 'off').trim();
         if (p.display_stock !== undefined) updates.display_stock = p.display_stock === '' || p.display_stock === null ? null : Number(p.display_stock);
